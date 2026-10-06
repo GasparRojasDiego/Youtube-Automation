@@ -1,0 +1,40 @@
+{
+  "name": "atril",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ATRIL — estudio de producción asistida para YouTube (VT Asvent)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@fontsource/anton": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/oswald": "^5.3.0",
+    "@fontsource/poppins": "^5.3.0",
+    "@fontsource/source-serif-4": "^5.3.0",
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-dialog": "^2.8.1",
+    "@tauri-apps/plugin-opener": "^2.7.0",
+    "lucide-react": "^1.52.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.29",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  }
+}
