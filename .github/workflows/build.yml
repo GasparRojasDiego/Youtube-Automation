@@ -1,0 +1,86 @@
+name: Compilar ATRIL
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publicar como release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+
+  windows:
+    name: Windows (.exe e instalador)
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - name: Descargar ffmpeg (incluido como binario auxiliar)
+        shell: pwsh
+        run: |
+          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Invoke-WebRequest $url -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-dl
+          $bin = Get-ChildItem -Recurse ffmpeg-dl -Filter ffmpeg.exe | Select-Object -First 1
+          Copy-Item $bin.FullName src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+          Copy-Item (Join-Path $bin.DirectoryName "ffprobe.exe") src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
+          & src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe -hide_banner -encoders | Select-String "h264_qsv|libx264|h264_mf"
+      - run: npm ci
+      - name: Compilar con Tauri
+        run: npx tauri build
+      - name: Reunir entregables
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          New-Item -ItemType Directory -Force out, portable | Out-Null
+          Copy-Item src-tauri/target/release/bundle/nsis/*.exe "out/ATRIL_${v}_instalador_x64.exe"
+          Copy-Item src-tauri/target/release/bundle/msi/*.msi "out/ATRIL_${v}_x64.msi"
+          Copy-Item src-tauri/target/release/atril.exe portable/ATRIL.exe
+          Copy-Item src-tauri/target/release/ffmpeg.exe, src-tauri/target/release/ffprobe.exe portable/
+          Copy-Item portable/ATRIL.exe "out/ATRIL_${v}_x64.exe"
+          @"
+          ATRIL $v — versión portátil
+          Descomprime la carpeta completa (ATRIL.exe necesita ffmpeg.exe y ffprobe.exe a su lado).
+          Requiere Microsoft Edge WebView2 (incluido en Windows 11).
+          Para instalar con acceso directo y desinstalador, usa ATRIL_${v}_instalador_x64.exe.
+          "@ | Out-File -Encoding utf8 portable/LEEME.txt
+          Compress-Archive -Path portable/* -DestinationPath "out/ATRIL_${v}_portable_x64.zip"
+          Get-ChildItem out | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ATRIL-windows
+          path: out/*
+          if-no-files-found: error
+      - name: Publicar release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release) || contains(github.event.head_commit.message, '[release]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: ATRIL 1.0.0
+          target_commitish: ${{ github.sha }}
+          body_path: docs/RELEASE_NOTES.md
+          files: out/*
+          make_latest: true

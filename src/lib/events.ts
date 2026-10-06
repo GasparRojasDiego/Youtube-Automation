@@ -11,7 +11,7 @@ type ToastListener = (t: Toast) => void;
 const toastListeners = new Set<ToastListener>();
 let toastSeq = 1;
 
-export function onToast(fn: ToastListener) { toastListeners.add(fn); return () => toastListeners.delete(fn); }
+export function onToast(fn: ToastListener): () => void { toastListeners.add(fn); return () => { toastListeners.delete(fn); }; }
 
 export function toast(level: Level, title: string, detail?: string, action?: Toast["action"]) {
   const t = { id: toastSeq++, level, title, detail, action };

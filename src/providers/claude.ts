@@ -99,7 +99,7 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
   const res = await proc.run({
     id: c.jobId ?? uid("p_"), program: exe, args, cwd: jobDir, stdin: c.prompt,
     timeoutS: Math.round((c.timeoutMin ?? cfg.timeoutMin) * 60),
-    env: { CLAUDE_CODE_ENTRYPOINT: "atril", DISABLE_AUTOUPDATER: "1" },
+    env: { DISABLE_AUTOUPDATER: "1" },
   });
   if (res.timed_out) throw new UserError(`Claude Code tardó demasiado en «${c.label}».`, "Sube el tiempo máximo en Ajustes → Claude Code o reintenta.", "claude");
   const parsed = parseClaudeOutput<T>(res.stdout, res.stderr, res.code);

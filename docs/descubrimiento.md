@@ -1,7 +1,22 @@
 # Descubrimiento: hechos verificados, costo preliminar y preguntas abiertas
 
-> **Estado (2026-10-06):** fase previa al diseño. Todavía no hay código.
-> Este documento registra lo que condiciona el diseño y las preguntas que deben responderse antes de proponer la arquitectura. Se actualizará con las respuestas.
+> **Estado (2026-10-06):** preguntas respondidas y v1.0.0 construida.
+> Las decisiones resultantes están en la sección 0. El resto del documento conserva los hallazgos que condicionaron el diseño.
+
+## 0. Decisiones tomadas con las respuestas
+
+| Tema | Decisión |
+|---|---|
+| Presupuesto | **100 soles al mes** (≈ 26–27 USD). Tope duro configurable en la app. |
+| Modelo de lenguaje | **Claude Code CLI** con el plan existente del titular, en modo no interactivo (`claude -p --json-schema`). Costo marginal: 0. Uso personal durante un año. |
+| Voz | Google Chirp 3 HD por defecto (1 M de caracteres gratis al mes). Alternativas: Gemini TTS, ElevenLabs y **voz propia** (teleprónter más grabación), pensada para el video premium semanal. |
+| Imágenes | Pocas generadas por video (Gemini, con máximo configurable). El resto, archivo libre de Wikimedia Commons y tarjetas dibujadas por la app sin costo. |
+| Identidad del canal y estudio de mercado | **No están en el código.** Son *habilidades* que el usuario crea, activa, desactiva y edita (como las skills de Claude). La app solo ofrece el formato y las herramientas de la fase cero. |
+| Fase cero | El usuario genera los perfiles en NotebookLM con una rúbrica fija que da la app. La app los analiza y los destila en borradores de habilidades. |
+| Interfaz | En español, con la identidad visual de VT Asvent (Frame) aplicada **solo a la app**. |
+| Shorts y TikTok | Fuera de la v1. |
+| Equipo | Lenovo Yoga Book 9i: i7-1355U, 16 GB de RAM, Iris Xe, 200 GB libres, 37 Mbps de subida. Montaje local con ffmpeg y Quick Sync. |
+| Revisión diaria | 30 minutos. Dos puntos de control: guion verificado y revisión final. |
 
 **Cómo se verificó.**
 - **Políticas y APIs de Google:** se verificaron con el texto de las páginas oficiales tal como lo indexan los buscadores. El proxy de este entorno bloqueó la lectura directa de `developers.google.com`, `support.google.com` y `ai.google.dev`.
