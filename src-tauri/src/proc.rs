@@ -13,6 +13,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[derive(Default)]
 pub struct Procs(pub Mutex<HashMap<String, u32>>);
 
+/// Procesos de larga duración (p. ej. el navegador sin ventana del motor de motion).
+#[derive(Default)]
+pub struct Daemons(pub Mutex<HashMap<String, tokio::process::Child>>);
+
 #[derive(Deserialize)]
 pub struct RunReq {
     id: String,
@@ -206,5 +210,33 @@ fn kill_tree(pid: u32) -> bool {
             .status()
             .map(|s| s.success())
             .unwrap_or(false)
+    }
+}
+
+/// Lanza un proceso que sigue vivo (no espera a que termine). Devuelve el PID.
+#[tauri::command]
+pub async fn proc_spawn(daemons: tauri::State<'_, Daemons>, id: String, program: String, args: Vec<String>) -> Result<u32, String> {
+    if let Some(mut old) = daemons.0.lock().unwrap().remove(&id) {
+        let _ = old.start_kill();
+    }
+    let mut cmd = build_command(&program, &args);
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true);
+    let child = cmd.spawn().map_err(|e| format!("No se pudo iniciar «{program}»: {e}"))?;
+    let pid = child.id().unwrap_or(0);
+    daemons.0.lock().unwrap().insert(id, child);
+    Ok(pid)
+}
+
+#[tauri::command]
+pub fn proc_stop(daemons: tauri::State<'_, Daemons>, id: String) -> bool {
+    match daemons.0.lock().unwrap().remove(&id) {
+        Some(mut c) => {
+            if let Some(pid) = c.id() {
+                kill_tree(pid);
+            }
+            let _ = c.start_kill();
+            true
+        }
+        None => false,
     }
 }

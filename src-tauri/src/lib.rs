@@ -130,6 +130,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(proc::Procs::default())
+        .manage(proc::Daemons::default())
         .manage(OAuth::default())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
@@ -161,6 +162,8 @@ pub fn run() {
             proc::proc_run,
             proc::proc_kill,
             proc::which,
+            proc::proc_spawn,
+            proc::proc_stop,
             secret_set,
             secret_get,
             secret_delete,

@@ -126,6 +126,7 @@ pub struct AppPaths {
     exe_dir: String,
     resources: String,
     home: String,
+    documents: String,
 }
 
 #[tauri::command]
@@ -137,10 +138,12 @@ pub fn app_paths(app: tauri::AppHandle) -> Result<AppPaths, String> {
         .unwrap_or_default();
     let resources = app.path().resource_dir().unwrap_or_default();
     let home = app.path().home_dir().unwrap_or_default();
+    let documents = app.path().document_dir().unwrap_or_else(|_| home.join("Documents"));
     Ok(AppPaths {
         data: data.to_string_lossy().to_string(),
         exe_dir: exe_dir.to_string_lossy().to_string(),
         resources: resources.to_string_lossy().to_string(),
         home: home.to_string_lossy().to_string(),
+        documents: documents.to_string_lossy().to_string(),
     })
 }

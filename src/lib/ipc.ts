@@ -64,6 +64,8 @@ export const proc = {
     }),
   kill: (id: string) => invoke<boolean>("proc_kill", { id }),
   which: (program: string) => invoke<string | null>("which", { program }),
+  spawn: (id: string, program: string, args: string[]) => invoke<number>("proc_spawn", { id, program, args }),
+  stop: (id: string) => invoke<boolean>("proc_stop", { id }),
   onLine: (cb: (e: { id: string; stream: string; line: string }) => void): Promise<UnlistenFn> =>
     listen<{ id: string; stream: string; line: string }>("proc-line", (ev) => cb(ev.payload)),
 };
@@ -87,7 +89,7 @@ export const onUploadProgress = (cb: (p: { id: string; sent: number; total: numb
 export const onUploadSession = (cb: (p: { id: string; session: string }) => void) =>
   listen<{ id: string; session: string }>("upload-session", (e) => cb(e.payload));
 
-export interface AppPaths { data: string; exe_dir: string; resources: string; home: string }
+export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string }
 let pathsCache: AppPaths | null = null;
 export async function appPaths(): Promise<AppPaths> {
   if (!pathsCache) pathsCache = await invoke<AppPaths>("app_paths");
@@ -99,4 +101,12 @@ export function fileUrl(path: string, bust?: number | string): string {
   if (!path) return "";
   const u = convertFileSrc(path);
   return bust ? `${u}?v=${bust}` : u;
+}
+
+/** Ruta de un recurso incluido con la app (fuentes, GSAP). */
+export async function resourcePath(...parts: string[]): Promise<string> {
+  const p = await appPaths();
+  const sep = p.resources.includes("\\") ? "\\" : "/";
+  const a = [p.resources, "resources", ...parts].join(sep);
+  return (await fs.exists(a)) ? a : [p.resources, ...parts].join(sep);
 }

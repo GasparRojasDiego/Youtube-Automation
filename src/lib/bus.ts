@@ -1,7 +1,7 @@
 // Bus mínimo de eventos para refrescar la interfaz cuando cambian los datos.
 import { useEffect, useReducer } from "react";
 
-type Topic = "settings" | "videos" | "stages" | "events" | "skills" | "topics" | "costs" | "creators" | "vocab" | "metrics" | "music" | "channels" | "jobs";
+type Topic = "settings" | "videos" | "stages" | "events" | "skills" | "topics" | "costs" | "creators" | "vocab" | "metrics" | "music" | "channels" | "jobs" | "activity" | "live" | "assets" | "usage";
 const listeners = new Map<Topic, Set<() => void>>();
 
 export function emit(...topics: Topic[]) {

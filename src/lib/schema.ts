@@ -85,6 +85,35 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_videos_channel ON videos(channel_id, created_at);
   CREATE INDEX IF NOT EXISTS idx_topics_channel ON topics(channel_id, status, position);
   `,
+  // 2 — biblioteca de medios, uso de Claude y APIs, actividad en vivo
+  `
+  CREATE TABLE IF NOT EXISTS assets (
+    id TEXT PRIMARY KEY, kind TEXT NOT NULL, source TEXT NOT NULL, source_id TEXT NOT NULL,
+    url TEXT, page_url TEXT, title TEXT DEFAULT '', author TEXT DEFAULT '', license TEXT DEFAULT '',
+    license_url TEXT DEFAULT '', attribution TEXT DEFAULT '', path TEXT, thumb TEXT,
+    width INTEGER, height INTEGER, duration REAL, bytes INTEGER, sha TEXT, query TEXT DEFAULT '',
+    description TEXT DEFAULT '', tags TEXT DEFAULT '', mood TEXT DEFAULT '', quality INTEGER DEFAULT 0,
+    real_person INTEGER DEFAULT 0, usable INTEGER DEFAULT 1, issues TEXT DEFAULT '',
+    described_at INTEGER, created_at INTEGER, used_count INTEGER DEFAULT 0, last_used INTEGER,
+    favorite INTEGER DEFAULT 0, UNIQUE(source, source_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_assets_kind ON assets(kind, created_at);
+  CREATE VIRTUAL TABLE IF NOT EXISTS assets_fts USING fts5(asset_id UNINDEXED, title, description, tags, query, tokenize='unicode61 remove_diacritics 2');
+  CREATE TABLE IF NOT EXISTS api_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, provider TEXT, ts INTEGER, ok INTEGER, note TEXT);
+  CREATE INDEX IF NOT EXISTS idx_api_calls ON api_calls(provider, ts);
+  CREATE TABLE IF NOT EXISTS activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, video_id TEXT, ts INTEGER, stage TEXT, kind TEXT,
+    title TEXT, detail TEXT, thumb TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity ON activity(video_id, id);
+  CREATE TABLE IF NOT EXISTS claude_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, video_id TEXT, stage TEXT, label TEXT, model TEXT,
+    input_tokens INTEGER DEFAULT 0, cache_read INTEGER DEFAULT 0, cache_write INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0, web_searches INTEGER DEFAULT 0, api_equiv REAL DEFAULT 0,
+    duration_ms INTEGER DEFAULT 0, five_hour REAL, seven_day REAL, five_hour_before REAL, seven_day_before REAL, ok INTEGER DEFAULT 1
+  );
+  CREATE INDEX IF NOT EXISTS idx_claude_runs ON claude_runs(ts);
+  `,
 ];
 
 export async function migrate(): Promise<void> {
