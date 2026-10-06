@@ -1,17 +1,21 @@
 # ATRIL
 
-**Estudio de producción asistida para YouTube** · VT Asvent · v1.0.0
+**Estudio de producción asistida para YouTube** · VT Asvent · v2.0.0
 
 ATRIL automatiza el trabajo repetitivo de producir un video documental en inglés:
 
 1. investigación con fuentes primarias;
 2. guion;
 3. verificación de cada afirmación contra su fuente;
-4. narración;
-5. imágenes;
-6. miniatura y metadatos;
-7. montaje;
-8. publicación.
+4. narración, alineada frase a frase;
+5. storyboard (Sonnet);
+6. búsqueda de material libre, descripción por visión y casting (Sonnet), con una biblioteca reutilizable;
+7. retoques de edición y animaciones (Opus, renderizadas con Edge sin ventana);
+8. miniatura y metadatos;
+9. montaje por capas (subtítulos, música por capítulo, efectos);
+10. publicación.
+
+Todo se ve en vivo en el **Estudio**, y el consumo del plan de Claude (ventanas de 5 h y 7 días) está siempre visible.
 
 El usuario revisa y aprueba en dos puntos de control: el guion verificado y la revisión final. **Ningún video se publica sin aprobación explícita.**
 
@@ -21,11 +25,11 @@ Es una aplicación de escritorio para Windows, hecha con Tauri 2 (Rust) y React 
 
 En la página de *Releases* del repositorio:
 
-- `ATRIL_1.0.0_instalador_x64.exe`: instalador recomendado. Crea un acceso directo y un desinstalador.
-- `ATRIL_1.0.0_portable_x64.zip`: versión portátil (`ATRIL.exe` junto con `ffmpeg.exe` y `ffprobe.exe`).
-- `ATRIL_1.0.0_x64.msi`: instalador MSI alternativo.
+- `ATRIL_2.0.0_instalador_x64.exe`: instalador recomendado. Crea un acceso directo y un desinstalador.
+- `ATRIL_2.0.0_portable_x64.zip`: versión portátil (`ATRIL.exe` junto con `ffmpeg.exe`, `ffprobe.exe` y `resources`).
+- `ATRIL_2.0.0_x64.msi`: instalador MSI alternativo.
 
-La configuración inicial (Claude Code, Google Cloud, Gemini y YouTube) está en la pestaña **Guía** dentro de la app.
+La configuración inicial (Claude Code, Google Cloud, fuentes de material libre y YouTube) está en la pestaña **Guía** dentro de la app.
 
 ## Principios de diseño
 

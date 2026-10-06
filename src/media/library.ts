@@ -54,6 +54,7 @@ function extFor(c: Candidate, url: string): string {
 
 /** Miniatura para la interfaz (y forma de onda para el audio). */
 async function makeThumb(a: { kind: AssetKind; path: string; duration?: number | null }, out: string) {
+  await fs.mkdir(out.replace(/[\\/][^\\/]+$/, ""));
   if (a.kind === "image") await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", a.path, "-vf", "scale=480:-2", "-frames:v", "1", "-q:v", "4", out]);
   else if (a.kind === "video") await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", String(Math.min(1, (a.duration ?? 2) / 3)), "-i", a.path, "-vf", "scale=480:-2", "-frames:v", "1", "-q:v", "4", out]);
   else await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", a.path, "-filter_complex", "aformat=channel_layouts=mono,showwavespic=s=480x120:colors=0x7591FF", "-frames:v", "1", out]);
@@ -194,13 +195,14 @@ export async function visionProxy(a: Asset): Promise<string> {
   const root = await libraryRoot();
   const out = joinPath(root, ".vision", `${a.id}.jpg`);
   if (await fs.exists(out)) return out;
+  await fs.mkdir(joinPath(root, ".vision"));
   if (a.kind === "image") {
     await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", a.path, "-vf", "scale='min(800,iw)':'min(800,ih)':force_original_aspect_ratio=decrease", "-frames:v", "1", "-q:v", "4", out]);
   } else {
     const d = Math.max(0.4, a.duration ?? 4);
     // 4 cuadros repartidos en el clip, en mosaico 2×2 de 800×450
     await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", a.path, "-vf",
-      `fps=${(4 / d).toFixed(4)},scale=400:225:force_original_aspect_ratio=decrease,pad=400:225:(ow-iw)/2:(oh-ih)/2,tile=2x2`, "-frames:v", "1", "-q:v", "4", out]);
+      `fps=${(4 / d).toFixed(4)},scale=400:225:force_original_aspect_ratio=increase,crop=400:225,setsar=1,tile=2x2`, "-frames:v", "1", "-q:v", "4", out]);
   }
   return out;
 }

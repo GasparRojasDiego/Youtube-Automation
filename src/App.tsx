@@ -25,6 +25,8 @@ import { UsagePage } from "./pages/Usage";
 import { StudioPage } from "./pages/Studio";
 import { LibraryPage } from "./pages/Library";
 import { HeaderUsage } from "./ui/Usage";
+import { getLimits } from "./lib/usage";
+import { refreshPlanUsage } from "./providers/claude";
 import { SettingsPage } from "./pages/Settings";
 import { Diagnostics } from "./pages/Diagnostics";
 import { Guide } from "./pages/Guide";
@@ -64,6 +66,17 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => { void listChannels().then(setChannels); void unreadCount().then(setUnread); }, [tick]);
+  // Lectura del plan: solo si hay una ventana de 5 h en curso (nunca abre una ventana nueva por su cuenta)
+  useEffect(() => {
+    const check = async () => {
+      const l = await getLimits();
+      const active = !!l?.fiveHour && l.fiveHour.resetsAt > Date.now();
+      if (active && Date.now() - l!.updatedAt > 15 * 60_000 && !runningVideoId()) await refreshPlanUsage().catch(() => null);
+    };
+    void check();
+    const t = setInterval(() => void check(), 15 * 60_000);
+    return () => clearInterval(t);
+  }, []);
   useEffect(() => { document.documentElement.classList.toggle("dark", s.theme === "dark"); }, [s.theme]);
 
   if (!s.onboarded) return (<><Welcome /><Toaster /></>);
