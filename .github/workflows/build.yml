@@ -58,8 +58,11 @@ jobs:
           New-Item -ItemType Directory -Force out, portable | Out-Null
           Copy-Item src-tauri/target/release/bundle/nsis/*.exe "out/ATRIL_${v}_instalador_x64.exe"
           Copy-Item src-tauri/target/release/bundle/msi/*.msi "out/ATRIL_${v}_x64.msi"
-          Copy-Item src-tauri/target/release/atril.exe portable/ATRIL.exe
-          Copy-Item src-tauri/target/release/ffmpeg.exe, src-tauri/target/release/ffprobe.exe portable/
+          $main = Get-ChildItem src-tauri/target/release -Filter *.exe | Where-Object { $_.Name -notmatch '^(ffmpeg|ffprobe)' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          Write-Host "Ejecutable principal: $($main.Name)"
+          Copy-Item $main.FullName portable/ATRIL.exe
+          Copy-Item src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe portable/ffmpeg.exe
+          Copy-Item src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe portable/ffprobe.exe
           Copy-Item portable/ATRIL.exe "out/ATRIL_${v}_x64.exe"
           @"
           ATRIL $v — versión portátil

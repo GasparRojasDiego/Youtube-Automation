@@ -195,6 +195,7 @@ Rules:
 - Use title/quote/text cards for chapter openings, key numbers and short quotations.
 - Generated images must never depict identifiable real people photorealistically, must not show logos, brands, trademarks or copyrighted characters, and must follow the visual skill for coherence.
 - Vary motion; avoid the same motion twice in a row.
+- On-screen text (cards and lower thirds) must be at least as cautious as the narration: never state as fact something the narration presents as an inference or opinion, and never add claims that are not in the narration.
 
 SOURCES: ${JSON.stringify(o.sources)}
 
@@ -304,4 +305,21 @@ OPERATOR GOAL: ${o.goal || "(not specified)"}
 
 PROFILES (weight = importance set by the operator):
 ${o.profiles.map((p) => `### ${p.name} (weight ${p.weight})\n${JSON.stringify(p.profile)}`).join("\n\n")}`;
+}
+
+// ---------- Refinar una habilidad (ciclo propone → corrige → incorpora) ----------
+export const REFINE_SCHEMA = obj({
+  summary_es: str("Qué cambiaste y por qué, en 2-4 frases"),
+  new_content: str("Complete new Markdown content of the skill"),
+});
+
+export function refinePrompt(o: { name: string; content: string; request: string; context: string }) {
+  return `Revise the channel skill below according to the operator's corrections. Keep its structure, its fenced \`atril:*\` parameter blocks (valid JSON) and everything the operator did not ask to change. Add positive and negative examples where they help. Write the rules in the same language the skill already uses.
+
+OPERATOR CORRECTIONS (Spanish):
+${o.request}
+${o.context ? `\nREFERENCE MATERIAL:\n${o.context}\n` : ""}
+<skill name="${o.name}">
+${o.content}
+</skill>`;
 }

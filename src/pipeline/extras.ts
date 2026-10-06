@@ -199,3 +199,17 @@ export async function resolveProposal(id: string, accept: boolean) {
   await db.execute("UPDATE proposals SET status=? WHERE id=?", [accept ? "accepted" : "rejected", id]);
   emit("metrics", "skills");
 }
+
+// ---------- Refinar habilidad con IA ----------
+export async function refineSkill(name: string, content: string, request: string, channelId: string | null, withProfiles: boolean): Promise<{ summary_es: string; new_content: string }> {
+  let context = "";
+  if (withProfiles) {
+    const creators = (await listCreators(channelId)).filter((c) => c.profile_json);
+    context = creators.map((c) => `### ${c.name} (peso ${c.weight})\n${JSON.stringify({ distinctive: c.profile_json.distinctive_es, principles: c.profile_json.principles_es, titles: c.profile_json.title_patterns_es, hooks: c.profile_json.hook_patterns_es, structure: c.profile_json.structure_es, avoid: c.profile_json.avoid_es })}`).join("\n\n");
+  }
+  const r = await claudeRun<{ summary_es: string; new_content: string }>({
+    stage: "analysis", label: `Refinar habilidad «${name}»`, system: P.SYSTEM_BASE, schema: P.REFINE_SCHEMA,
+    prompt: P.refinePrompt({ name, content, request, context }), channelId,
+  });
+  return r.data;
+}

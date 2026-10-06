@@ -9,7 +9,7 @@ import { toast, logError } from "../lib/events";
 
 const Score = ({ label, v, invert = false }: { label: string; v?: number; invert?: boolean }) => {
   const val = v ?? 0; const good = invert ? val <= 2 : val >= 4; const bad = invert ? val >= 4 : val <= 2;
-  return <span className={`text-[11px] tabular ${good ? "text-green-500" : bad ? "text-red-500" : "text-muted-foreground"}`}>{label} {val || "–"}</span>;
+  return <span className={`text-[11px] tabular ${good ? "text-green-700 dark:text-green-500" : bad ? "text-red-600 dark:text-red-500" : "text-muted-foreground"}`}>{label} {val || "–"}</span>;
 };
 
 export function Topics() {

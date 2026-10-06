@@ -7,8 +7,8 @@ import { fmtDate } from "../lib/util";
 import { navigate } from "../ui/nav";
 
 const ICON: Record<string, { i: typeof Info; c: string }> = {
-  error: { i: XCircle, c: "bg-red-500/15 text-red-500" }, warn: { i: AlertTriangle, c: "bg-amber-500/15 text-amber-500" },
-  success: { i: CheckCircle2, c: "bg-green-500/15 text-green-500" }, info: { i: Info, c: "bg-primary/15 text-primary" },
+  error: { i: XCircle, c: "bg-red-500/15 text-red-600 dark:text-red-500" }, warn: { i: AlertTriangle, c: "bg-amber-500/15 text-amber-700 dark:text-amber-500" },
+  success: { i: CheckCircle2, c: "bg-green-500/15 text-green-700 dark:text-green-500" }, info: { i: Info, c: "bg-primary/15 text-primary" },
 };
 
 export function NotificationsPanel({ onClose }: { onClose: () => void }) {

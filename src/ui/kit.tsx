@@ -47,7 +47,7 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
   return (
     <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="inline-flex items-center gap-2 text-sm">
       <span className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${checked ? "bg-primary" : "bg-secondary border border-border"}`}>
-        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ease-frame ${checked ? "translate-x-4" : "translate-x-0.5"}`} />
+        <span className={`absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ease-frame ${checked ? "translate-x-4" : "translate-x-0.5"}`} />
       </span>
       {label && <span>{label}</span>}
     </button>
@@ -79,10 +79,10 @@ export function Progress({ value, className = "" }: { value: number; className?:
 const STATUS: Record<StageStatus, { label: string; cls: string; icon: LucideIcon }> = {
   pending: { label: "Pendiente", cls: "text-muted-foreground border-border", icon: CircleDashed },
   running: { label: "En curso", cls: "text-primary border-primary/40 bg-primary/10", icon: Loader2 },
-  done: { label: "Hecho", cls: "text-green-500 border-green-500/40 bg-green-500/10", icon: Check },
-  approved: { label: "Aprobado", cls: "text-green-500 border-green-500/40 bg-green-500/10", icon: Check },
-  review: { label: "Te espera", cls: "text-amber-500 border-amber-500/50 bg-amber-500/10", icon: Eye },
-  failed: { label: "Falló", cls: "text-red-500 border-red-500/50 bg-red-500/10", icon: AlertTriangle },
+  done: { label: "Hecho", cls: "text-green-700 dark:text-green-500 border-green-500/40 bg-green-500/10", icon: Check },
+  approved: { label: "Aprobado", cls: "text-green-700 dark:text-green-500 border-green-500/40 bg-green-500/10", icon: Check },
+  review: { label: "Te espera", cls: "text-amber-700 dark:text-amber-500 border-amber-500/50 bg-amber-500/10", icon: Eye },
+  failed: { label: "Falló", cls: "text-red-600 dark:text-red-500 border-red-500/50 bg-red-500/10", icon: AlertTriangle },
   skipped: { label: "Omitido", cls: "text-muted-foreground border-border", icon: Ban },
 };
 
@@ -93,11 +93,11 @@ export function StatusChip({ status }: { status: StageStatus }) {
 
 export function StatusIcon({ status, size = 14 }: { status: StageStatus; size?: number }) {
   const s = STATUS[status] ?? STATUS.pending; const I = s.icon;
-  return <I size={size} className={`${s.cls.split(" ")[0]} ${status === "running" ? "animate-spin" : ""}`} />;
+  return <I size={size} className={`${s.cls.split(" ").filter((c) => c.startsWith("text-") || c.startsWith("dark:text-")).join(" ")} ${status === "running" ? "animate-spin" : ""}`} />;
 }
 
 export function Chip({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "primary" | "green" | "amber" | "red" }) {
-  const cls = { muted: "text-muted-foreground border-border", primary: "text-primary border-primary/40 bg-primary/10", green: "text-green-500 border-green-500/40 bg-green-500/10", amber: "text-amber-500 border-amber-500/50 bg-amber-500/10", red: "text-red-500 border-red-500/50 bg-red-500/10" }[tone];
+  const cls = { muted: "text-muted-foreground border-border", primary: "text-primary border-primary/40 bg-primary/10", green: "text-green-700 dark:text-green-500 border-green-500/40 bg-green-500/10", amber: "text-amber-700 dark:text-amber-500 border-amber-500/50 bg-amber-500/10", red: "text-red-600 dark:text-red-500 border-red-500/50 bg-red-500/10" }[tone];
   return <span className={`chip ${cls}`}>{children}</span>;
 }
 
@@ -186,7 +186,7 @@ export function Markdown({ text, className = "" }: { text: string; className?: s
 }
 
 export function Stat({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: ReactNode; tone?: "amber" | "red" | "green" }) {
-  const c = tone === "red" ? "text-red-500" : tone === "amber" ? "text-amber-500" : tone === "green" ? "text-green-500" : "text-foreground";
+  const c = tone === "red" ? "text-red-600 dark:text-red-500" : tone === "amber" ? "text-amber-700 dark:text-amber-500" : tone === "green" ? "text-green-700 dark:text-green-500" : "text-foreground";
   return (
     <div>
       <div className="label">{label}</div>

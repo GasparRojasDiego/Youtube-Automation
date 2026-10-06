@@ -140,7 +140,7 @@ function OwnVoiceRecorder({ video, script }: { video: Video; script: ScriptOut }
     <Card title={`Grabación con tu voz · segmento ${idx + 1}/${script.segments.length}`} icon={Mic}
       actions={<div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Tamaño</span><input type="range" min={20} max={48} value={fontPx} onChange={(e) => setFontPx(+e.target.value)} /></div>}>
       <div className="flex gap-1.5 flex-wrap mb-3">
-        {script.segments.map((s, i) => <button key={s.id} onClick={() => !recording && setIdx(i)} className={`chip ${i === idx ? "border-primary text-primary bg-primary/10" : done[s.id] ? "border-green-500/50 text-green-500" : "border-border"}`}>{done[s.id] && <Check size={10} />}{i + 1}</button>)}
+        {script.segments.map((s, i) => <button key={s.id} onClick={() => !recording && setIdx(i)} className={`chip ${i === idx ? "border-primary text-primary bg-primary/10" : done[s.id] ? "border-green-500/50 text-green-700 dark:text-green-500" : "border-border"}`}>{done[s.id] && <Check size={10} />}{i + 1}</button>)}
       </div>
       <div className="rounded-lg bg-[#111113] text-[#F2EFE9] p-8 max-h-[46vh] overflow-y-auto leading-relaxed" style={{ fontSize: fontPx, fontFamily: '"Source Serif 4", Georgia, serif' }}>
         <div className="text-xs uppercase tracking-[0.3em] text-[#9DB0F1] mb-4" style={{ fontFamily: "Poppins" }}>{seg.title}</div>
@@ -178,7 +178,7 @@ export function VisualsPanel({ video, data }: { video: Video; data: VisualsOut }
               <span className="absolute top-1.5 left-1.5 chip bg-black/60 border-white/20 text-white">{KIND[s.kind]}</span>
               {s.dur && <span className="absolute bottom-1.5 right-1.5 chip bg-black/60 border-white/20 text-white tabular">{s.dur.toFixed(1)} s</span>}
             </div>
-            <div className="p-2 text-[11px] text-muted-foreground line-clamp-2">{s.error ? <span className="text-amber-500">{s.error}</span> : s.prompt_en || s.archival_query || s.card_text || s.source_id}</div>
+            <div className="p-2 text-[11px] text-muted-foreground line-clamp-2">{s.error ? <span className="text-amber-700 dark:text-amber-500">{s.error}</span> : s.prompt_en || s.archival_query || s.card_text || s.source_id}</div>
           </button>
         ))}
       </div>
@@ -253,6 +253,7 @@ export function RenderPanel({ data }: { data: RenderOut }) {
   return (
     <Card title={`Video final · ${fmtDuration(data.duration)} · ${fmtBytes(data.sizeBytes)} · codificador ${data.encoder}`}>
       <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(data.file, data.renderedAt)} />
+      <button className="btn-ghost btn-sm mt-2" onClick={() => void openPath(data.file)}>Abrir en el reproductor del sistema</button>
     </Card>
   );
 }
@@ -265,7 +266,7 @@ export function PublishPanel({ video, row }: { video: Video; row: StageRow }) {
       <div className="space-y-2 text-sm">
         <div><button className="text-primary hover:underline inline-flex items-center gap-1" onClick={() => void openUrl(out.url)}>{out.url} <ExternalLink size={12} /></button></div>
         <div className="flex gap-2"><Chip tone="green">{out.publish_at ? `Programado: ${new Date(out.publish_at).toLocaleString("es-PE")}` : `Estado: ${out.privacy}`}</Chip>{!out.thumbnail_ok && <Chip tone="amber">Miniatura pendiente (súbela en Studio)</Chip>}</div>
-        {out.note_es && <div className="text-xs text-amber-500">{out.note_es}</div>}
+        {out.note_es && <div className="text-xs text-amber-700 dark:text-amber-500">{out.note_es}</div>}
         <button className="btn-ghost btn-sm" onClick={() => void openUrl(`https://studio.youtube.com/video/${out.youtube_id}/edit`)}>Abrir en YouTube Studio</button>
       </div>
     </Card>

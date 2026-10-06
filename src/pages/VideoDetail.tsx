@@ -3,6 +3,7 @@ import { ArrowLeft, Play, Square, FolderOpen, RotateCcw, AlertTriangle, Mic } fr
 import { openPath } from "@tauri-apps/plugin-opener";
 import { useBus } from "../lib/bus";
 import { getVideo, getStages, STAGES, type StageRow, type Video, type StageId } from "../lib/repo";
+import { db } from "../lib/ipc";
 import { videoCost } from "../lib/costs";
 import { runVideo, cancelCurrent, runningVideoId, retryStage, rerenderFrom, isQueued } from "../pipeline/runner";
 import { navigate } from "../ui/nav";
@@ -19,10 +20,12 @@ export function VideoDetail({ id }: { id: string }) {
   const [stages, setStages] = useState<StageRow[]>([]);
   const [cost, setCost] = useState({ usd: 0, apiEquiv: 0 });
   const [sel, setSel] = useState<StageId | null>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
 
   useEffect(() => {
     void (async () => {
       setVideo(await getVideo(id)); const st = await getStages(id); setStages(st); setCost(await videoCost(id));
+      setReviews(await db.query("SELECT * FROM reviews WHERE video_id=? ORDER BY created_at DESC", [id]));
     })();
   }, [id, tick]);
 
@@ -70,7 +73,7 @@ export function VideoDetail({ id }: { id: string }) {
           {row.status === "running" && <div className="card p-4 flex items-center gap-3 text-sm"><Spinner /> {row.progress ?? "Trabajando…"}</div>}
           {row.status === "failed" && (
             <div className="card border-red-500/50 p-4">
-              <div className="flex items-center gap-2 font-semibold text-red-500"><AlertTriangle size={16} /> La etapa falló</div>
+              <div className="flex items-center gap-2 font-semibold text-red-600 dark:text-red-500"><AlertTriangle size={16} /> La etapa falló</div>
               <pre className="text-xs whitespace-pre-wrap mt-2 text-muted-foreground max-h-64 overflow-y-auto">{row.error}</pre>
               <div className="text-xs mt-2">El trabajo hecho quedó guardado; al reintentar se reanuda desde aquí sin volver a pagar lo generado.</div>
               <button className="btn-primary btn-sm mt-3" onClick={() => void retryStage(video.id, current)}><RotateCcw size={13} /> Reintentar</button>
@@ -79,6 +82,20 @@ export function VideoDetail({ id }: { id: string }) {
           {row.status === "pending" && row.error && <div className="card p-3 text-xs text-muted-foreground">{row.error}</div>}
           <StagePanel video={video} stages={stages} stage={current} row={row} />
         </div>
+      )}
+      {reviews.length > 0 && (
+        <Card title="Decisiones de revisión">
+          <div className="space-y-1.5">
+            {reviews.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 text-xs">
+                <span className="text-muted-foreground w-28 shrink-0">{fmtDate(r.created_at)}</span>
+                <Chip tone={r.decision === "approved" ? "green" : r.decision === "rejected" ? "red" : "amber"}>{r.stage === "verify" ? "Guion" : "Final"} · {r.decision === "approved" ? "aprobado" : r.decision === "rejected" ? "rechazado" : "correcciones"}</Chip>
+                <span className="tabular text-muted-foreground">{Math.round(r.seconds / 60)} min</span>
+                <span className="truncate">{r.notes}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
     </div>
   );

@@ -12,6 +12,7 @@ import { synthesize, chunkText, ttsProviderName, type VoiceOverride } from "../p
 import { generateImage, searchCommons, downloadCommons } from "../providers/images";
 import { ffmpeg, probeDuration, pickEncoder } from "../providers/ffmpeg";
 import { uploadVideo, setThumbnail } from "../providers/youtube";
+import { onUploadProgress, onUploadSession } from "../lib/ipc";
 import * as P from "./prompts";
 import * as L from "./logic";
 import { segmentClipArgs, finalMixArgs, concatList, joinAudioArgs, toWavArgs, trimSilenceArgs, segmentDuration, type ShotSpec } from "./montage";
@@ -238,7 +239,8 @@ export async function stageVisuals(ctx: Ctx, opts: { replan?: boolean } = {}): P
     const h = await shotHash(sh, visualKey);
     if (sh.image && sh.hash === h && (await fs.exists(sh.image))) continue;
     await ctx.progress(`Imagen ${i + 1}/${shots.length} (${sh.kind})`);
-    const base = joinPath(dir, sh.id);
+    // Nombre único por generación: si la toma se rehace, el montaje detecta el cambio.
+    const base = joinPath(dir, `${sh.id}-${Date.now().toString(36)}`);
     const seg = segs.find((x) => x.id === sh.segment_id)!;
     sh.error = null;
     try {
@@ -254,7 +256,13 @@ export async function stageVisuals(ctx: Ctx, opts: { replan?: boolean } = {}): P
         sh.image = r.path; sh.provenance = r.provenance;
       } else if (sh.kind === "source_card") {
         const src = nameSrc(sh.source_id);
-        const fact = research.facts.find((f) => f.source_ids.includes(sh.source_id ?? ""));
+        // La cita mostrada debe respaldar lo que se narra en esta toma
+        const shotText = seg.sentences.slice(sh.sentence_from, sh.sentence_to + 1).join(" ").toLowerCase();
+        const segClaims = script.segments.find((x) => x.id === sh.segment_id)?.claims ?? [];
+        const claim = segClaims.find((c) => c.source_ids.includes(sh.source_id ?? "") && shotText.includes(c.text_en.toLowerCase().trim()))
+          ?? segClaims.find((c) => c.source_ids.includes(sh.source_id ?? ""));
+        const fact = (claim && research.facts.find((f) => claim.fact_ids.includes(f.id) && f.source_ids.includes(sh.source_id ?? "")))
+          ?? research.facts.find((f) => f.source_ids.includes(sh.source_id ?? ""));
         sh.image = await renderSourceCard({ publisher: src?.publisher ?? "", title: src?.title ?? sh.card_text ?? "", date: src?.date ?? "", quote: fact?.quote ?? seg.sentences[sh.sentence_from] ?? "", url: src?.url ?? "" }, visual, base + ".png");
         sh.provenance = { kind: "card", provider: "ATRIL", sourceUrl: src?.url };
       } else if (sh.kind === "title_card") {
@@ -275,7 +283,7 @@ export async function stageVisuals(ctx: Ctx, opts: { replan?: boolean } = {}): P
       sh.image = await renderTextCard({ text: sh.card_text || L.shortPhrase(seg.sentences[sh.sentence_from]) }, visual, base + "_fallback.png");
       sh.provenance = { kind: "card", provider: "ATRIL (respaldo)" };
     }
-    sh.overlay = sh.overlay_text?.trim() && montage.lowerThirds ? await renderLowerThird({ text: sh.overlay_text }, visual, base + "_ov.png") : null;
+    sh.overlay = sh.overlay_text?.trim() && montage.lowerThirds && sh.kind !== "source_card" && sh.kind !== "title_card" ? await renderLowerThird({ text: sh.overlay_text }, visual, base + "_ov.png") : null;
     sh.hash = h;
     await persist();
   }
@@ -330,7 +338,8 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
         try { bg = (await generateImage({ prompt: t.image_prompt_en, outBase: joinPath(tdir, `bg${i}`), videoId: v.id, channelId: v.channel_id, label: "fondo de miniatura" })).path; }
         catch (e) { await log("warn", "miniatura", `Fondo ${i + 1}: ${e instanceof UserError ? e.userMessage : String(e)} Se usa una imagen del video.`, "", v.id); }
       }
-      if (!bg) bg = visuals.shots.find((x) => x.provenance?.kind === "generated" || x.provenance?.kind === "archival")?.image ?? null;
+      if (!bg) bg = visuals.shots.find((x) => x.provenance?.kind === "generated" || x.provenance?.kind === "archival")?.image
+        ?? visuals.shots.find((x) => x.kind === "source_card")?.image ?? null;
       t.image = bg ?? undefined;
     }
   }
@@ -425,10 +434,19 @@ export async function stagePublish(ctx: Ctx): Promise<PublishOut> {
   const s = getSettings().publishing;
   const publishAt = v.scheduled_at && v.scheduled_at > Date.now() + 15 * 60 * 1000 ? new Date(v.scheduled_at).toISOString() : null;
   await ctx.progress("Subiendo a YouTube…");
-  const res = await uploadVideo(ctx.jobId, render.file, {
+  const offP = await onUploadProgress((p) => { if (p.id === ctx.jobId) void ctx.progress(`Subiendo a YouTube · ${Math.round((p.sent / p.total) * 100)} %`); });
+  const offS = await onUploadSession((p) => { if (p.id === ctx.jobId) void updateVideo(v.id, { upload_session: p.session }); });
+  let res: any;
+  try {
+    res = await uploadVideo(ctx.jobId, render.file, {
     title: pkg.chosen_title, description: pkg.description, tags: pkg.tags, categoryId: s.categoryId,
     defaultLanguage: s.defaultLanguage, privacy: publishAt ? "private" : "public", publishAt, containsSyntheticMedia: pkg.synthetic_media,
-  }, v.upload_session);
+    }, v.upload_session);
+  } catch (e) {
+    // Si la sesión guardada ya no sirve, la próxima vez se inicia una nueva
+    if (e instanceof UserError && /expir/.test(e.userMessage)) await updateVideo(v.id, { upload_session: null });
+    throw e;
+  } finally { offP(); offS(); }
   const ytId = res.id as string;
   await updateVideo(v.id, { youtube_id: ytId, upload_session: null });
   let thumbnail_ok = true; let note = "";

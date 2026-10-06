@@ -66,7 +66,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
               <Chip tone={v.originality.verdict === "ok" ? "green" : "amber"}><Sparkles size={11} /> Aporte propio: {v.originality.verdict === "ok" ? "suficiente" : "débil"}</Chip>
               {v.rounds && v.rounds > 1 && <Chip>Ronda {v.rounds}</Chip>}
             </div>
-            {v.originality.verdict !== "ok" && <div className="text-xs text-amber-500">{v.originality.note_es}</div>}
+            {v.originality.verdict !== "ok" && <div className="text-xs text-amber-700 dark:text-amber-500">{v.originality.note_es}</div>}
           </div>
           <div className="text-right shrink-0 space-y-2">
             {editable && <ReviewTimer onTick={(s) => (secs.current = s)} />}
@@ -76,10 +76,10 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
         {v.title_checks.length > 0 && (
           <div className="mt-3 grid grid-cols-1 gap-1.5">
             {v.title_checks.map((t, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                <Chip tone={t.verdict === "ok" ? "green" : "amber"}>{t.verdict === "ok" ? "Título honesto" : "Promete de más"}</Chip>
+              <div key={i} className="grid grid-cols-[auto_minmax(0,0.9fr)_minmax(0,1.6fr)] gap-3 items-baseline text-xs">
+                <span className="whitespace-nowrap"><Chip tone={t.verdict === "ok" ? "green" : "amber"}>{t.verdict === "ok" ? "Título honesto" : "Promete de más"}</Chip></span>
                 <span className="font-medium">{t.title}</span>
-                <span className="text-muted-foreground truncate">— {t.note_es}</span>
+                <span className="text-muted-foreground line-clamp-2">{t.note_es}</span>
               </div>
             ))}
           </div>
@@ -155,7 +155,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
                       </div>
                     );
                   })}
-                  {!facts.length && <div className="text-xs text-red-500">Ningún hecho de la investigación respalda esta frase.</div>}
+                  {!facts.length && <div className="text-xs text-red-600 dark:text-red-500">Ningún hecho de la investigación respalda esta frase.</div>}
                   {selectedClaim.suggested_fix_en && <div className="text-xs"><span className="label">Propuesta</span><div className="mt-1" style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}>{selectedClaim.suggested_fix_en}</div></div>}
                   {editable && <ResolveBar resolution={selectedClaim.resolution ?? null} note={selectedClaim.user_note ?? ""}
                     onAccept={(n) => void resolveClaim(key, "accepted", n)} onFix={(n) => void resolveClaim(key, "fix", n)} onUndo={() => void resolveClaim(key, null)} />}

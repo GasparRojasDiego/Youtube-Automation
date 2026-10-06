@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, XCircle, RotateCcw, Music2, CalendarClock, Image as ImageIcon, Mic, Wand2 } from "lucide-react";
 import { db, fileUrl } from "../../lib/ipc";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { emit } from "../../lib/bus";
 import { addReview, listMusic, updateVideo, type Video, type StageRow, type Track } from "../../lib/repo";
 import { getSettings } from "../../lib/settings";
@@ -62,7 +63,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
           <Card>
             <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} />
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-              <span>{fmtDuration(render.duration)} · capítulos: {pkg.chapters.length}</span>
+              <span>{fmtDuration(render.duration)} · capítulos: {pkg.chapters.length} · <button className="text-primary hover:underline" onClick={() => void openPath(render.file)}>Abrir en el reproductor del sistema</button></span>
               {editable && <ReviewTimer onTick={(s) => (secs.current = s)} />}
             </div>
           </Card>
@@ -173,7 +174,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
               }}><CheckCircle2 size={15} /> Aprobar y {now ? "publicar" : "programar"}</AsyncButton>
               <div className="flex gap-2">
                 <ExportButton video={video} label="Exportar" />
-                <button className="btn-ghost flex-1 text-red-500" onClick={() => setReject(true)}><XCircle size={14} /> Rechazar</button>
+                <button className="btn-ghost flex-1 text-red-600 dark:text-red-500" onClick={() => setReject(true)}><XCircle size={14} /> Rechazar</button>
               </div>
               <div className="flex gap-1.5 flex-wrap pt-1">{pkg.synthetic_media ? <Chip tone="amber">Con declaración de IA</Chip> : <Chip>Sin declaración de IA</Chip>}<Chip>Categoría {p.categoryId}</Chip></div>
             </div>

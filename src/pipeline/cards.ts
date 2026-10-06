@@ -75,7 +75,10 @@ export async function renderSourceCard(o: { publisher: string; title: string; da
   ctx.fillStyle = "#3A362F";
   q.lines.forEach((l, i) => ctx.fillText(l, px + 84, qy + q.px + i * q.px * 1.35));
   ctx.fillStyle = "#8A857B"; ctx.font = `400 22px "${v.fontMono}"`;
-  ctx.fillText(o.url.replace(/^https?:\/\//, "").slice(0, 110), px + 60, py + ph - 50);
+  let url = o.url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  while (url.length > 12 && ctx.measureText(url).width > pw - 120) url = url.slice(0, -2);
+  if (url.length < o.url.replace(/^https?:\/\//, "").replace(/\/$/, "").length) url = url.slice(0, -1) + "…";
+  ctx.fillText(url, px + 60, py + ph - 50);
   grain(ctx, W, H);
   return save(c, out);
 }

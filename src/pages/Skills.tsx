@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Sparkles, Plus, Upload, Download, History, Trash2, Save, AlertTriangle, RotateCcw, Globe } from "lucide-react";
+import { Sparkles, Plus, Upload, Download, History, Trash2, Save, AlertTriangle, RotateCcw, Globe, Wand2, Check } from "lucide-react";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { fs } from "../lib/ipc";
 import { useBus } from "../lib/bus";
@@ -7,6 +7,7 @@ import { activeChannel, type Channel } from "../lib/repo";
 import { listSkills, saveSkill, deleteSkill, setSkillEnabled, skillVersions, parseSkillFile, serializeSkillFile, parseParamBlocks, SCOPES, SKILL_TEMPLATE, type Skill, type Scope } from "../lib/skills";
 import { PageHeader, Card, Empty, Toggle, Chip, Modal, Field, AsyncButton } from "../ui/kit";
 import { lineDiff, fmtDate, slugify } from "../lib/util";
+import { refineSkill } from "../pipeline/extras";
 import { toast, logError } from "../lib/events";
 
 type Draft = Pick<Skill, "name" | "description" | "scopes" | "content" | "enabled"> & { id?: string; global: boolean };
@@ -19,6 +20,10 @@ export function Skills() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [history, setHistory] = useState<{ version: number; content: string; note: string; created_at: number }[] | null>(null);
   const [diffWith, setDiffWith] = useState<string | null>(null);
+  const [refine, setRefine] = useState(false);
+  const [request, setRequest] = useState("");
+  const [useProfiles, setUseProfiles] = useState(false);
+  const [proposal, setProposal] = useState<{ summary_es: string; new_content: string } | null>(null);
 
   useEffect(() => { void (async () => { const c = await activeChannel(); setCh(c); setSkills(await listSkills(c?.id ?? null)); })(); }, [tick]);
   useEffect(() => {
@@ -98,23 +103,52 @@ export function Skills() {
                 <Toggle checked={draft.global} onChange={(v) => setDraft({ ...draft, global: v })} label="Global (todos los canales)" />
               </div>
               <textarea className="input font-mono text-[12.5px] leading-relaxed min-h-[52vh]" spellCheck={false} value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} />
-              {paramErrors.map((e) => <div key={e} className="text-xs text-red-500 flex items-center gap-1.5"><AlertTriangle size={12} /> {e}</div>)}
+              {paramErrors.map((e) => <div key={e} className="text-xs text-red-600 dark:text-red-500 flex items-center gap-1.5"><AlertTriangle size={12} /> {e}</div>)}
               <div className="flex items-center justify-between">
                 <div className="flex gap-2">
                   <AsyncButton className="btn-primary" disabled={!!current && !dirty} onClick={() => persist(draft)}><Save size={14} /> Guardar</AsyncButton>
+                  <button className="btn-brand" onClick={() => { setProposal(null); setRefine(true); }}><Wand2 size={14} /> Refinar con IA</button>
                   {current && <button className="btn-ghost" onClick={async () => setHistory(await skillVersions(current.id))}><History size={14} /> Historial</button>}
                   {current && <button className="btn-ghost" onClick={async () => {
                     const p = await saveDialog({ defaultPath: `${slugify(current.name)}.md`, filters: [{ name: "Markdown", extensions: ["md"] }] });
                     if (p) { await fs.writeText(p, serializeSkillFile(current)); toast("success", "Exportada", p); }
                   }}><Download size={14} /> Exportar</button>}
                 </div>
-                {current && <button className="btn-ghost text-red-500" onClick={async () => { if (confirm(`¿Eliminar «${current.name}» y su historial?`)) { await deleteSkill(current.id); setSel(null); setDraft(null); } }}><Trash2 size={14} /> Eliminar</button>}
+                {current && <button className="btn-ghost text-red-600 dark:text-red-500" onClick={async () => { if (confirm(`¿Eliminar «${current.name}» y su historial?`)) { await deleteSkill(current.id); setSel(null); setDraft(null); } }}><Trash2 size={14} /> Eliminar</button>}
               </div>
               <div className="text-[11px] text-muted-foreground">Los bloques <code className="font-mono">```atril:montaje```</code>, <code className="font-mono">atril:visual</code>, <code className="font-mono">atril:miniatura</code>, <code className="font-mono">atril:guion</code> y <code className="font-mono">atril:voz</code> fijan parámetros que el motor lee directamente (ver Guía). El resto del texto llega tal cual al modelo.</div>
             </div>
           </Card>
         ) : <Card><Empty icon={Sparkles} title="Elige o crea una habilidad">Piensa en ellas como tus skills de Claude: un manual que tú escribes y la app aplica.</Empty></Card>}
       </div>
+      <Modal open={refine && !!draft} onClose={() => setRefine(false)} title="Refinar con IA" echo="refinar" wide
+        footer={<>
+          <button className="btn-ghost" onClick={() => setRefine(false)}>Cerrar</button>
+          {!proposal ? (
+            <AsyncButton className="btn-primary" disabled={!request.trim()} onClick={async () => {
+              try { setProposal(await refineSkill(draft!.name, draft!.content, request, ch?.id ?? null, useProfiles)); }
+              catch (e) { await logError(e, null, "Refinar habilidad"); }
+            }}><Wand2 size={14} /> Proponer cambios</AsyncButton>
+          ) : (
+            <button className="btn-primary" onClick={() => { setDraft({ ...draft!, content: proposal.new_content }); setRefine(false); setRequest(""); toast("info", "Cambios incorporados al editor", "Revísalos y pulsa Guardar para crear una nueva versión."); }}><Check size={14} /> Incorporar al editor</button>
+          )}
+        </>}>
+        {!proposal ? (
+          <div className="space-y-3">
+            <Field label="¿Qué quieres corregir o añadir?" hint="Escribe en español, con tu criterio: «los ganchos suenan a clickbait, hazlos más sobrios», «añade ejemplos negativos de cierres».">
+              <textarea className="input min-h-32" value={request} onChange={(e) => setRequest(e.target.value)} />
+            </Field>
+            <Toggle checked={useProfiles} onChange={setUseProfiles} label="Usar como referencia los perfiles analizados de tus referentes" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="text-sm">{proposal.summary_es}</div>
+            <pre className="text-[11.5px] font-mono max-h-[55vh] overflow-auto rounded-md bg-secondary/60 p-3">
+              {lineDiff(draft?.content ?? "", proposal.new_content).map((d, i) => <div key={i} className={d.type === "add" ? "text-green-700 dark:text-green-500 bg-green-500/10" : d.type === "del" ? "text-red-600 dark:text-red-500 bg-red-500/10 line-through" : "text-muted-foreground"}>{d.type === "add" ? "+ " : d.type === "del" ? "- " : "  "}{d.text}</div>)}
+            </pre>
+          </div>
+        )}
+      </Modal>
       <Modal open={!!history} onClose={() => { setHistory(null); setDiffWith(null); }} title="Historial de versiones" echo="versiones" wide>
         {history && history.length === 0 && <div className="text-sm text-muted-foreground">Aún no hay versiones anteriores.</div>}
         <div className="grid grid-cols-[220px_1fr] gap-4">
@@ -130,7 +164,7 @@ export function Skills() {
               <div className="flex justify-between mb-2"><Chip>Cambios desde esa versión hasta la actual</Chip>
                 <AsyncButton className="btn-brand btn-sm" onClick={async () => { await saveSkill({ ...current, content: diffWith }, "restaurada"); setHistory(null); setDiffWith(null); }}><RotateCcw size={13} /> Restaurar esa versión</AsyncButton></div>
               <pre className="text-[11.5px] font-mono max-h-[60vh] overflow-auto rounded-md bg-secondary/60 p-3">
-                {lineDiff(diffWith, current.content).map((d, i) => <div key={i} className={d.type === "add" ? "text-green-500 bg-green-500/10" : d.type === "del" ? "text-red-500 bg-red-500/10 line-through" : ""}>{d.type === "add" ? "+ " : d.type === "del" ? "- " : "  "}{d.text}</div>)}
+                {lineDiff(diffWith, current.content).map((d, i) => <div key={i} className={d.type === "add" ? "text-green-700 dark:text-green-500 bg-green-500/10" : d.type === "del" ? "text-red-600 dark:text-red-500 bg-red-500/10 line-through" : ""}>{d.type === "add" ? "+ " : d.type === "del" ? "- " : "  "}{d.text}</div>)}
               </pre>
             </div>
           )}

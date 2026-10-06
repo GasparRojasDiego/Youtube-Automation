@@ -88,7 +88,7 @@ function CreatorDetail({ c, onDelete }: { c: Creator; onDelete: () => void }) {
     <Card title={c.name} actions={<>
       <select className="input h-8 py-0 w-24 text-xs" value={c.weight} onChange={(e) => void updateCreator(c.id, { weight: +e.target.value })}>{[1, 2, 3, 4, 5].map((w) => <option key={w} value={w}>Peso {w}</option>)}</select>
       <button className="btn-ghost btn-sm" onClick={() => void openUrl(c.url.startsWith("http") ? c.url : `https://www.youtube.com/${c.url.startsWith("@") ? c.url : "@" + c.url}`)}><ExternalLink size={13} /></button>
-      <button className="btn-ghost btn-sm text-red-500" onClick={async () => { if (confirm("¿Eliminar este referente?")) { await deleteCreator(c.id); onDelete(); } }}><Trash2 size={13} /></button>
+      <button className="btn-ghost btn-sm text-red-600 dark:text-red-500" onClick={async () => { if (confirm("¿Eliminar este referente?")) { await deleteCreator(c.id); onDelete(); } }}><Trash2 size={13} /></button>
     </>}>
       <div className="flex items-center justify-between mb-3">
         <Tabs value={tab} onChange={setTab} tabs={[{ id: "profile", label: "Perfil" }, { id: "notebook", label: "Cuaderno (NotebookLM)" }, { id: "videos", label: `Videos (${vids.length})` }]} />

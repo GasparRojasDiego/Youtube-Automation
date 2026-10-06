@@ -75,7 +75,7 @@ export function Metrics() {
                 </div>
                 {open === p.id && (
                   <pre className="text-[11.5px] font-mono max-h-80 overflow-auto bg-secondary/60 p-3 rounded-b-lg">
-                    {lineDiff(skills[p.skill_id] ?? "", p.new_content).map((d, i) => <div key={i} className={d.type === "add" ? "text-green-500" : d.type === "del" ? "text-red-500 line-through" : "text-muted-foreground"}>{d.type === "add" ? "+ " : d.type === "del" ? "- " : "  "}{d.text}</div>)}
+                    {lineDiff(skills[p.skill_id] ?? "", p.new_content).map((d, i) => <div key={i} className={d.type === "add" ? "text-green-700 dark:text-green-500" : d.type === "del" ? "text-red-600 dark:text-red-500 line-through" : "text-muted-foreground"}>{d.type === "add" ? "+ " : d.type === "del" ? "- " : "  "}{d.text}</div>)}
                   </pre>
                 )}
               </div>

@@ -3,7 +3,7 @@ import { X, CheckCircle2, AlertTriangle, Info, XCircle } from "lucide-react";
 import { onToast, type Toast } from "../lib/events";
 
 const ICON = { success: CheckCircle2, warn: AlertTriangle, error: XCircle, info: Info };
-const TONE = { success: "text-green-500", warn: "text-amber-500", error: "text-red-500", info: "text-primary" };
+const TONE = { success: "text-green-700 dark:text-green-500", warn: "text-amber-700 dark:text-amber-500", error: "text-red-600 dark:text-red-500", info: "text-primary" };
 
 export function Toaster() {
   const [items, setItems] = useState<Toast[]>([]);

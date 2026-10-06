@@ -68,7 +68,7 @@ export function Diagnostics() {
           {CHECKS.map((c) => {
             const r = res[c.id] ?? { state: "idle", detail: "Sin comprobar" };
             const I = r.state === "ok" ? CheckCircle2 : r.state === "warn" ? AlertTriangle : r.state === "fail" ? XCircle : r.state === "running" ? Loader2 : Stethoscope;
-            const cls = r.state === "ok" ? "text-green-500" : r.state === "warn" ? "text-amber-500" : r.state === "fail" ? "text-red-500" : "text-muted-foreground";
+            const cls = r.state === "ok" ? "text-green-700 dark:text-green-500" : r.state === "warn" ? "text-amber-700 dark:text-amber-500" : r.state === "fail" ? "text-red-600 dark:text-red-500" : "text-muted-foreground";
             return (
               <div key={c.id} className="flex items-center gap-3 px-4 py-3">
                 <I size={18} className={`${cls} ${r.state === "running" ? "animate-spin" : ""}`} />

@@ -176,16 +176,20 @@ export async function videoStatus(videoIds: string[]): Promise<any[]> {
 
 // ---------- Métricas propias ----------
 export async function analyticsByVideo(videoIds: string[], startDate: string, endDate: string): Promise<Record<string, any>> {
-  if (!videoIds.length) return {};
-  const url = "https://youtubeanalytics.googleapis.com/v2/reports?" + new URLSearchParams({
-    ids: "channel==MINE", startDate, endDate, dimensions: "video",
-    metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,likes",
-    filters: `video==${videoIds.join(",")}`, maxResults: "200",
-  });
-  const r = await requestJson<any>("YouTube Analytics", { url, headers: await auth() });
-  const cols = (r.columnHeaders ?? []).map((c: any) => c.name);
+  // Una consulta por video (filtro video==ID, sin dimensiones): forma documentada y estable.
+  const h = await auth();
   const out: Record<string, any> = {};
-  for (const row of r.rows ?? []) { const o: any = {}; cols.forEach((c: string, i: number) => (o[c] = row[i])); out[o.video] = o; }
+  for (const id of videoIds) {
+    const url = "https://youtubeanalytics.googleapis.com/v2/reports?" + new URLSearchParams({
+      ids: "channel==MINE", startDate, endDate,
+      metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,likes",
+      filters: `video==${id}`,
+    });
+    const r = await requestJson<any>("YouTube Analytics", { url, headers: h });
+    const cols = (r.columnHeaders ?? []).map((c: any) => c.name);
+    const row = r.rows?.[0];
+    if (row) { const o: any = { video: id }; cols.forEach((c: string, i: number) => (o[c] = row[i])); out[id] = o; }
+  }
   return out;
 }
 
