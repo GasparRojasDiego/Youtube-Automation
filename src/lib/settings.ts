@@ -3,7 +3,7 @@ import { db } from "./ipc";
 import { safeJson } from "./util";
 import { emit } from "./bus";
 
-export type StageModelKey = "topics" | "research" | "script" | "verify" | "plan" | "package" | "analysis";
+export type StageModelKey = "topics" | "research" | "script" | "verify" | "plan" | "package" | "analysis" | "storyboard" | "vision" | "polish" | "motion" | "critique";
 
 export interface AppSettings {
   theme: "dark" | "light";
@@ -41,6 +41,22 @@ export interface AppSettings {
     autoRunToReview: boolean;
   };
   review: { dailyMinutesGoal: number };
+  media: {
+    libraryDir: string;                 // vacío = Documentos\ATRIL\Biblioteca
+    sources: Record<"openverse" | "pexels" | "pixabay" | "wikimedia" | "nasa" | "met" | "freesound", boolean>;
+    candidatesPerBeat: number;          // candidatos descargados por toma cuando la biblioteca no basta
+    libraryFirst: boolean;              // reutilizar lo ya descargado antes de buscar en internet
+    allowGenerated: boolean;            // permitir imágenes generadas (con costo) cuando no hay material libre
+    visionBatch: number;                // imágenes por llamada de visión
+    maxClipSeconds: number;
+  };
+  motion: {
+    enabled: boolean;
+    browserPath: string;                // vacío = Microsoft Edge o Google Chrome detectados
+    perVideo: { standard: number; premium: number };
+    critique: boolean;                  // revisión visual de cada animación (Sonnet) y una corrección (Opus)
+    perCall: number;                    // composiciones por llamada a Opus
+  };
   ffmpeg: { path: string; ffprobePath: string; encoder: "auto" | "h264_qsv" | "h264_mf" | "libx264"; quality: number };
 }
 
@@ -51,8 +67,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   claude: {
     path: "claude",
     extraArgs: "",
-    models: { topics: "sonnet", research: "sonnet", script: "opus", verify: "opus", plan: "sonnet", package: "sonnet", analysis: "opus" },
-    effort: { topics: "medium", research: "medium", script: "high", verify: "high", plan: "low", package: "medium", analysis: "high" },
+    models: { topics: "sonnet", research: "sonnet", script: "opus", verify: "opus", plan: "sonnet", package: "sonnet", analysis: "opus",
+      storyboard: "sonnet", vision: "sonnet", polish: "opus", motion: "opus", critique: "sonnet" },
+    effort: { topics: "medium", research: "medium", script: "high", verify: "high", plan: "low", package: "medium", analysis: "high",
+      storyboard: "medium", vision: "low", polish: "high", motion: "high", critique: "low" },
     timeoutMin: 40,
   },
   tts: {
@@ -84,6 +102,16 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoRunToReview: true,
   },
   review: { dailyMinutesGoal: 30 },
+  media: {
+    libraryDir: "",
+    sources: { openverse: true, pexels: true, pixabay: true, wikimedia: true, nasa: true, met: true, freesound: true },
+    candidatesPerBeat: 3,
+    libraryFirst: true,
+    allowGenerated: false,
+    visionBatch: 10,
+    maxClipSeconds: 5,
+  },
+  motion: { enabled: true, browserPath: "", perVideo: { standard: 6, premium: 10 }, critique: true, perCall: 2 },
   ffmpeg: { path: "", ffprobePath: "", encoder: "auto", quality: 21 },
 };
 
@@ -123,4 +151,9 @@ export const SECRET = {
   youtubeClientId: "youtube_client_id",
   youtubeClientSecret: "youtube_client_secret",
   youtubeRefreshToken: "youtube_refresh_token",
+  pexelsApiKey: "pexels_api_key",
+  pixabayApiKey: "pixabay_api_key",
+  freesoundApiKey: "freesound_api_key",
+  openverseClientId: "openverse_client_id",
+  openverseClientSecret: "openverse_client_secret",
 } as const;

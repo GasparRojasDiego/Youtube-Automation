@@ -9,7 +9,7 @@ use tauri::Emitter;
 fn client(timeout_s: u64) -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(timeout_s))
-        .user_agent("ATRIL/1.0 (VT Asvent)")
+        .user_agent("ATRIL/2.0 (+https://github.com/GasparRojasDiego/Youtube-Automation)")
         .build()
         .map_err(|e| e.to_string())
 }

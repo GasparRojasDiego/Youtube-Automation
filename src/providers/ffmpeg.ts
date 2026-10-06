@@ -13,17 +13,33 @@ async function bin(name: "ffmpeg" | "ffprobe"): Promise<string> {
   return found;
 }
 
-export async function ffmpeg(args: string[], opts: { jobId?: string; onSeconds?: (s: number) => void; timeoutS?: number } = {}): Promise<void> {
+export async function ffmpeg(args: string[], opts: { jobId?: string; onSeconds?: (s: number) => void; timeoutS?: number; cwd?: string } = {}): Promise<string> {
   const id = opts.jobId ?? uid("ff_");
   let off: (() => void) | null = null;
   if (opts.onSeconds) off = await proc.onLine((e) => { if (e.id === id) { const s = parseProgressSeconds(e.line); if (s != null) opts.onSeconds!(s); } });
   try {
-    const r = await proc.run({ id, program: await bin("ffmpeg"), args, stream: !!opts.onSeconds, timeoutS: opts.timeoutS ?? 6 * 3600 });
+    const r = await proc.run({ id, program: await bin("ffmpeg"), args, cwd: opts.cwd, stream: !!opts.onSeconds, timeoutS: opts.timeoutS ?? 6 * 3600 });
     if (r.code !== 0) {
       const tail = r.stderr.split("\n").filter((l) => l.trim()).slice(-12).join("\n");
       throw new UserError(`ffmpeg falló (código ${r.code}).`, tail, "ffmpeg");
     }
+    return r.stderr;
   } finally { off?.(); }
+}
+
+export interface MediaInfo { width: number; height: number; duration: number; hasVideo: boolean; hasAudio: boolean; codec: string }
+
+/** Dimensiones, duración y pistas de un archivo de imagen, video o audio. */
+export async function probeMedia(file: string): Promise<MediaInfo> {
+  const r = await proc.run({ id: uid("fp_"), program: await bin("ffprobe"), timeoutS: 60,
+    args: ["-v", "error", "-show_entries", "stream=codec_type,codec_name,width,height,duration:format=duration", "-of", "json", file] });
+  if (r.code !== 0) throw new UserError(`No se pudo leer ${file}.`, r.stderr.slice(-500), "ffmpeg");
+  const j = JSON.parse(r.stdout || "{}");
+  const streams: any[] = j.streams ?? [];
+  const v = streams.find((x) => x.codec_type === "video");
+  const dur = Number(j.format?.duration ?? v?.duration ?? 0);
+  return { width: Number(v?.width ?? 0), height: Number(v?.height ?? 0), duration: isFinite(dur) ? dur : 0,
+    hasVideo: !!v, hasAudio: streams.some((x) => x.codec_type === "audio"), codec: String(v?.codec_name ?? "") };
 }
 
 export async function probeDuration(file: string): Promise<number> {

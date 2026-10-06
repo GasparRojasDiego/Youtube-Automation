@@ -26,6 +26,8 @@ export interface ClaudeCall {
   activityStage?: string;    // etapa del pipeline para el Estudio en vivo (por defecto, `stage`)
   onStep?: (text: string) => void;
   quiet?: boolean;           // no mostrar textos intermedios (lotes masivos)
+  /** Imágenes enviadas directamente en el mensaje (visión en un solo turno, sin herramientas). */
+  images?: { label: string; path: string; mime?: string }[];
 }
 
 export interface Tokens { input: number; cacheRead: number; cacheWrite: number; output: number; webSearches: number }
@@ -161,6 +163,17 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
   }
   const { program: exe, prefix } = await resolveLauncher(resolved);
   const args = [...prefix, ...buildClaudeArgs(c, cfg)];
+  let stdin = c.prompt;
+  if (c.images?.length) {
+    // Mensaje con bloques de imagen (stream-json de entrada): un solo turno, sin llamadas a Read.
+    const content: unknown[] = [{ type: "text", text: c.prompt }];
+    for (const im of c.images) {
+      content.push({ type: "text", text: im.label });
+      content.push({ type: "image", source: { type: "base64", media_type: im.mime ?? "image/jpeg", data: await fs.readB64(im.path) } });
+    }
+    args.push("--input-format", "stream-json");
+    stdin = JSON.stringify({ type: "user", message: { role: "user", content } }) + "\n";
+  }
   const runId = c.jobId ?? uid("p_");
   const stage = c.activityStage ?? c.stage;
   const model = cfg.models[c.stage] || "sonnet";
@@ -191,7 +204,7 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
   try {
     // Prompt por stdin (sin límite de longitud de línea de comandos)
     res = await proc.run({
-      id: runId, program: exe, args, cwd: jobDir, stdin: c.prompt, stream: true,
+      id: runId, program: exe, args, cwd: jobDir, stdin, stream: true,
       timeoutS: Math.round((c.timeoutMin ?? cfg.timeoutMin) * 60),
       env: { DISABLE_AUTOUPDATER: "1" },
     });

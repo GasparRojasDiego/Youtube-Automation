@@ -1,0 +1,6 @@
+Bibliotecas incluidas para el motor de animaciones de ATRIL:
+- GSAP 3.15 y plugins (SplitText, DrawSVG, MorphSVG, MotionPath, CustomEase, ScrambleText, Text, Physics2D, EasePack)
+  © GreenSock / Webflow — licencia estándar sin cargo de GSAP (uso comercial permitido): https://gsap.com/standard-license
+- D3 v7 © Mike Bostock — licencia ISC: https://github.com/d3/d3/blob/main/LICENSE
+- topojson-client v3 © Mike Bostock — licencia ISC
+- world-atlas v2 (países 1:50m) © Mike Bostock, licencia ISC; datos de Natural Earth (dominio público)

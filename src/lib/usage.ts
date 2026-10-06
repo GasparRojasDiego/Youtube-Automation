@@ -70,7 +70,7 @@ export function windowDelta(before: number | null, after: number | null, sameWin
 
 // ---------- APIs de medios ----------
 export const API_LIMITS: Record<string, { label: string; perHour?: number; perDay?: number; perMonth?: number; perMinute?: number }> = {
-  openverse: { label: "Openverse", perDay: 100 },
+  openverse: { label: "Openverse", perHour: 5, perDay: 100 },   // sin registro; con registro: 100/min, 10 000/día
   pexels: { label: "Pexels", perHour: 200, perMonth: 20000 },
   pixabay: { label: "Pixabay", perMinute: 100 },
   freesound: { label: "Freesound", perMinute: 60, perDay: 2000 },

@@ -124,7 +124,7 @@ function KeysTab() {
   );
 }
 
-const STAGE_LABEL: Record<StageModelKey, string> = { topics: "Banco de temas", research: "Investigación", script: "Guion", verify: "Verificación", plan: "Plan visual", package: "Miniatura y metadatos", analysis: "Referentes y métricas" };
+const STAGE_LABEL: Record<StageModelKey, string> = { topics: "Banco de temas", research: "Investigación", script: "Guion", verify: "Verificación", plan: "Plan visual (v1)", package: "Miniatura y metadatos", analysis: "Referentes y métricas", storyboard: "Storyboard y casting", vision: "Visión (describir medios)", polish: "Retoques de edición", motion: "Animaciones (motion)", critique: "Revisión visual de animaciones" };
 
 function ClaudeTab() {
   const { s, set } = useSetting();
