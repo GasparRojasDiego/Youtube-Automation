@@ -61,6 +61,13 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
     <div className="grid grid-cols-[1fr_420px] gap-4 items-start">
       <div className="space-y-3">
         <Tabs value={tab} onChange={setTab} tabs={[{ id: "video", label: "Video" }, { id: "shots", label: `Tomas (${shots.length})`, icon: ImageIcon }, { id: "motion", label: `Animaciones (${motion?.items.length ?? 0})`, icon: Sparkles }, { id: "voice", label: "Voz", icon: Mic }]} />
+        {polish?.verify_es?.length ? (
+          <div className="card border-amber-500/50 bg-amber-500/5 p-3 text-sm">
+            <div className="font-semibold text-amber-700 dark:text-amber-500 mb-1">Opus sugiere comprobar antes de publicar</div>
+            <ul className="list-disc pl-5 space-y-0.5 text-xs">{polish.verify_es.map((x, i) => <li key={i}>{x}</li>)}</ul>
+            <div className="text-[11px] text-muted-foreground mt-1">Si algo resulta incorrecto, vuelve a la verificación del guion y corrígelo: nada se publica sin tu aprobación.</div>
+          </div>
+        ) : null}
         {tab === "video" && (
           <Card>
             <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} />

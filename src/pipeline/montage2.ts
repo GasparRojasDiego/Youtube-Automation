@@ -75,7 +75,9 @@ export function shotLengths(shots: LayerShot[], fps: number): { durs: number[]; 
     const want = next.transitionS ?? 0.5;
     return Math.max(1 / fps, Math.min(want, durs[i] * 0.45, durs[i + 1] * 0.45));
   }).map((t) => Math.round(t * fps) / fps);
-  const lens = durs.map((d, i) => d + T[i]);
+  // Dos cuadros de margen: xfade termina la salida si la primera entrada se
+  // acaba antes de completar la transición (redondeo de cuadros).
+  const lens = durs.map((d, i) => d + T[i] + 2 / fps);
   return { durs, T, lens };
 }
 

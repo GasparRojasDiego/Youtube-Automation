@@ -21,7 +21,7 @@ describe("montaje v2 (puro)", () => {
     expect(durs.reduce((a, b) => a + b, 0)).toBeCloseTo(6);
     expect(T[0]).toBeCloseTo(0.8);
     expect(T[1]).toBeCloseTo(1 / 30, 3);
-    expect(lens[0]).toBeCloseTo(2.8);
+    expect(lens[0]).toBeCloseTo(2.8 + 2 / 30);
   });
   it("el golpe de zoom se suma al movimiento base", () => {
     const e = cameraExpr("zoom_in", 0.08, 90, { x: 0.3, y: 0.4 }, 30);
@@ -64,6 +64,12 @@ describe.skipIf(!hasFfmpeg)("montaje v2 con ffmpeg real", () => {
     ff(withFilterScript(mix.args, "mix.filter", false), d);
     expect(Number(probe(path.join(d, "final.mp4")))).toBeCloseTo(total, 1);
     expect(probe(path.join(d, "final.mp4"), "stream=codec_type")).toContain("audio");
+    // Regresión: varias tomas unidas por cortes (xfade de 1 cuadro) conservan la duración total
+    const cuts: LayerShot[] = [3.167, 3.167, 3.467, 3.5, 3.5].map((dur, i) => ({ path: path.join(d, "img.jpg"), media: "image" as const, dur, motion: i % 2 ? "drift" as const : "zoom_in" as const, transitionIn: "cut" as const }));
+    const cutSeg = segmentV2Args({ shots: cuts, overlays: [], out: path.join(d, "cuts.mp4"), fadeIn: false, fadeOut: false, kenBurns: 0.08, frame: { width: 320, height: 180, fps: 30 }, encoder: { name: "libx264", quality: 30 } });
+    nfs.writeFileSync(path.join(d, "cuts.filter"), cutSeg.filter);
+    ff(withFilterScript(cutSeg.args, "cuts.filter", false), d);
+    expect(Number(probe(path.join(d, "cuts.mp4")))).toBeCloseTo(segmentV2Duration(cuts), 1);
     if (!process.env.ATRIL_KEEP) nfs.rmSync(d, { recursive: true, force: true });
   }, 120_000);
 });

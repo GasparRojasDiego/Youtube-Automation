@@ -342,8 +342,13 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   for (const m of applied.motion) await activity(v.id, "polish", "motion", `Animación ${m.id} (${m.kind === "overlay" ? "capa" : "pantalla completa"}, ${m.duration.toFixed(1)} s)`, `${m.brief_en}${m.text ? `\nTexto: ${m.text}` : ""}`);
   const changed = (r.data.shots ?? []).length;
   await activity(v.id, "polish", "decision", `Retoques: ${changed} tomas ajustadas · ${(r.data.sfx_add ?? []).length} efectos añadidos · ${applied.motion.length} animaciones`, r.data.notes_es ?? "");
+  const verify = (r.data.verify_es ?? []).map((x) => x.trim()).filter(Boolean);
+  if (verify.length) {
+    await activity(v.id, "polish", "warn", `Opus sugiere comprobar ${verify.length} dato(s) antes de publicar`, verify.join("\n"));
+    await log("warn", "retoques", `Opus sugiere comprobar ${verify.length} dato(s) antes de publicar.`, verify.join("\n"), v.id);
+  }
   const sfx = await resolveSfx(ctx, applied.sfx);
-  return { shots: applied.shots, sfx, music: assets.music, motion: applied.motion, notes_es: r.data.notes_es ?? "", grade: applied.grade, key: assets.key };
+  return { shots: applied.shots, sfx, music: assets.music, motion: applied.motion, notes_es: r.data.notes_es ?? "", grade: applied.grade, key: assets.key, verify_es: verify };
 }
 
 // ======================= 8. Animaciones (Opus + motor) =======================
@@ -499,6 +504,8 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 }
 
 // ======================= 10. Montaje v2 =======================
+/** Versión del motor de montaje: si cambia, los segmentos ya montados se rehacen. */
+const MONTAGE_ENGINE = "2.0.1";
 async function copyFonts(dir: string) {
   const src = await resourcePath("fonts");
   const dst = joinPath(dir, "fonts");
@@ -566,10 +573,11 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
     const fadeOut = montage.segmentTransition === "fadeblack" || i === segs.length - 1;
     const spec = { shots: layer, overlays, out: clip, fadeIn, fadeOut, kenBurns: montage.kenBurns, captionsAss: assName, fontsDir: capP.enabled ? "fonts" : null,
       grain: montage.grain, vignette: montage.vignette, encoder };
-    const h = await sha256(JSON.stringify({ spec, cap: capP.enabled ? [capP, seg.spans] : null, q: encoder.quality }));
+    const h = await sha256(JSON.stringify({ engine: MONTAGE_ENGINE, spec, cap: capP.enabled ? [capP, seg.spans] : null, q: encoder.quality }));
     hashes[seg.id] = h;
     const segDur = segmentV2Duration(layer);
-    if (!(prev?.segmentHashes?.[seg.id] === h && (await fs.exists(clip)))) {
+    const reusable = prev?.segmentHashes?.[seg.id] === h && (await fs.exists(clip)) && Math.abs((await probeDuration(clip).catch(() => 0)) - segDur) < 0.25;
+    if (!reusable) {
       const { args, filter } = segmentV2Args(spec);
       const fpath = `${seg.id}.filtros.txt`;
       await fs.writeText(joinPath(dir, fpath), filter);
@@ -579,6 +587,12 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
         jobId: ctx.jobId, cwd: dir,
         onSeconds: (sec) => { void ctx.progress(`Montando segmento ${i + 1}/${segs.length} · ${Math.min(100, Math.round(((base + sec) / totalAll) * 100))} %`); },
       });
+      // Control: el clip debe durar lo mismo que su narración (si no, la imagen y la voz se desfasan)
+      const got = await probeDuration(clip);
+      if (Math.abs(got - segDur) > 0.25) {
+        await fs.remove(clip);
+        throw new UserError(`El segmento «${seg.title}» se montó con ${got.toFixed(2)} s en lugar de ${segDur.toFixed(2)} s.`, "Se borró el clip para no publicar un video desfasado. Reintenta; si se repite, revisa Diagnóstico y el registro de eventos.", "montaje");
+      }
       // Vista previa en vivo: un cuadro del segmento recién montado
       try {
         const pv = joinPath(dir, `${seg.id}.preview.jpg`);

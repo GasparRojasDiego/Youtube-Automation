@@ -179,6 +179,7 @@ export interface PolishRaw {
   sfx_remove: string[];
   motion: { kind: "fullscreen" | "overlay"; shot_ids: string[]; start_s: number; duration_s: number; brief_en: string; text: string; libs: ("map" | "d3")[]; asset_ids: string[] }[];
   notes_es: string;
+  verify_es?: string[];
 }
 
 const MOTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right", "static", "punch_in", "drift"];

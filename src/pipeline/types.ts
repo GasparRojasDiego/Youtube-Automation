@@ -134,5 +134,5 @@ export interface MotionItem {
   code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number };
 }
 
-export interface PolishOut { shots: Shot[]; sfx: SfxCue[]; music: MusicBed[]; motion: MotionItem[]; notes_es: string; grade: Grade; key?: string; skipped?: boolean }
+export interface PolishOut { shots: Shot[]; sfx: SfxCue[]; music: MusicBed[]; motion: MotionItem[]; notes_es: string; grade: Grade; key?: string; skipped?: boolean; verify_es?: string[] }
 export interface MotionOut { items: MotionItem[]; rendered: number; failed: number }

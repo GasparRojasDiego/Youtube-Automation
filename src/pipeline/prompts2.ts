@@ -107,6 +107,7 @@ export const POLISH_SCHEMA = obj({
     asset_ids: arr(str(), "Library images to use inside the animation (ids from the shot list)"),
   })),
   notes_es: str("Qué mejoraste y por qué (3-6 frases)"),
+  verify_es: arr(str(), "Datos de la narración que te parezcan dudosos y conviene volver a comprobar antes de publicar (vacío si ninguno)"),
 });
 
 export function polishPrompt(o: { skills: string; motionBudget: number; edl: string; captions: boolean; palette: unknown }) {
@@ -145,7 +146,9 @@ QUALITY BAR:
 - Motion with intent: entrances in the first 0.6–0.9 s with power3.out / expo.out, staggered words or letters (0.03–0.07 s), subtle overshoot only for accents (back.out(1.4)). Hold so viewers can read (≈ 3 words per second). Fullscreen pieces may end with a clean exit in the last 0.4 s; overlays should exit (fade/slide) in their last 0.35 s.
 - Cinematic touches: masks and clip-path reveals, SVG line drawing, number counters (tabular-nums), parallax layers, light leaks or soft gradients, subtle grain (static SVG noise), slow continuous drift so frames never freeze.
 - Respect the brand palette and the channel skills. Favour elegance over gimmicks.
-- Accuracy: the text and data must be exactly the ones given. Dates, numbers and names verbatim.`;
+- Accuracy: the text and data must be exactly the ones given. Dates, numbers and names verbatim. A number that counts up must never pause on a wrong value while a label explains it: show the final value with the label.
+
+EFFICIENCY: write compact, readable code (aim for under ~180 lines per composition), no comments, no prose outside the structured output.`;
 
 export const MOTION_SCHEMA = obj({
   compositions: arr(obj({
@@ -168,7 +171,7 @@ Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a
 }
 
 export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[] }) {
-  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the corrected composition (same id). Keep what works.
+  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the full corrected composition (same id) through the structured output only — no explanations. Keep what works.
 
 Brief: ${o.item.brief}
 Text: ${o.item.text || "(none)"}
