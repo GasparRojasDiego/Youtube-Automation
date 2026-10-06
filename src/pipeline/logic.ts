@@ -217,6 +217,14 @@ export function creditLines(assets: { kind: string; source: string; title: strin
   return lines;
 }
 
+/** Ajusta el aviso de IA a lo que el video realmente contiene (voz e ilustraciones). */
+export function adaptDisclosure(text: string, o: { generatedImages: boolean; aiVoice: boolean }): string {
+  let t = text;
+  if (!o.generatedImages) t = t.replace(/\s*Some illustrations are AI-generated;?\s*/i, " ");
+  if (!o.aiVoice) t = t.replace(/\s*Narration in this video uses an AI-generated voice\.?\s*/i, " ");
+  return t.replace(/\s+/g, " ").trim().replace(/(^|[.!?] )([a-z])/g, (_m, a: string, b: string) => a + b.toUpperCase());
+}
+
 // ---------- Descripción ----------
 export function usedSources(script: ScriptOut, research: ResearchOut): Source[] {
   const ids = new Set<string>();

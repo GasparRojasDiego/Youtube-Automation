@@ -116,9 +116,9 @@ export function MotionPanel({ video, data }: { video: Video; data: MotionOut }) 
       {data.items.map((m) => (
         <Card key={m.id} title={<span className="flex items-center gap-2">{m.id} <Chip>{m.kind === "overlay" ? "capa con alfa" : "pantalla completa"}</Chip> <span className="text-xs text-muted-foreground tabular">{m.duration.toFixed(1)} s</span></span>}
           actions={<AsyncButton className="btn-ghost btn-sm" onClick={async () => { await redoMotionItem(video.id, m.id); await rerenderFrom(video.id, "motion"); toast("info", `La animación ${m.id} se rehará.`); }}><RotateCcw size={13} /> Rehacer</AsyncButton>}>
-          {m.file ? <video src={fileUrl(m.file)} controls loop className="w-full rounded bg-[repeating-conic-gradient(#555_0%_25%,#333_0%_50%)] [background-size:24px_24px] aspect-video" />
+          {m.file ? <video src={fileUrl(m.file)} poster={m.poster ? fileUrl(m.poster) : undefined} controls loop className="w-full rounded bg-[repeating-conic-gradient(#555_0%_25%,#333_0%_50%)] [background-size:24px_24px] aspect-video" />
             : <div className="aspect-video rounded bg-secondary flex items-center justify-center text-xs text-amber-600 p-4 text-center"><AlertTriangle size={14} className="mr-1" />{m.error ?? "Pendiente"}</div>}
-          <div className="text-xs mt-2">{m.brief_en}</div>
+          <details className="text-xs mt-2"><summary className="cursor-pointer line-clamp-2">{m.brief_en}</summary><div className="mt-1 text-muted-foreground">{m.brief_en}</div></details>
           {m.text && <div className="text-xs text-muted-foreground">Texto: «{m.text}»</div>}
           {m.critique_es && <div className="text-[11px] text-muted-foreground mt-1">Revisión: {m.critique_es}</div>}
           {m.attempts && m.attempts > 1 && <div className="text-[11px] text-muted-foreground">{m.attempts} intentos</div>}

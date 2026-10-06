@@ -243,6 +243,8 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   for (const [i, t] of pkg.thumbnails.entries()) {
     t.path = await renderThumbnail({ background: t.image, text: t.text, highlight: t.highlight, layout: t.layout }, thumbP, visual, joinPath(v.dir, "thumbs", `thumb${i}.jpg`));
   }
+  // El aviso solo menciona ilustraciones de IA si de verdad las hay
+  const generatedUsedNow = polish.shots.some((x) => x.provenance?.kind === "generated");
   // Capítulos y subtítulos con los tiempos reales de la voz
   const segs = segInfos(script, voice);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
@@ -252,7 +254,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   pkg.description = L.composeDescription({ body: pkg.description_body_en, chapters: pkg.chapters, sources: L.usedSources(script, research),
     credits: L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || polish.sfx.some((x) => x.asset_id === a.id) || polish.music.some((x) => x.asset_id === a.id)),
       polish.music.filter((b) => b.path && !b.asset_id).map((b) => b.title ?? ""), (await listMusic()).filter((m) => polish.music.some((b) => b.path === m.path)).map((m) => m.attribution).filter(Boolean)),
-    disclosure: s.publishing.aiDisclosure });
+    disclosure: L.adaptDisclosure(s.publishing.aiDisclosure, { generatedImages: generatedUsedNow, aiVoice: voice.provider !== "own" }) });
   pkg.tags = L.sanitizeTags(pkg.tags);
   pkg.motion_count = motion?.items.filter((m) => m.file).length ?? 0;
   await fs.writeText(joinPath(v.dir, "captions.en.srt"), pkg.srt);

@@ -81,7 +81,7 @@ export function LibraryPage() {
           {list.map((a) => (
             <button key={a.id} onClick={() => setSel(a)} className="card overflow-hidden text-left hover:border-primary/60 transition-colors">
               <div className="relative"><Thumb a={a} className="w-full aspect-video" />
-                <span className="absolute top-1 left-1 chip bg-black/60 text-white border-transparent">{KIND_LABEL[a.kind]}{a.duration ? ` · ${Math.round(a.duration)} s` : ""}</span>
+                <span className="absolute top-1 left-1 chip bg-black/60 text-white border-transparent">{KIND_LABEL[a.kind]}{a.kind !== "image" && a.duration ? ` · ${Math.max(1, Math.round(a.duration))} s` : ""}</span>
                 {a.favorite ? <Star size={14} className="absolute top-1.5 right-1.5 text-amber-400 fill-amber-400" /> : null}
                 {!a.usable && <span className="absolute bottom-1 right-1 chip bg-red-600/80 text-white border-transparent">no usar</span>}
               </div>
@@ -135,7 +135,7 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
               ["Licencia", a.license_url ? <button className="text-primary hover:underline" onClick={() => void openUrl(a.license_url)}>{a.license}</button> : a.license],
               ["Autor", a.author || "—"], ["Fuente", (SOURCE_LABEL as Record<string, string>)[a.source] ?? a.source],
               ["Atribución", <span className="break-all">{a.attribution || "—"}</span>],
-              ["Tamaño", `${a.width ?? "?"}×${a.height ?? "?"}${a.duration ? ` · ${a.duration.toFixed(1)} s` : ""} · ${fmtBytes(a.bytes ?? 0)}`],
+              ["Tamaño", `${a.kind === "sfx" || a.kind === "music" ? "audio" : `${a.width ?? "?"}×${a.height ?? "?"}`}${a.kind !== "image" && a.duration ? ` · ${a.duration.toFixed(1)} s` : ""} · ${fmtBytes(a.bytes ?? 0)}`],
               ["Calidad", a.quality ? `${a.quality}/5` : "—"], ["Ambiente", a.mood || "—"],
               ["Persona real", a.real_person ? "Sí (no se usa para representar a otra persona)" : "No"],
               ["Problemas", a.issues || "—"], ["Buscado como", a.query || "—"], ["Usos", `${a.used_count}${a.last_used ? ` · último ${fmtDate(a.last_used)}` : ""}`],

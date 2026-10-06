@@ -386,7 +386,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   // Reutilizar lo ya renderizado
   for (const m of items) {
     const old = prev?.items.find((p) => p.hash === m.hash && p.file);
-    if (old && (await fs.exists(old.file!))) { m.file = old.file; m.code = old.code; m.critique_es = old.critique_es; }
+    if (old && (await fs.exists(old.file!))) { m.file = old.file; m.code = old.code; m.critique_es = old.critique_es; m.poster = old.poster; }
   }
   const todo = items.filter((m) => !m.file);
   if (!todo.length) return { items, rendered: items.filter((m) => m.file).length, failed: 0 };
@@ -450,7 +450,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
     });
     const ok = r.data.ok || r.data.severity !== "major";
-    await activity(v.id, "motion", ok ? "done" : "warn", `Revisión de ${m.id}: ${ok ? "aprobada" : "con defectos"}`, (r.data.problems_en ?? []).join("\n"), sheet);
+    await activity(v.id, "motion", ok ? "done" : "warn", `Revisión de ${m.id}: ${ok ? "aprobada" : "con defectos"}`, (r.data.problems_en ?? []).join("\n"));
     return { ok, problems: r.data.problems_en ?? [] };
   };
 
@@ -484,7 +484,11 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
             }
             m.file = r.file; m.error = null;
             m.code = { css: c.css, html: c.html, js: c.js, libs: c.libs ?? [], duration: m.duration };
-            await activity(v.id, "motion", "render", `Animación ${m.id} lista (${r.frames} cuadros)`, m.brief_en, r.samples[2] ?? null);
+            // Cuadro de muestra persistente (la carpeta de trabajo se borra al terminar)
+            m.poster = r.file.replace(/\.(mp4|mov)$/i, ".jpg");
+            try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (r.duration * 0.6).toFixed(2), "-i", r.file, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", m.poster]); }
+            catch { m.poster = null; }
+            await activity(v.id, "motion", "render", `Animación ${m.id} lista (${r.frames} cuadros)`, m.brief_en, m.poster);
             break;
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -628,7 +632,10 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
   await ffmpeg(withFilterScript(args, "mezcla.filtros.txt", modern), { jobId: ctx.jobId, cwd: dir, onSeconds: (sec) => { void ctx.progress(`Mezcla final · ${Math.min(100, Math.round((sec / total) * 100))} %`); } });
   await updateVideo(v.id, { data: { edit_version: 2 } });
   void sb;
-  const r: RenderOut = { file, duration: await probeDuration(file), encoder: encoder.name, segmentHashes: hashes, renderedAt: now(), sizeBytes: await fs.size(file) };
+  const duration = await probeDuration(file);
+  const poster = joinPath(v.dir, "poster.jpg");
+  try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", Math.min(30, duration * 0.2).toFixed(2), "-i", file, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", poster]); } catch { /* sin portada */ }
+  const r: RenderOut = { file, duration, encoder: encoder.name, segmentHashes: hashes, renderedAt: now(), sizeBytes: await fs.size(file), poster };
   await activity(v.id, "render", "done", `Video final listo (${Math.round(r.duration / 60)} min)`, file);
   return r;
 }

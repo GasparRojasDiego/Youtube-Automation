@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, type SegInfo } from "./timeline";
-import { buildSrtAligned, creditLines, composeDescription } from "./logic";
+import { buildSrtAligned, creditLines, composeDescription, adaptDisclosure } from "./logic";
 import { normLicense, rankCandidates, type Candidate } from "../media/sources";
 import { ftsQuery } from "../media/library";
 
@@ -92,6 +92,12 @@ describe("subtítulos, créditos y licencias", () => {
     const d = composeDescription({ body: "Body", chapters: [], sources: [], credits: many, disclosure: "AI voice." });
     expect(d.length).toBeLessThanOrEqual(4900);
     expect(d.trim().endsWith("AI voice.")).toBe(true);
+  });
+  it("el aviso de IA describe lo que el video contiene", () => {
+    const t = "Narration in this video uses an AI-generated voice. Some illustrations are AI-generated; every factual claim is sourced below.";
+    expect(adaptDisclosure(t, { generatedImages: false, aiVoice: true })).toBe("Narration in this video uses an AI-generated voice. Every factual claim is sourced below.");
+    expect(adaptDisclosure(t, { generatedImages: false, aiVoice: false })).toBe("Every factual claim is sourced below.");
+    expect(adaptDisclosure(t, { generatedImages: true, aiVoice: true })).toBe(t);
   });
   it("normaliza licencias y descarta NC/ND", () => {
     expect(normLicense("cc0")?.rank).toBe(3);

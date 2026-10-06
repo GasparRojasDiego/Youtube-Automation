@@ -71,7 +71,7 @@ export interface PackageOut {
   motion_count?: number;
 }
 
-export interface RenderOut { file: string; duration: number; encoder: string; segmentHashes: Record<string, string>; renderedAt: number; sizeBytes: number }
+export interface RenderOut { file: string; duration: number; encoder: string; segmentHashes: Record<string, string>; renderedAt: number; sizeBytes: number; poster?: string }
 
 export interface PublishOut { youtube_id: string; url: string; privacy: string; publish_at: string | null; thumbnail_ok: boolean; note_es: string }
 
@@ -132,6 +132,7 @@ export interface MotionItem {
   // resultado
   file?: string | null; error?: string | null; attempts?: number; critique_es?: string; hash?: string;
   code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number };
+  poster?: string | null;
 }
 
 export interface PolishOut { shots: Shot[]; sfx: SfxCue[]; music: MusicBed[]; motion: MotionItem[]; notes_es: string; grade: Grade; key?: string; skipped?: boolean; verify_es?: string[] }

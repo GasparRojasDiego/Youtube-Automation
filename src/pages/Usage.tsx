@@ -21,6 +21,9 @@ export function delta(r: Pick<RunRow, "five_hour" | "five_hour_before" | "seven_
   return { d5: d(r.five_hour, r.five_hour_before), d7: d(r.seven_day, r.seven_day_before) };
 }
 
+/** Claude informa la utilización en pasos de 1 %: una diferencia de 0 significa «menos de 1 %». */
+const measured = (d: number | null) => (d == null ? "—" : d === 0 ? "< 1 %" : `+${pct(d, 0)}`);
+
 /** Porcentaje del plan de una tarea: medido (Δ de la ventana) y estimado (calibrado por tokens). */
 export function RunShare({ r, cal }: { r: RunRow; cal: Calibration | null }) {
   const { d5, d7 } = delta(r);
@@ -28,8 +31,8 @@ export function RunShare({ r, cal }: { r: RunRow; cal: Calibration | null }) {
   const e7 = cal?.per7d != null ? r.api_equiv * cal.per7d : null;
   return (
     <span className="tabular text-xs" title="Medido: diferencia de la utilización oficial antes y después de la tarea (incluye cualquier otro uso simultáneo del plan). Estimado: según los tokens de la tarea y tu historial.">
-      {e5 != null ? `≈${pct(e5, 2)}` : d5 != null ? pct(d5, 0) : "—"} <span className="text-muted-foreground">/ 5 h</span>
-      {" · "}{e7 != null ? `≈${pct(e7, 2)}` : d7 != null ? pct(d7, 0) : "—"} <span className="text-muted-foreground">/ 7 d</span>
+      {e5 != null ? `≈${pct(e5, 2)}` : measured(d5)} <span className="text-muted-foreground">/ 5 h</span>
+      {" · "}{e7 != null ? `≈${pct(e7, 2)}` : measured(d7)} <span className="text-muted-foreground">/ 7 d</span>
     </span>
   );
 }
@@ -102,7 +105,7 @@ export function UsagePage() {
               <tr key={v.video_id} className="border-t border-border/50 hover:bg-accent/40 cursor-pointer" onClick={() => navigate({ page: "video", id: v.video_id })}>
                 <td className="py-1.5 truncate max-w-[260px]">{v.title ?? v.video_id}</td><td className="text-right tabular">{v.n} tareas</td>
                 <td className="text-right tabular">{fmtK(v.inp)} / {fmtK(v.outp)}</td>
-                <td className="text-right tabular">{cal?.per7d != null ? `≈${pct(v.eq * cal.per7d, 1)} sem.` : fmtUsd(v.eq)}</td></tr>))}</tbody></table>
+                <td className="text-right tabular" title="Equivalente si se pagara por API (referencia; tu plan lo cubre)">{cal?.per7d != null ? `≈${pct(v.eq * cal.per7d, 1)} sem.` : `eq. ${fmtUsd(v.eq)}`}</td></tr>))}</tbody></table>
           </Card>
         </div>
         <Card title="Cada tarea de Claude" pad={false}>

@@ -93,7 +93,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     time: "12:00",
     categoryId: "27",
     defaultLanguage: "en",
-    aiDisclosure: "Narration in this video uses an AI-generated voice. Some illustrations are AI-generated; every factual claim is sourced below.",
+    aiDisclosure: "Narration in this video uses an AI-generated voice. Every factual claim is sourced below.",
     privacyPolicyUrl: "",
   },
   production: {

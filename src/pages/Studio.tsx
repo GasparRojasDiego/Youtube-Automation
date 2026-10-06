@@ -78,11 +78,11 @@ function Monitor({ video, stages }: { video: Video; stages: StageRow[] }) {
   const tick = useBus("live");
   const live = useMemo(() => getLive(video.id), [video.id, tick]);
   const running = stages.find((s) => s.status === "running");
-  const render = stages.find((s) => s.stage === "render")?.output as { file?: string } | null;
+  const render = stages.find((s) => s.stage === "render")?.output as { file?: string; poster?: string; renderedAt?: number } | null;
   const showFinal = !running && render?.file;
   return (
     <div className="rounded-lg overflow-hidden border border-border bg-black relative aspect-video">
-      {showFinal ? <video key={render!.file} src={fileUrl(render!.file!)} controls className="w-full h-full" /> :
+      {showFinal ? <video key={render!.file} src={fileUrl(render!.file!, render!.renderedAt)} poster={render!.poster ? fileUrl(render!.poster, render!.renderedAt) : undefined} controls className="w-full h-full" /> :
         live?.frame ? <img src={src(live.frame)} className="w-full h-full object-contain" /> :
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60 gap-2"><MonitorPlay size={34} /><span className="text-sm">{running ? "Preparando la vista previa…" : "Sin vista previa todavía"}</span></div>}
       {!showFinal && (live?.caption || running?.progress) && (

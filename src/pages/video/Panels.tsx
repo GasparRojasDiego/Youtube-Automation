@@ -177,7 +177,7 @@ export function PackagePanel({ data }: { data: PackageOut }) {
 export function RenderPanel({ data }: { data: RenderOut }) {
   return (
     <Card title={`Video final · ${fmtDuration(data.duration)} · ${fmtBytes(data.sizeBytes)} · codificador ${data.encoder}`}>
-      <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(data.file, data.renderedAt)} />
+      <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(data.file, data.renderedAt)} poster={data.poster ? fileUrl(data.poster, data.renderedAt) : undefined} />
       <button className="btn-ghost btn-sm mt-2" onClick={() => void openPath(data.file)}>Abrir en el reproductor del sistema</button>
     </Card>
   );

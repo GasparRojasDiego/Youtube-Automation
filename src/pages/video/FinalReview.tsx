@@ -70,7 +70,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
         ) : null}
         {tab === "video" && (
           <Card>
-            <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} />
+            <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} poster={render.poster ? fileUrl(render.poster, render.renderedAt) : undefined} />
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
               <span>{fmtDuration(render.duration)} · capítulos: {pkg.chapters.length} · <button className="text-primary hover:underline" onClick={() => void openPath(render.file)}>Abrir en el reproductor del sistema</button></span>
               {editable && <ReviewTimer onTick={(s) => (secs.current = s)} />}
