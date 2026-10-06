@@ -1,8 +1,8 @@
 // Ejecución de ffmpeg/ffprobe (incluidos con la app como binarios auxiliares).
-import { proc } from "../lib/ipc";
+import { proc, fs, appPaths } from "../lib/ipc";
 import { getSettings } from "../lib/settings";
 import { UserError } from "../lib/events";
-import { uid } from "../lib/util";
+import { uid, joinPath } from "../lib/util";
 import { parseProgressSeconds, type EncoderSpec } from "../pipeline/montage";
 
 async function bin(name: "ffmpeg" | "ffprobe"): Promise<string> {
@@ -71,4 +71,18 @@ export async function pickEncoder(): Promise<EncoderSpec> {
   }
   if (!encoderCache) throw new UserError("Ningún codificador H.264 funcionó en este equipo.", "Revisa Diagnóstico.", "ffmpeg", false);
   return { name: encoderCache, quality: s.quality };
+}
+
+let modernCache: boolean | null = null;
+
+/** ¿Acepta ffmpeg «-/filter_complex archivo» (≥ 7)? Si no, se usa «-filter_complex_script». */
+export async function filterScriptModern(): Promise<boolean> {
+  if (modernCache != null) return modernCache;
+  const exe = await bin("ffmpeg");
+  const tmp = joinPath((await appPaths()).data, "ffmpeg-prueba-filtro.txt");
+  await fs.writeText(tmp, "[0:v]null[v]");
+  const r = await proc.run({ id: uid("fs_"), program: exe, timeoutS: 30,
+    args: ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "nullsrc=s=16x16:d=0.1", "-/filter_complex", tmp, "-map", "[v]", "-f", "null", "-"] });
+  modernCache = r.code === 0;
+  return modernCache;
 }

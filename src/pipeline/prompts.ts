@@ -3,11 +3,11 @@
 // habilidades del usuario, que se inyectan en cada prompt.
 
 type S = Record<string, any>;
-const str = (description?: string): S => ({ type: "string", ...(description ? { description } : {}) });
-const num = (description?: string): S => ({ type: "number", ...(description ? { description } : {}) });
-const bool = (description?: string): S => ({ type: "boolean", ...(description ? { description } : {}) });
-const arr = (items: S, description?: string): S => ({ type: "array", items, ...(description ? { description } : {}) });
-const en = (values: string[], description?: string): S => ({ type: "string", enum: values, ...(description ? { description } : {}) });
+export const str = (description?: string): S => ({ type: "string", ...(description ? { description } : {}) });
+export const num = (description?: string): S => ({ type: "number", ...(description ? { description } : {}) });
+export const bool = (description?: string): S => ({ type: "boolean", ...(description ? { description } : {}) });
+export const arr = (items: S, description?: string): S => ({ type: "array", items, ...(description ? { description } : {}) });
+export const en = (values: string[], description?: string): S => ({ type: "string", enum: values, ...(description ? { description } : {}) });
 export const obj = (properties: S, required: string[] = Object.keys(properties)): S => ({ type: "object", properties, required, additionalProperties: false });
 
 export const SYSTEM_BASE = `You are the production engine of ATRIL, a studio that produces English-language YouTube videos for a US audience.
@@ -18,7 +18,7 @@ Absolute rules:
 - The narrator never claims credentials, never impersonates a real person, and never presents an inference as an established fact.
 - Answer only through the required structured output.`;
 
-const wrapSkills = (skills: string) => skills ? `\n\n<channel_skills>\n${skills}\n</channel_skills>` : "\n\n(No channel skills are active for this stage: use a neutral, rigorous documentary register.)";
+export const wrapSkills = (skills: string) => skills ? `\n\n<channel_skills>\n${skills}\n</channel_skills>` : "\n\n(No channel skills are active for this stage: use a neutral, rigorous documentary register.)";
 
 // ---------- Banco de temas ----------
 export const TOPICS_SCHEMA = obj({
@@ -210,21 +210,22 @@ export const PACKAGE_SCHEMA = obj({
   tags: arr(str()),
   thumbnails: arr(obj({
     concept_es: str(), text: str("Thumbnail text, max 4 words, may be empty"), highlight: str("One word of the text to highlight, or empty"),
-    image_prompt_en: str("Background image prompt following the thumbnail skill; no real people photorealistic, no logos"),
+    image_prompt_en: str("Background image prompt following the thumbnail skill; no real people photorealistic, no logos (only used if no listed image fits)"),
+    background_asset_id: str("Id of the listed video image to use as background, or empty"),
     layout: en(["left", "right", "center"], "Where the text goes"),
   })),
   synthetic_media: bool("true if the video contains realistic AI-generated scenes that viewers could mistake for real footage"),
   synthetic_reason_es: str(),
 });
 
-export function packagePrompt(o: { skills: string; script: unknown; verify: unknown; params: unknown; count: number; photorealistic: boolean }) {
+export function packagePrompt(o: { skills: string; script: unknown; verify: unknown; params: unknown; count: number; photorealistic: boolean; images?: { id: string; description: string }[] }) {
   return `Create the YouTube packaging for this video: 3 title options, description body, 10-20 tags and ${o.count} thumbnail concepts.${wrapSkills(o.skills)}
 
 THUMBNAIL PARAMETERS: ${JSON.stringify(o.params)}
 The visuals of this video are ${o.photorealistic ? "photorealistic AI images" : "stylized / non-photorealistic illustrations, archival images and text cards"}.
 Rules: titles and thumbnails must not promise anything the video does not demonstrate (YouTube treats that as manipulative). Thumbnails must not look like generic AI art; follow the thumbnail skill.
 
-SCRIPT: ${JSON.stringify(o.script)}
+${o.images?.length ? `IMAGES USED IN THE VIDEO (choose a strong, uncluttered one per thumbnail with background_asset_id):\n${o.images.map((x) => `- ${x.id}: ${x.description}`).join("\n")}\n\n` : ""}SCRIPT: ${JSON.stringify(o.script)}
 
 VERIFICATION SUMMARY: ${JSON.stringify(o.verify)}`;
 }

@@ -87,7 +87,10 @@ export const STAGES = [
   { id: "script", label: "Guion", short: "Guion" },
   { id: "verify", label: "Verificación", short: "Verificar", gate: true },
   { id: "voice", label: "Voz", short: "Voz" },
-  { id: "visuals", label: "Imágenes", short: "Imágenes" },
+  { id: "storyboard", label: "Storyboard", short: "Storyboard" },
+  { id: "assets", label: "Medios y casting", short: "Medios" },
+  { id: "polish", label: "Retoques (Opus)", short: "Retoques" },
+  { id: "motion", label: "Animaciones", short: "Motion" },
   { id: "package", label: "Miniatura y metadatos", short: "Metadatos" },
   { id: "render", label: "Montaje", short: "Montaje" },
   { id: "final", label: "Revisión final", short: "Revisión", gate: true },
@@ -149,9 +152,17 @@ export async function updateVideo(id: string, patch: Partial<Omit<Video, "data">
 }
 
 export async function getStages(videoId: string): Promise<StageRow[]> {
-  const rows = await db.query("SELECT * FROM stages WHERE video_id=?", [videoId]);
+  let rows = await db.query("SELECT * FROM stages WHERE video_id=?", [videoId]);
   const order = STAGES.map((s) => s.id as string);
-  return rows.map((r) => ({ ...r, output: safeJson(r.output, null) }) as StageRow).sort((a, b) => order.indexOf(a.stage) - order.indexOf(b.stage));
+  const missing = order.filter((id) => !rows.some((r) => r.stage === id));
+  if (missing.length) {
+    // Videos creados con la v1: las etapas nuevas se añaden. Si el video ya
+    // estaba montado, se marcan como omitidas para no rehacer nada sin pedirlo.
+    const rendered = rows.some((r) => r.stage === "render" && ["done", "approved"].includes(r.status));
+    await db.batch(missing.map((id) => ({ sql: "INSERT OR IGNORE INTO stages(video_id,stage,status) VALUES(?,?,?)", params: [videoId, id, rendered ? "skipped" : "pending"] })));
+    rows = await db.query("SELECT * FROM stages WHERE video_id=?", [videoId]);
+  }
+  return rows.filter((r) => order.includes(r.stage)).map((r) => ({ ...r, output: safeJson(r.output, null) }) as StageRow).sort((a, b) => order.indexOf(a.stage) - order.indexOf(b.stage));
 }
 
 export async function getStage(videoId: string, stage: StageId): Promise<StageRow | null> {

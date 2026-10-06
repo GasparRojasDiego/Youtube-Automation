@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  Sun, Moon, Bell, Home, Clapperboard, Lightbulb, Sparkles, Users, BarChart3, Languages, Wallet, Settings, Stethoscope, BookOpen,
-  PanelLeftClose, PanelLeftOpen, Loader2, type LucideIcon,
+  Sun, Moon, Bell, Home, Clapperboard, Lightbulb, Sparkles, Users, BarChart3, Languages, Gauge, Settings, Stethoscope, BookOpen,
+  PanelLeftClose, PanelLeftOpen, Loader2, MonitorPlay, Library, type LucideIcon,
 } from "lucide-react";
 import { navigate, useRoute, type Page } from "./ui/nav";
 import { AtrilLogo } from "./ui/Constellation";
@@ -21,7 +21,10 @@ import { Skills } from "./pages/Skills";
 import { Creators } from "./pages/Creators";
 import { Metrics } from "./pages/Metrics";
 import { Vocabulary } from "./pages/Vocabulary";
-import { Costs } from "./pages/Costs";
+import { UsagePage } from "./pages/Usage";
+import { StudioPage } from "./pages/Studio";
+import { LibraryPage } from "./pages/Library";
+import { HeaderUsage } from "./ui/Usage";
 import { SettingsPage } from "./pages/Settings";
 import { Diagnostics } from "./pages/Diagnostics";
 import { Guide } from "./pages/Guide";
@@ -30,17 +33,19 @@ import { Welcome } from "./pages/Welcome";
 const NAV: { group: string; items: { id: Page; label: string; icon: LucideIcon }[] }[] = [
   { group: "Producción", items: [
     { id: "hoy", label: "Hoy", icon: Home },
+    { id: "estudio", label: "Estudio en vivo", icon: MonitorPlay },
     { id: "produccion", label: "Videos", icon: Clapperboard },
     { id: "temas", label: "Temas", icon: Lightbulb },
   ] },
-  { group: "Identidad", items: [
+  { group: "Identidad y material", items: [
     { id: "habilidades", label: "Habilidades", icon: Sparkles },
+    { id: "biblioteca", label: "Biblioteca", icon: Library },
     { id: "referentes", label: "Referentes", icon: Users },
   ] },
   { group: "Mejora", items: [
     { id: "metricas", label: "Métricas", icon: BarChart3 },
     { id: "vocabulario", label: "Inglés", icon: Languages },
-    { id: "costos", label: "Costos", icon: Wallet },
+    { id: "consumo", label: "Consumo", icon: Gauge },
   ] },
   { group: "Sistema", items: [
     { id: "ajustes", label: "Ajustes", icon: Settings },
@@ -76,7 +81,9 @@ export default function App() {
       case "referentes": return <Creators />;
       case "metricas": return <Metrics />;
       case "vocabulario": return <Vocabulary />;
-      case "costos": return <Costs />;
+      case "estudio": return <StudioPage />;
+      case "biblioteca": return <LibraryPage />;
+      case "consumo": case "costos": return <UsagePage />;
       case "ajustes": return <SettingsPage tab={route.tab} />;
       case "diagnostico": return <Diagnostics />;
       case "guia": return <Guide />;
@@ -111,7 +118,7 @@ export default function App() {
           ))}
         </nav>
         <div className="border-t border-border p-2.5 flex items-center justify-between">
-          {!collapsed && <span className="text-[10.5px] uppercase tracking-[0.2em] text-muted-foreground pl-1">VT Asvent · v1.0.0</span>}
+          {!collapsed && <span className="text-[10.5px] uppercase tracking-[0.2em] text-muted-foreground pl-1">VT Asvent · v2.0.0</span>}
           <button className="btn-ghost btn-sm" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer menú">
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
@@ -125,11 +132,12 @@ export default function App() {
           </select>
           <div className="flex-1 flex justify-center">
             {running ? (
-              <button onClick={() => navigate({ page: "video", id: running })} className="chip border-primary/40 text-primary bg-primary/10 h-7 px-3 animate-glow">
+              <button onClick={() => navigate({ page: "estudio" })} className="chip border-primary/40 text-primary bg-primary/10 h-7 px-3 animate-glow">
                 <Loader2 size={12} className="animate-spin" /> Trabajando: {STAGES.find((x) => x.id === rs)?.label ?? "…"}
               </button>
             ) : <span className="text-[11px] uppercase tracking-widest text-primary font-semibold">Estudio de producción asistida</span>}
           </div>
+          <HeaderUsage />
           <button className="btn-brand w-9 px-0" onClick={() => void saveSettings({ theme: s.theme === "dark" ? "light" : "dark" })} aria-label="Cambiar tema">
             {s.theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>

@@ -12,7 +12,11 @@ import { Stepper, awaiting } from "../ui/Stepper";
 import { fmtUsd, fmtDate } from "../lib/util";
 import { VerifyReview } from "./video/VerifyReview";
 import { FinalReview } from "./video/FinalReview";
-import { ResearchPanel, ScriptPanel, VoicePanel, VisualsPanel, PackagePanel, RenderPanel, PublishPanel } from "./video/Panels";
+import { ResearchPanel, ScriptPanel, VoicePanel, PackagePanel, RenderPanel, PublishPanel } from "./video/Panels";
+import { StoryboardPanel, AssetsPanel, PolishPanel, MotionPanel } from "./video/EditPanels";
+import { LiveStudio } from "./Studio";
+import { Tabs } from "../ui/kit";
+import { MonitorPlay, ListChecks } from "lucide-react";
 
 export function VideoDetail({ id }: { id: string }) {
   const tick = useBus("videos", "stages", "costs", "jobs");
@@ -21,6 +25,7 @@ export function VideoDetail({ id }: { id: string }) {
   const [cost, setCost] = useState({ usd: 0, apiEquiv: 0 });
   const [sel, setSel] = useState<StageId | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [view, setView] = useState<"live" | "stages" | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -38,6 +43,8 @@ export function VideoDetail({ id }: { id: string }) {
   const a = awaiting(video, stages);
   const isRunning = runningVideoId() === video.id;
   const canContinue = !isQueued(video.id) && stages.some((s) => s.status === "pending") && !stages.some((s) => s.status === "review");
+  // Mientras trabaja, se muestra el estudio en vivo; si algo espera al usuario, sus resultados.
+  const mode = view ?? (stages.some((s) => s.status === "review" || s.status === "failed") ? "stages" : "live");
 
   return (
     <div className="space-y-5">
@@ -53,9 +60,11 @@ export function VideoDetail({ id }: { id: string }) {
           {isRunning ? <button className="btn-danger" onClick={() => void cancelCurrent()}><Square size={14} /> Detener</button>
             : canContinue && <button className="btn-primary" onClick={() => runVideo(video.id)}><Play size={15} /> Continuar</button>}
         </>} />
-      <Card pad><Stepper stages={stages} selected={current} onSelect={(s) => setSel(s as StageId)} /></Card>
+      <Card pad><Stepper stages={stages} selected={current} onSelect={(s) => { setSel(s as StageId); setView("stages"); }} /></Card>
+      <Tabs value={mode} onChange={setView} tabs={[{ id: "live", label: "Estudio en vivo", icon: MonitorPlay }, { id: "stages", label: "Resultados por etapa", icon: ListChecks }]} />
+      {mode === "live" && <LiveStudio video={video} />}
 
-      {row && (
+      {mode === "stages" && row && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -108,7 +117,10 @@ function StagePanel({ video, stages, stage, row }: { video: Video; stages: Stage
     case "script": return row.output ? <ScriptPanel video={video} data={row.output} /> : null;
     case "verify": return row.output && get("script") ? <VerifyReview video={video} row={row} script={get("script")} research={get("research")} /> : null;
     case "voice": return <VoicePanel video={video} row={row} script={get("script")} />;
-    case "visuals": return row.output ? <VisualsPanel video={video} data={row.output} /> : null;
+    case "storyboard": return row.output ? <StoryboardPanel data={row.output} /> : null;
+    case "assets": return row.output ? <AssetsPanel video={video} data={row.output} /> : null;
+    case "polish": return row.output ? <PolishPanel video={video} data={row.output} /> : null;
+    case "motion": return row.output ? <MotionPanel video={video} data={row.output} /> : null;
     case "package": return row.output ? <PackagePanel data={row.output} /> : null;
     case "render": return row.output ? <RenderPanel data={row.output} /> : null;
     case "final": return row.status === "review" || row.status === "approved" ? <FinalReview video={video} stages={stages} /> : <Card><div className="text-sm text-muted-foreground">Se habilita cuando termine el montaje.</div></Card>;

@@ -17,6 +17,8 @@ export const SCOPES = [
   { id: "thumbnail", label: "Miniatura" },
   { id: "metadata", label: "Título, descripción y etiquetas" },
   { id: "montage", label: "Montaje" },
+  { id: "edit", label: "Retoques de edición (Opus)" },
+  { id: "motion", label: "Animaciones y motion graphics" },
   { id: "metrics", label: "Análisis de métricas" },
   { id: "analysis", label: "Análisis de referentes" },
 ] as const;
@@ -168,6 +170,9 @@ export const MONTAGE_DEFAULTS = {
   musicDuck: true,
   lowerThirds: true,
   sourceCardSeconds: 6,
+  humor: false,          // permite memes y momentos cómicos
+  grain: 3,              // grano de película (0 = sin grano)
+  vignette: true,
 };
 export type MontageParams = typeof MONTAGE_DEFAULTS;
 

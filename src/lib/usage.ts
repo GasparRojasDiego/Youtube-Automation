@@ -98,3 +98,50 @@ export function fmtReset(ms: number | null | undefined): string {
 }
 
 export const pct = (x: number | null | undefined, digits = 1) => x == null ? "—" : `${(x * 100).toFixed(digits)} %`;
+
+// ---------- Análisis del consumo de Claude ----------
+export interface RunRow {
+  id: number; ts: number; video_id: string | null; stage: string; label: string; model: string;
+  input_tokens: number; cache_read: number; cache_write: number; output_tokens: number; web_searches: number;
+  api_equiv: number; duration_ms: number; five_hour: number | null; seven_day: number | null;
+  five_hour_before: number | null; seven_day_before: number | null; ok: number;
+}
+
+export async function listRuns(o: { videoId?: string; since?: number; limit?: number } = {}): Promise<RunRow[]> {
+  const w: string[] = []; const p: unknown[] = [];
+  if (o.videoId) { w.push("video_id=?"); p.push(o.videoId); }
+  if (o.since) { w.push("ts>=?"); p.push(o.since); }
+  p.push(o.limit ?? 200);
+  return db.query<RunRow>(`SELECT * FROM claude_runs ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY id DESC LIMIT ?`, p);
+}
+
+export interface Calibration { per5h: number | null; per7d: number | null; samples: number }
+
+/**
+ * Cuánto % de cada ventana consume, en promedio, 1 USD de «equivalente API».
+ * Claude Code informa la utilización con poca resolución; con varias tareas
+ * medidas se obtiene una estimación fina por tarea.
+ */
+export async function calibration(days = 21): Promise<Calibration> {
+  const rows = await db.query<RunRow>("SELECT * FROM claude_runs WHERE ts>=? AND api_equiv>0", [now() - days * 86_400_000]);
+  let d5 = 0, a5 = 0, d7 = 0, a7 = 0, n = 0;
+  for (const r of rows) {
+    if (r.five_hour != null && r.five_hour_before != null && r.five_hour >= r.five_hour_before) { d5 += r.five_hour - r.five_hour_before; a5 += r.api_equiv; n++; }
+    if (r.seven_day != null && r.seven_day_before != null && r.seven_day >= r.seven_day_before) { d7 += r.seven_day - r.seven_day_before; a7 += r.api_equiv; }
+  }
+  return { per5h: a5 >= 1 && d5 > 0 ? d5 / a5 : null, per7d: a7 >= 1 && d7 > 0 ? d7 / a7 : null, samples: n };
+}
+
+export const totalInput = (r: Pick<RunRow, "input_tokens" | "cache_read" | "cache_write">) => r.input_tokens + r.cache_read + r.cache_write;
+
+export function fmtK(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)} k`;
+  return String(Math.round(n));
+}
+
+export const STAGE_NAMES: Record<string, string> = {
+  topics: "Banco de temas", research: "Investigación", script: "Guion", verify: "Verificación", voice: "Voz", storyboard: "Storyboard",
+  assets: "Medios y casting", polish: "Retoques", motion: "Animaciones", package: "Metadatos", render: "Montaje", analysis: "Referentes",
+  usage: "Consulta de límite", vision: "Visión", plan: "Plan visual",
+};

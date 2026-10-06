@@ -1,18 +1,19 @@
 // Revisión final: el video completo con su miniatura y metadatos. Se puede
 // aprobar, rechazar o pedir cambios puntuales sin rehacer todo.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, XCircle, RotateCcw, Music2, CalendarClock, Image as ImageIcon, Mic, Wand2 } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, CalendarClock, Image as ImageIcon, Mic, Wand2, Sparkles } from "lucide-react";
 import { db, fileUrl } from "../../lib/ipc";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { emit } from "../../lib/bus";
-import { addReview, listMusic, updateVideo, type Video, type StageRow, type Track } from "../../lib/repo";
+import { addReview, type Video, type StageRow } from "../../lib/repo";
 import { getSettings } from "../../lib/settings";
 import { skillParams, THUMBNAIL_DEFAULTS, VISUAL_DEFAULTS } from "../../lib/skills";
-import type { PackageOut, RenderOut, VisualsOut, ScriptOut, VoiceOut, PlannedShot } from "../../pipeline/types";
-import { approveFinal, rejectVideo, rerenderFrom, redoVoiceSegment } from "../../pipeline/runner";
+import type { PackageOut, RenderOut, ScriptOut, VoiceOut, PolishOut, MotionOut, Shot } from "../../pipeline/types";
+import { approveFinal, rejectVideo, redoVoiceSegment } from "../../pipeline/runner";
 import { renderThumbnail } from "../../pipeline/cards";
 import { Card, Chip, Field, Toggle, ReviewTimer, AsyncButton, Modal, Tabs } from "../../ui/kit";
-import { ShotEditor, ExportButton } from "./Panels";
+import { ExportButton } from "./Panels";
+import { ShotThumb, ShotEditorV2, MusicBeds, MotionPanel } from "./EditPanels";
 import { fmtDuration, zonedTimeToUtc, ymdInZone, joinPath } from "../../lib/util";
 import { toast } from "../../lib/events";
 
@@ -27,13 +28,14 @@ async function nextSlot(): Promise<{ date: string; time: string }> {
 
 export function FinalReview({ video, stages }: { video: Video; stages: StageRow[] }) {
   const get = <T,>(s: string) => stages.find((x) => x.stage === s)?.output as T;
-  const render = get<RenderOut>("render"); const visuals = get<VisualsOut>("visuals"); const script = get<ScriptOut>("script"); const voice = get<VoiceOut>("voice");
+  const render = get<RenderOut>("render"); const script = get<ScriptOut>("script"); const voice = get<VoiceOut>("voice");
+  const polish = get<PolishOut>("polish"); const motion = get<MotionOut>("motion");
+  const shots: Shot[] = polish?.shots ?? [];
   const [pkg, setPkg] = useState<PackageOut>(get<PackageOut>("package"));
-  const [tab, setTab] = useState<"video" | "shots" | "voice">("video");
-  const [tracks, setTracks] = useState<Track[]>([]);
+  const [tab, setTab] = useState<"video" | "shots" | "motion" | "voice">("video");
   const [slot, setSlot] = useState<{ date: string; time: string } | null>(null);
   const [now, setNow] = useState(false);
-  const [edit, setEdit] = useState<PlannedShot | null>(null);
+  const [edit, setEdit] = useState<Shot | null>(null);
   const [reject, setReject] = useState(false);
   const [reason, setReason] = useState("");
   const [thumbText, setThumbText] = useState(pkg.thumbnails[pkg.chosen_thumbnail]?.text ?? "");
@@ -42,7 +44,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
   const editable = stages.find((s) => s.stage === "final")?.status === "review";
   const p = getSettings().publishing;
 
-  useEffect(() => { void listMusic().then(setTracks); void nextSlot().then(setSlot); }, []);
+  useEffect(() => { void nextSlot().then(setSlot); }, []);
   useEffect(() => { setThumbText(pkg.thumbnails[pkg.chosen_thumbnail]?.text ?? ""); }, [pkg.chosen_thumbnail]);
 
   const save = async (next: PackageOut) => {
@@ -53,12 +55,12 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
   const scheduledUtc = useMemo(() => slot ? zonedTimeToUtc(slot.date, slot.time, p.timeZone) : null, [slot, p.timeZone]);
 
   if (!render || !pkg) return null;
-  const music = tracks.find((t) => t.id === video.data.music_id);
+  const motionShots = new Set((motion?.items ?? []).filter((m) => m.file).flatMap((m) => m.shot_ids));
 
   return (
     <div className="grid grid-cols-[1fr_420px] gap-4 items-start">
       <div className="space-y-3">
-        <Tabs value={tab} onChange={setTab} tabs={[{ id: "video", label: "Video" }, { id: "shots", label: `Tomas (${visuals.shots.length})`, icon: ImageIcon }, { id: "voice", label: "Voz", icon: Mic }]} />
+        <Tabs value={tab} onChange={setTab} tabs={[{ id: "video", label: "Video" }, { id: "shots", label: `Tomas (${shots.length})`, icon: ImageIcon }, { id: "motion", label: `Animaciones (${motion?.items.length ?? 0})`, icon: Sparkles }, { id: "voice", label: "Voz", icon: Mic }]} />
         {tab === "video" && (
           <Card>
             <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} />
@@ -70,20 +72,17 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
         )}
         {tab === "shots" && (
           <div className="space-y-3">
+            {!polish && <Card><div className="text-sm text-muted-foreground">Este video se montó con la versión 1. Para usar la edición nueva, pulsa «Rehacer desde aquí» en la etapa Storyboard.</div></Card>}
             {script.segments.map((sg) => (
               <Card key={sg.id} title={sg.title}>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {visuals.shots.filter((s) => s.segment_id === sg.id).map((s) => (
-                    <button key={s.id} onClick={() => setEdit(s)} className="shrink-0 w-40 rounded-md overflow-hidden border border-border hover:border-primary/60 relative" title="Cambiar esta toma">
-                      {s.image && <img loading="lazy" src={fileUrl(s.image, s.hash?.slice(0, 8))} className="aspect-video object-cover w-full" />}
-                      <span className="absolute bottom-1 right-1 chip bg-black/60 border-white/20 text-white">{s.dur?.toFixed(1)} s</span>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+                  {shots.filter((s) => s.segment_id === sg.id).map((s) => <ShotThumb key={s.id} s={s} motion={motionShots.has(s.id)} onClick={editable ? () => setEdit(s) : undefined} />)}
                 </div>
               </Card>
             ))}
           </div>
         )}
+        {tab === "motion" && motion && <MotionPanel video={video} data={motion} />}
         {tab === "voice" && (
           <Card title="Narración por segmento">
             <div className="space-y-2">
@@ -144,16 +143,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
           </div>
           <div className="text-[11px] text-muted-foreground mt-1">{pkg.synthetic_reason_es}</div>
         </Card>
-        <Card title="Música" icon={Music2}>
-          <div className="flex gap-2">
-            <select className="input text-sm" disabled={!editable} value={video.data.music_id ?? ""} onChange={(e) => void updateVideo(video.id, { data: { music_id: e.target.value || "none" } })}>
-              <option value="none">Sin música</option>
-              {tracks.filter((t) => t.enabled).map((t) => <option key={t.id} value={t.id}>{t.title} — {t.artist}</option>)}
-            </select>
-            <AsyncButton className="btn-brand btn-sm" disabled={!editable} onClick={async () => { await rerenderFrom(video.id, "package"); toast("info", "Volviendo a montar", "Solo se rehace la mezcla; los segmentos ya montados se reutilizan."); }}><RotateCcw size={13} /> Aplicar</AsyncButton>
-          </div>
-          {music && <div className="text-[11px] text-muted-foreground mt-1">{music.license} · {music.attribution}</div>}
-        </Card>
+        {polish && <MusicBeds video={video} beds={polish.music} editable={editable} />}
         {editable && (
           <Card title="Publicación" icon={CalendarClock}>
             <div className="space-y-2">
@@ -181,7 +171,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
           </Card>
         )}
       </div>
-      <ShotEditor video={video} shot={edit} onClose={() => setEdit(null)} />
+      <ShotEditorV2 video={video} shot={edit} onClose={() => setEdit(null)} />
       <Modal open={reject} onClose={() => setReject(false)} title="Rechazar video" echo="rechazar"
         footer={<><button className="btn-ghost" onClick={() => setReject(false)}>Cancelar</button>
           <button className="btn-danger" onClick={async () => { await addReview(video.id, "final", "rejected", reason, secs.current); await rejectVideo(video.id, reason); setReject(false); }}>Rechazar</button></>}>

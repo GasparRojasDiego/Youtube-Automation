@@ -172,6 +172,51 @@ export function buildSrt(segs: SegSentences[], narrationDur: Record<string, numb
   return out.join("\n");
 }
 
+/** Subtítulos SRT con los tiempos reales de la voz (oraciones alineadas). */
+export function buildSrtAligned(segs: { id: string; sentences: string[]; spans: { start: number; end: number }[] }[], offsets: Record<string, number>): string {
+  const out: string[] = []; let idx = 1;
+  for (const s of segs) {
+    const base = offsets[s.id] ?? 0;
+    s.sentences.forEach((sen, i) => {
+      const sp = s.spans[i]; if (!sp) return;
+      const words = sen.split(/\s+/).filter(Boolean);
+      // trozos de ≤ 84 caracteres, con tiempo proporcional a su longitud
+      const chunks: string[][] = []; let cur: string[] = [];
+      for (const w of words) { if ([...cur, w].join(" ").length > 84 && cur.length) { chunks.push(cur); cur = []; } cur.push(w); }
+      if (cur.length) chunks.push(cur);
+      const total = chunks.reduce((a, c) => a + c.join(" ").length, 0) || 1;
+      let t = base + sp.start;
+      for (const c of chunks) {
+        const d = (sp.end - sp.start) * (c.join(" ").length / total);
+        out.push(`${idx++}\n${srtTime(t)} --> ${srtTime(t + Math.max(0.3, d - 0.02))}\n${c.join(" ")}\n`);
+        t += d;
+      }
+    });
+  }
+  return out.join("\n");
+}
+
+// ---------- Créditos ----------
+const SRC_NAME: Record<string, string> = { pexels: "Pexels", pixabay: "Pixabay", wikimedia: "Wikimedia Commons", openverse: "Openverse", nasa: "NASA", met: "The Met Open Access", freesound: "Freesound" };
+
+/**
+ * Líneas de créditos: las licencias que exigen atribución (CC BY, CC BY-SA)
+ * van completas; el resto (CC0, dominio público, Pexels, Pixabay) se resume.
+ */
+export function creditLines(assets: { kind: string; source: string; title: string; author: string; license: string; page_url: string | null }[], ownTrackTitles: string[] = [], ownAttributions: string[] = []): string[] {
+  const lines: string[] = [];
+  const label = (k: string) => (k === "video" ? "Footage" : k === "sfx" ? "Sound" : k === "music" ? "Music" : "Image");
+  const req = assets.filter((a) => /^CC BY/i.test(a.license));
+  for (const a of req) lines.push(`${label(a.kind)}: "${a.title.slice(0, 80)}" by ${a.author.slice(0, 60) || "Unknown"} — ${a.license} — ${a.page_url ?? SRC_NAME[a.source] ?? a.source}`);
+  const rest = assets.filter((a) => !/^CC BY/i.test(a.license) && a.source !== "user" && a.source !== "atril");
+  const bySrc = new Map<string, number>();
+  for (const a of rest) { const k = `${SRC_NAME[a.source] ?? a.source}${a.kind === "sfx" ? " (sound effects)" : a.kind === "music" ? " (music)" : ""}`; bySrc.set(k, (bySrc.get(k) ?? 0) + 1); }
+  if (bySrc.size) lines.push(`Additional public-domain and royalty-free media: ${[...bySrc.entries()].map(([k, n]) => `${k} (${n})`).join(", ")}.`);
+  for (const a of ownAttributions) if (a.trim()) lines.push(`Music: ${a.trim()}`);
+  void ownTrackTitles;
+  return lines;
+}
+
 // ---------- Descripción ----------
 export function usedSources(script: ScriptOut, research: ResearchOut): Source[] {
   const ids = new Set<string>();
@@ -186,8 +231,17 @@ export function composeDescription(o: {
   const parts = [o.body.trim()];
   if (o.chapters.length >= 3) parts.push("Chapters\n" + o.chapters.map((c) => `${fmtDuration(c.t)} ${c.title}`).join("\n"));
   if (o.sources.length) parts.push("Sources\n" + o.sources.map((s, i) => `[${i + 1}] ${s.title} — ${s.publisher}${s.date && s.date !== "n.d." ? ` (${s.date})` : ""}: ${s.url}`).join("\n"));
-  if (o.credits.length) parts.push("Credits\n" + o.credits.join("\n"));
   if (o.disclosure.trim()) parts.push(o.disclosure.trim());
+  // Los créditos se ajustan al espacio que queda (límite de YouTube: 5000 caracteres)
+  const room = 4900 - parts.join("\n\n").length - 12;
+  if (o.credits.length && room > 80) {
+    let credits = o.credits.slice();
+    const fits = (c: string[]) => ("Credits\n" + c.join("\n")).length <= room;
+    if (!fits(credits)) credits = credits.map((c) => c.replace(/ — https?:\/\/\S+$/, ""));
+    while (credits.length > 1 && !fits([...credits, "…and 9999 more (full list on request)."])) credits.pop();
+    if (credits.length < o.credits.length) credits.push(`…and ${o.credits.length - credits.length} more (full list on request).`);
+    parts.splice(parts.length - (o.disclosure.trim() ? 1 : 0), 0, "Credits\n" + credits.join("\n"));
+  }
   let text = parts.join("\n\n");
   if (text.length > 4900) text = text.slice(0, 4890) + "…";
   return text.replace(/[<>]/g, "");

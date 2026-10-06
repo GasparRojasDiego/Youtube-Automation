@@ -5,7 +5,12 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { db, secrets, appPaths, fs } from "../lib/ipc";
 import { useBus, emit } from "../lib/bus";
 import { SECRET, getSettings } from "../lib/settings";
-import { claudeVersion } from "../providers/claude";
+import { claudeVersion, refreshPlanUsage } from "../providers/claude";
+import { pct, fmtReset } from "../lib/usage";
+import { findBrowser, tauriHost, motionResources } from "../motion/host";
+import { launchBrowser, closeBrowser, renderComposition } from "../motion/engine";
+import { libraryRoot } from "../media/library";
+import { joinPath } from "../lib/util";
 import { ffmpegVersion, pickEncoder } from "../providers/ffmpeg";
 import { requestJson } from "../providers/net";
 import { myChannel } from "../providers/youtube";
@@ -34,6 +39,34 @@ const CHECKS: { id: string; label: string; run: () => Promise<Res> }[] = [
     const m = getSettings().images.gemini.model;
     await requestJson<any>("Gemini", { url: `https://generativelanguage.googleapis.com/v1beta/models/${m}?key=${encodeURIComponent(k)}` }, 0);
     return { state: "ok", detail: `Modelo «${m}» disponible` };
+  } },
+  { id: "plan", label: "Plan de Claude (límites de 5 h y 7 días)", run: async () => {
+    const l = await refreshPlanUsage();
+    if (!l) return { state: "warn", detail: "Claude Code no informó los límites (¿versión antigua del CLI?). Actualízalo con «claude update»." };
+    return { state: (l.fiveHour?.utilization ?? 0) > 0.9 ? "warn" : "ok", detail: `5 h: ${pct(l.fiveHour?.utilization)} (se repone ${fmtReset(l.fiveHour?.resetsAt)}) · 7 días: ${pct(l.sevenDay?.utilization)} (se repone ${fmtReset(l.sevenDay?.resetsAt)})` };
+  } },
+  { id: "browser", label: "Motor de animaciones (Edge/Chrome sin ventana)", run: async () => {
+    const b = await findBrowser(); if (!b) return { state: "fail", detail: "No se encontró Edge ni Chrome" };
+    const work = joinPath((await appPaths()).data, "diagnostico-motion");
+    const br = await launchBrowser(tauriHost, b, work);
+    try {
+      const r = await renderComposition(br, { id: "diag", duration: 0.5, transparent: false, libs: ["map"], css: "h1{color:#fff;font:700 120px Oswald;margin:200px}",
+        html: "<h1 id='t'>ATRIL</h1>", js: "const tl=gsap.timeline();tl.from('#t',{opacity:0,y:40,duration:0.4});ATRIL.register(tl,0.5);" },
+        { ...(await motionResources()), workDir: joinPath(work, "c"), out: joinPath(work, "prueba.mp4") });
+      return r.errors.length ? { state: "warn", detail: r.errors.join(" · ") } : { state: "ok", detail: `${b.split(/[\\/]/).pop()} · ${r.frames} cuadros renderizados` };
+    } finally { await closeBrowser(br); await fs.remove(work).catch(() => null); }
+  } },
+  { id: "library", label: "Biblioteca de medios", run: async () => {
+    const root = await libraryRoot(); const t = joinPath(root, ".prueba.txt");
+    await fs.writeText(t, "ok"); await fs.remove(t);
+    const r = await db.query<{ n: number }>("SELECT COUNT(*) n FROM assets");
+    return { state: "ok", detail: `${root} · ${r[0]?.n ?? 0} archivos` };
+  } },
+  { id: "sources", label: "Fuentes de material libre (claves)", run: async () => {
+    const missing: string[] = [];
+    for (const [n, k] of [["Pexels", SECRET.pexelsApiKey], ["Pixabay", SECRET.pixabayApiKey], ["Freesound", SECRET.freesoundApiKey]]) if (!(await secrets.get(k))) missing.push(n);
+    const ov = await secrets.get(SECRET.openverseClientId);
+    return missing.length ? { state: "warn", detail: `Faltan claves gratuitas: ${missing.join(", ")} (Ajustes → Medios). ${ov ? "" : "Openverse sin registrar (cuota baja)."}` } : { state: "ok", detail: `Pexels, Pixabay y Freesound configurados${ov ? " · Openverse registrado" : " · Openverse sin registrar"}` };
   } },
   { id: "wikimedia", label: "Wikimedia Commons (archivo libre)", run: async () => { await requestJson<any>("Wikimedia", { url: "https://commons.wikimedia.org/w/api.php?action=query&meta=siteinfo&format=json" }, 0); return { state: "ok", detail: "Responde" }; } },
   { id: "youtube", label: "YouTube (publicación y métricas)", run: async () => {

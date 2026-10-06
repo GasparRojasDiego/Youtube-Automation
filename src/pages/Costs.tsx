@@ -8,7 +8,7 @@ import { navigate } from "../ui/nav";
 import { PageHeader, Card, Stat, Progress, Empty } from "../ui/kit";
 import { fmtUsd, fmtDate } from "../lib/util";
 
-export function Costs() {
+export function Costs({ embedded = true }: { embedded?: boolean } = {}) {
   const tick = useBus("costs");
   const [byProv, setByProv] = useState<any[]>([]);
   const [byVideo, setByVideo] = useState<any[]>([]);
@@ -28,8 +28,8 @@ export function Costs() {
   const avg = byVideo.length ? byVideo.reduce((a, v) => a + v.usd, 0) / byVideo.length : 0;
   return (
     <div className="space-y-5">
-      <PageHeader kicker="Control" title="Costos" subtitle="Cada llamada de pago deja un asiento. Claude Code usa tu plan: su costo marginal es 0 (se muestra el equivalente de API solo como referencia)."
-        actions={<button className="btn-ghost" onClick={() => navigate({ page: "ajustes", tab: "budget" })}>Presupuesto y precios</button>} />
+      {!embedded && <PageHeader kicker="Control" title="Costos" subtitle="Cada llamada de pago deja un asiento. Claude Code usa tu plan: su costo marginal es 0 (se muestra el equivalente de API solo como referencia)."
+        actions={<button className="btn-ghost" onClick={() => navigate({ page: "ajustes", tab: "budget" })}>Presupuesto y precios</button>} />}
       <div className="grid grid-cols-4 gap-4">
         <Card><Stat label="Este mes" value={fmtUsd(month.usd)} sub={`S/ ${(month.usd * s.budget.penPerUsd).toFixed(2)}`} tone={month.usd > budget ? "red" : undefined} /><Progress className="mt-3" value={(month.usd / Math.max(0.01, budget)) * 100} /></Card>
         <Card><Stat label="Presupuesto" value={fmtUsd(budget)} sub={`S/ ${s.budget.monthlyPen} · tope ${s.budget.hardStop ? "activado" : "desactivado"}`} /></Card>

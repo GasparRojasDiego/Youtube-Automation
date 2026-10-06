@@ -1,6 +1,7 @@
 // Tipos de las salidas de cada etapa (se guardan como JSON en stages.output).
 import type { Provenance } from "../providers/images";
 import type { Motion } from "./montage";
+import type { Span } from "./align";
 
 export interface Source {
   id: string; url: string; title: string; publisher: string; date: string;
@@ -54,7 +55,7 @@ export interface PlannedShot {
 }
 export interface VisualsOut { shots: PlannedShot[]; generated: number; archival: number; cards: number; usd: number }
 
-export interface ThumbCandidate { concept_es: string; text: string; highlight: string; image_prompt_en: string; layout: "left" | "right" | "center"; image?: string; path?: string }
+export interface ThumbCandidate { concept_es: string; text: string; highlight: string; image_prompt_en: string; background_asset_id?: string; layout: "left" | "right" | "center"; image?: string; path?: string }
 export interface PackageOut {
   titles: { title: string; note_es: string }[];
   chosen_title: string;
@@ -67,8 +68,71 @@ export interface PackageOut {
   synthetic_reason_es: string;
   chapters: { t: number; title: string }[];
   srt: string;
+  motion_count?: number;
 }
 
 export interface RenderOut { file: string; duration: number; encoder: string; segmentHashes: Record<string, string>; renderedAt: number; sizeBytes: number }
 
 export interface PublishOut { youtube_id: string; url: string; privacy: string; publish_at: string | null; thumbnail_ok: boolean; note_es: string }
+
+// ======================= Edición v2 =======================
+
+/** Voz v2: además de la duración, los tiempos de cada oración (relativos al audio del segmento). */
+export interface VoiceSegmentV2 extends VoiceSegment { sentences?: Span[] }
+
+export type VisualType = "photo" | "archival" | "clip" | "meme" | "motion" | "map" | "source_card" | "quote_card" | "title_card" | "text_card";
+export type Transition = "cut" | "fade" | "dissolve" | "fadeblack" | "fadewhite" | "smoothleft" | "smoothright" | "smoothup" | "slideleft" | "slideright"
+  | "wipeleft" | "wiperight" | "circleopen" | "zoomin" | "hblur" | "fadegrays" | "coverleft" | "revealleft" | "radial";
+export const TRANSITIONS: Transition[] = ["cut", "fade", "dissolve", "fadeblack", "fadewhite", "smoothleft", "smoothright", "smoothup", "slideleft", "slideright", "wipeleft", "wiperight", "circleopen", "zoomin", "hblur", "fadegrays", "coverleft", "revealleft", "radial"];
+export type Grade = "neutral" | "cold" | "warm" | "noir" | "sepia" | "desaturated" | "punchy";
+export const GRADES: Grade[] = ["neutral", "cold", "warm", "noir", "sepia", "desaturated", "punchy"];
+export type ShotMotion = Motion | "punch_in" | "drift";
+
+export interface SfxCue { id: string; at: number; type: string; query_en: string; gain_db: number; asset_id?: string | null; path?: string | null; duration?: number }
+
+/** Una toma del storyboard (una imagen, clip, tarjeta o animación). */
+export interface Shot {
+  id: string; segment_id: string; beat: number;
+  from: number; to: number;            // oraciones del segmento que cubre la toma (rango del beat)
+  visual: VisualType;
+  query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string;
+  card_text?: string; source_id?: string; motion_brief_en?: string;
+  // casting (assets)
+  asset_id?: string | null; focus_x?: number; focus_y?: number; clip_in?: number; clip_audio_db?: number | null;
+  candidates?: string[]; cast_note_es?: string;
+  // retoques (Opus)
+  transition_in?: Transition; transition_s?: number; motion?: ShotMotion; grade?: Grade; punch_at?: number | null;
+  // resultado
+  path?: string | null;            // imagen/clip/tarjeta/animación que se usa
+  media?: "image" | "video";       // tipo de archivo de `path`
+  start?: number; dur?: number;    // segundos dentro del clip del segmento
+  provenance?: Provenance; error?: string | null;
+}
+
+export interface MusicBed { segment_ids: string[]; mood_en: string; asset_id?: string | null; path?: string | null; title?: string; gain_db?: number }
+
+export interface StoryboardOut {
+  shots: Shot[];
+  sfx: SfxCue[];             // tiempos globales (s) en el video
+  music: MusicBed[];
+  emphasis: Record<string, string[]>; // segment_id → palabras a destacar en subtítulos
+  notes_es: string;
+  scriptKey: string;
+}
+
+export interface AssetsOut { shots: Shot[]; sfx: SfxCue[]; music: MusicBed[]; downloaded: number; described: number; reused: number; fallbacks: number; key?: string }
+
+export interface MotionItem {
+  id: string; kind: "fullscreen" | "overlay";
+  shot_ids: string[];        // tomas que reemplaza (fullscreen) o sobre las que aparece (overlay)
+  start: number; duration: number; // tiempo dentro del segmento (s)
+  segment_id: string;
+  brief_en: string; text?: string; data_es?: string; libs?: ("map" | "d3")[];
+  asset_ids?: string[];
+  // resultado
+  file?: string | null; error?: string | null; attempts?: number; critique_es?: string; hash?: string;
+  code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number };
+}
+
+export interface PolishOut { shots: Shot[]; sfx: SfxCue[]; music: MusicBed[]; motion: MotionItem[]; notes_es: string; grade: Grade; key?: string; skipped?: boolean }
+export interface MotionOut { items: MotionItem[]; rendered: number; failed: number }

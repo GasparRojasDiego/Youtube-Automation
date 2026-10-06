@@ -1,7 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, MonitorPlay, Wallet, Factory, Tv, Trash2, Plus, Check, Play, Shuffle, Eye, Palette } from "lucide-react";
+import { KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, MonitorPlay, Wallet, Factory, Tv, Trash2, Plus, Check, Play, Shuffle, Eye, Palette, Sparkles, Library, FolderOpen } from "lucide-react";
+import { registerOpenverse } from "../media/sources";
+import { libraryRoot } from "../media/library";
+import { findBrowser } from "../motion/host";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl, openPath } from "@tauri-apps/plugin-opener";
 import { secrets, fs, appPaths, fileUrl } from "../lib/ipc";
 import { useBus } from "../lib/bus";
 import { getSettings, saveSettings, SECRET, type AppSettings, type StageModelKey } from "../lib/settings";
@@ -15,10 +18,10 @@ import { probeDuration } from "../providers/ffmpeg";
 import { toast, logError } from "../lib/events";
 import { joinPath, uid, baseName } from "../lib/util";
 
-type Tab = "channel" | "keys" | "claude" | "voice" | "images" | "music" | "montage" | "youtube" | "budget" | "production" | "look";
+type Tab = "channel" | "keys" | "claude" | "voice" | "images" | "motion" | "music" | "montage" | "youtube" | "budget" | "production" | "look";
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "channel", label: "Canal", icon: Tv }, { id: "keys", label: "Credenciales", icon: KeyRound }, { id: "claude", label: "Claude Code", icon: Bot },
-  { id: "voice", label: "Voz", icon: Mic }, { id: "images", label: "Imágenes", icon: ImageIcon }, { id: "music", label: "Música", icon: Music2 },
+  { id: "voice", label: "Voz", icon: Mic }, { id: "images", label: "Medios", icon: ImageIcon }, { id: "motion", label: "Motion", icon: Sparkles }, { id: "music", label: "Música", icon: Music2 },
   { id: "montage", label: "Montaje", icon: Film }, { id: "youtube", label: "YouTube", icon: MonitorPlay }, { id: "budget", label: "Presupuesto", icon: Wallet },
   { id: "production", label: "Producción", icon: Factory }, { id: "look", label: "Apariencia", icon: Palette },
 ];
@@ -53,6 +56,7 @@ export function SettingsPage({ tab: initial }: { tab?: string }) {
       {tab === "claude" && <ClaudeTab />}
       {tab === "voice" && <VoiceTab />}
       {tab === "images" && <ImagesTab />}
+      {tab === "motion" && <MotionTab />}
       {tab === "music" && <MusicTab />}
       {tab === "montage" && <MontageTab />}
       {tab === "youtube" && <YouTubeTab />}
@@ -234,29 +238,90 @@ function VoiceTab() {
 
 function ImagesTab() {
   const { s, set } = useSetting();
+  const [root, setRoot] = useState("");
+  const [email, setEmail] = useState("");
+  useEffect(() => { void libraryRoot().then(setRoot); }, [s.media.libraryDir]);
+  const SRC: [keyof AppSettings["media"]["sources"], string, string][] = [
+    ["pexels", "Pexels", "Fotos y videos de calidad (licencia Pexels: uso libre, sin atribución)."],
+    ["pixabay", "Pixabay", "Fotos, ilustraciones y videos (licencia Pixabay)."],
+    ["wikimedia", "Wikimedia Commons", "Archivo histórico, ciudades, documentos, obras (CC0, dominio público, CC BY/BY-SA)."],
+    ["openverse", "Openverse", "Buscador de 800 M+ obras con licencia abierta (imágenes y audio)."],
+    ["nasa", "NASA", "Imágenes y videos espaciales y científicos (dominio público)."],
+    ["met", "The Met", "Obras de arte y objetos históricos en dominio público (CC0)."],
+    ["freesound", "Freesound", "Efectos de sonido y ambientes (solo CC0 y CC BY)."],
+  ];
   return (
-    <Card title="Imágenes" icon={ImageIcon}>
-      <Grid>
-        <Field label="Proveedor de imágenes generadas">
-          <select className="input" value={s.images.provider} onChange={(e) => set("images.provider", e.target.value)}>
-            <option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="none">Ninguno (solo archivo libre y tarjetas)</option>
-          </select>
-        </Field>
-        <Field label="Buscar en Wikimedia Commons (gratis, con licencia registrada)"><Toggle checked={s.images.useWikimedia} onChange={(v) => set("images.useWikimedia", v)} /></Field>
-        <Field label="Máx. imágenes generadas · estándar"><Num v={s.images.maxGenerated.standard} on={(v) => set("images.maxGenerated.standard", v)} min={0} /></Field>
-        <Field label="Máx. imágenes generadas · premium"><Num v={s.images.maxGenerated.premium} on={(v) => set("images.maxGenerated.premium", v)} min={0} /></Field>
-        <Field label="Candidatas de miniatura"><Num v={s.images.thumbnailCandidates} on={(v) => set("images.thumbnailCandidates", v)} min={1} max={5} /></Field>
-      </Grid>
-      <div className="h-px bg-border my-4" />
+    <div className="space-y-4">
+      <Card title="Fuentes de material libre" icon={Library}>
+        <div className="text-xs text-muted-foreground mb-3">Solo se aceptan licencias que permiten uso comercial y modificación; cada archivo guarda su licencia, autor y página de origen. GIPHY y Tenor no se usan: su contenido suele tener derechos de terceros y no es apto para videos monetizados.</div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+          {SRC.map(([k, label, hint]) => (
+            <div key={k} className="flex items-start gap-3 py-1"><Toggle checked={s.media.sources[k]} onChange={(v) => set(`media.sources.${k}`, v)} /><div><div className="text-sm font-medium">{label}</div><div className="text-[11px] text-muted-foreground">{hint}</div></div></div>
+          ))}
+        </div>
+      </Card>
+      <Card title="Claves gratuitas de las fuentes" icon={KeyRound}>
+        <SecretRow k={SECRET.pexelsApiKey} label="Pexels" hint={<>Gratis en <button className="text-primary hover:underline" onClick={() => void openUrl("https://www.pexels.com/api/")}>pexels.com/api</button>. 200 consultas/hora.</>}
+          test={async (v) => { const r = await requestJson<any>("Pexels", { url: "https://api.pexels.com/v1/search?query=city&per_page=1", headers: { Authorization: v } }); return `${r.total_results ?? 0} resultados de prueba`; }} />
+        <SecretRow k={SECRET.pixabayApiKey} label="Pixabay" hint={<>Gratis en <button className="text-primary hover:underline" onClick={() => void openUrl("https://pixabay.com/api/docs/")}>pixabay.com/api/docs</button> (inicia sesión y aparece tu clave).</>}
+          test={async (v) => { const r = await requestJson<any>("Pixabay", { url: `https://pixabay.com/api/?key=${encodeURIComponent(v)}&q=city&per_page=3` }); return `${r.totalHits ?? 0} resultados de prueba`; }} />
+        <SecretRow k={SECRET.freesoundApiKey} label="Freesound" hint={<>Crea una cuenta y una «API key» en <button className="text-primary hover:underline" onClick={() => void openUrl("https://freesound.org/apiv2/apply/")}>freesound.org/apiv2/apply</button>.</>}
+          test={async (v) => { const r = await requestJson<any>("Freesound", { url: `https://freesound.org/apiv2/search/text/?query=whoosh&page_size=1&token=${encodeURIComponent(v)}` }); return `${r.count ?? 0} sonidos de prueba`; }} />
+        <div className="grid grid-cols-[220px_1fr_auto] gap-3 items-start py-3">
+          <div><div className="text-sm font-medium">Openverse (registro)</div><div className="text-[11px] text-muted-foreground mt-0.5">Sin registro: ~5 consultas/hora. Registrado: 100/min. Recibirás un correo para confirmar.</div></div>
+          <input className="input text-sm" value={email} placeholder="Tu correo" onChange={(e) => setEmail(e.target.value)} />
+          <AsyncButton className="btn-brand btn-sm" disabled={!/@/.test(email)} onClick={async () => { await registerOpenverse(email.trim()); toast("success", "ATRIL registrado en Openverse", "Confirma el correo que te llegó; luego las búsquedas usarán la cuota mayor."); }}>Registrar</AsyncButton>
+        </div>
+      </Card>
+      <Card title="Biblioteca y búsqueda" icon={ImageIcon}>
+        <Grid>
+          <Field label="Carpeta de la biblioteca" hint={<span className="font-mono">{root}</span>}>
+            <div className="flex gap-2"><Txt v={s.media.libraryDir} on={(v) => set("media.libraryDir", v)} placeholder="Documentos\ATRIL\Biblioteca" mono />
+              <button className="btn-ghost" onClick={async () => { const d = await openDialog({ directory: true }); if (d && !Array.isArray(d)) set("media.libraryDir", d); }}><FolderOpen size={14} /></button>
+              <button className="btn-ghost" onClick={() => void openPath(root)}>Abrir</button></div>
+          </Field>
+          <Field label="Buscar primero en la biblioteca" hint="Reutiliza lo ya descargado y descrito: ahorra cuota y tokens."><Toggle checked={s.media.libraryFirst} onChange={(v) => set("media.libraryFirst", v)} /></Field>
+          <Field label="Candidatos descargados por toma" hint="Claude elige el mejor. Más candidatos = mejor elección, más visión."><Num v={s.media.candidatesPerBeat} on={(v) => set("media.candidatesPerBeat", v)} min={1} max={6} /></Field>
+          <Field label="Archivos por llamada de visión" hint="Cada imagen cuesta ≈ 500 tokens una sola vez."><Num v={s.media.visionBatch} on={(v) => set("media.visionBatch", v)} min={1} max={20} /></Field>
+          <Field label="Duración máxima de un clip en pantalla (s)"><Num v={s.media.maxClipSeconds} on={(v) => set("media.maxClipSeconds", v)} min={2} max={12} /></Field>
+          <Field label="Permitir imágenes generadas (con costo)" hint="Solo cuando no hay material libre adecuado."><Toggle checked={s.media.allowGenerated} onChange={(v) => set("media.allowGenerated", v)} /></Field>
+        </Grid>
+      </Card>
+      <Card title="Imágenes generadas (opcional, de pago)" icon={ImageIcon}>
+        <Grid cols={3}>
+          <Field label="Proveedor">
+            <select className="input" value={s.images.provider} onChange={(e) => set("images.provider", e.target.value)}>
+              <option value="none">Ninguno</option><option value="gemini">Gemini</option><option value="openai">OpenAI</option>
+            </select>
+          </Field>
+          <Field label="Gemini · modelo"><Txt v={s.images.gemini.model} on={(v) => set("images.gemini.model", v)} mono /></Field>
+          <Field label="Gemini · USD por imagen"><Num v={s.images.gemini.priceUsd} step={0.001} on={(v) => set("images.gemini.priceUsd", v)} /></Field>
+          <Field label="OpenAI · modelo"><Txt v={s.images.openai.model} on={(v) => set("images.openai.model", v)} mono /></Field>
+          <Field label="OpenAI · calidad"><Txt v={s.images.openai.quality} on={(v) => set("images.openai.quality", v)} mono /></Field>
+          <Field label="OpenAI · USD por imagen"><Num v={s.images.openai.priceUsd} step={0.001} on={(v) => set("images.openai.priceUsd", v)} /></Field>
+          <Field label="Candidatas de miniatura"><Num v={s.images.thumbnailCandidates} on={(v) => set("images.thumbnailCandidates", v)} min={1} max={5} /></Field>
+        </Grid>
+      </Card>
+    </div>
+  );
+}
+
+function MotionTab() {
+  const { s, set } = useSetting();
+  const [found, setFound] = useState<string | null | undefined>(undefined);
+  return (
+    <Card title="Animaciones con Opus (motion graphics)" icon={Sparkles}
+      actions={<AsyncButton className="btn-brand btn-sm" onClick={async () => setFound(await findBrowser())}>Detectar navegador</AsyncButton>}>
+      <div className="text-xs text-muted-foreground mb-3">Opus escribe cada animación (HTML + GSAP: textos, mapas reales, líneas de tiempo, contadores, llamadas sobre fotos) y ATRIL la renderiza cuadro a cuadro con Microsoft Edge sin ventana. Sonnet revisa una hoja de cuadros y, si ve defectos, Opus la corrige una vez.</div>
       <Grid cols={3}>
-        <Field label="Gemini · modelo"><Txt v={s.images.gemini.model} on={(v) => set("images.gemini.model", v)} mono /></Field>
-        <Field label="Gemini · USD por imagen"><Num v={s.images.gemini.priceUsd} step={0.001} on={(v) => set("images.gemini.priceUsd", v)} /></Field>
-        <div />
-        <Field label="OpenAI · modelo"><Txt v={s.images.openai.model} on={(v) => set("images.openai.model", v)} mono /></Field>
-        <Field label="OpenAI · calidad"><Txt v={s.images.openai.quality} on={(v) => set("images.openai.quality", v)} mono /></Field>
-        <Field label="OpenAI · USD por imagen"><Num v={s.images.openai.priceUsd} step={0.001} on={(v) => set("images.openai.priceUsd", v)} /></Field>
+        <Field label="Activar animaciones"><Toggle checked={s.motion.enabled} onChange={(v) => set("motion.enabled", v)} /></Field>
+        <Field label="Máximo por video · estándar"><Num v={s.motion.perVideo.standard} on={(v) => set("motion.perVideo.standard", v)} min={0} max={30} /></Field>
+        <Field label="Máximo por video · premium"><Num v={s.motion.perVideo.premium} on={(v) => set("motion.perVideo.premium", v)} min={0} max={40} /></Field>
+        <Field label="Revisión visual y corrección" hint="Más calidad; cuesta una revisión de Sonnet por animación."><Toggle checked={s.motion.critique} onChange={(v) => set("motion.critique", v)} /></Field>
+        <Field label="Animaciones por llamada a Opus" hint="2–3 ahorra tokens repetidos; 1 da más atención a cada una."><Num v={s.motion.perCall} on={(v) => set("motion.perCall", v)} min={1} max={4} /></Field>
+        <Field label="Navegador (opcional)" hint="Vacío = Edge o Chrome detectados."><Txt v={s.motion.browserPath} on={(v) => set("motion.browserPath", v)} mono placeholder="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" /></Field>
       </Grid>
-      <div className="text-[11px] text-muted-foreground mt-3">El resto de las tomas se cubre con archivo libre y tarjetas (fuente en pantalla, títulos, citas) dibujadas por la app sin costo. Los precios cambian: ajústalos aquí para que el registro de costos sea exacto.</div>
+      {found !== undefined && <div className="mt-3">{found ? <Chip tone="green">{found}</Chip> : <Chip tone="red">No se encontró Edge ni Chrome</Chip>}</div>}
     </Card>
   );
 }
@@ -279,12 +344,13 @@ function MusicTab() {
           } catch (e) { await logError(e, null, "Importar música"); }
         }
       }}><Plus size={13} /> Añadir archivos</AsyncButton>}>
-      <div className="text-xs text-muted-foreground mb-3">Solo música de uso libre para monetización (p. ej., Biblioteca de Audio de YouTube). Si la licencia exige atribución, escríbela: se añade sola a la descripción.</div>
+      <div className="text-xs text-muted-foreground mb-3">Tus pistas tienen prioridad sobre la música de la biblioteca (la Biblioteca de Audio de YouTube es la opción más segura para monetizar). Escribe su ambiente en inglés para que ATRIL elija la adecuada para cada capítulo; si la licencia exige atribución, escríbela: se añade sola a la descripción.</div>
       <div className="space-y-2">
         {list.map((t) => (
-          <div key={t.id} className="grid grid-cols-[auto_1fr_1fr_1fr_1.4fr_auto] gap-2 items-center">
+          <div key={t.id} className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1.4fr_auto] gap-2 items-center">
             <Toggle checked={!!t.enabled} onChange={(v) => void updateTrack(t.id, { enabled: v ? 1 : 0 })} />
             <input className="input text-xs" defaultValue={t.title} onBlur={(e) => void updateTrack(t.id, { title: e.target.value })} />
+            <input className="input text-xs" defaultValue={t.mood} placeholder="Ambiente (en inglés): dark, tense, piano…" onBlur={(e) => void updateTrack(t.id, { mood: e.target.value })} />
             <input className="input text-xs" defaultValue={t.artist} placeholder="Artista" onBlur={(e) => void updateTrack(t.id, { artist: e.target.value })} />
             <input className="input text-xs" defaultValue={t.license} placeholder="Licencia" onBlur={(e) => void updateTrack(t.id, { license: e.target.value })} />
             <input className="input text-xs" defaultValue={t.attribution} placeholder="Atribución (si la licencia la exige)" onBlur={(e) => void updateTrack(t.id, { attribution: e.target.value })} />

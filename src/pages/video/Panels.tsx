@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Mic, Square, RotateCcw, Image as ImageIcon, Download, MonitorPlay, Check, Play, ChevronDown } from "lucide-react";
+import { ExternalLink, Mic, Square, RotateCcw, Download, MonitorPlay, Check, Play, ChevronDown } from "lucide-react";
 import { openUrl, openPath } from "@tauri-apps/plugin-opener";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { fileUrl, fs } from "../../lib/ipc";
 import { listArtifacts, setStage, resetFrom, type Video, type StageRow } from "../../lib/repo";
-import type { ResearchOut, ScriptOut, VoiceOut, VisualsOut, PackageOut, RenderOut, PlannedShot, PublishOut } from "../../pipeline/types";
-import { ownVoiceDir, redoShot, exportPackage } from "../../pipeline/stages";
-import { runVideo, redoVoiceSegment, rerenderFrom } from "../../pipeline/runner";
-import { Card, Chip, Modal, Field, AsyncButton, Empty } from "../../ui/kit";
+import type { ResearchOut, ScriptOut, VoiceOut, PackageOut, RenderOut, PublishOut } from "../../pipeline/types";
+import { ownVoiceDir, exportPackage } from "../../pipeline/stages";
+import { runVideo, redoVoiceSegment } from "../../pipeline/runner";
+import { Card, Chip, AsyncButton, Empty } from "../../ui/kit";
 import { joinPath, fmtDuration, fmtBytes, wordCount, fmtDate } from "../../lib/util";
 import { toast, logError } from "../../lib/events";
 import { navigate } from "../../ui/nav";
@@ -157,81 +157,6 @@ function OwnVoiceRecorder({ video, script }: { video: Video; script: ScriptOut }
       </div>
       <div className="text-[11px] text-muted-foreground mt-2">Consejo: lee con calma; los silencios del inicio y del final se recortan solos y se reduce el ruido de fondo.</div>
     </Card>
-  );
-}
-
-// ---------- Imágenes ----------
-const KIND: Record<string, string> = { generated: "IA", archival: "Archivo libre", source_card: "Fuente", title_card: "Título", quote_card: "Cita", text_card: "Texto" };
-
-export function VisualsPanel({ video, data }: { video: Video; data: VisualsOut }) {
-  const [edit, setEdit] = useState<PlannedShot | null>(null);
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2 text-xs">
-        <Chip>{data.shots.length} tomas</Chip><Chip tone="primary">{data.generated} generadas</Chip><Chip tone="green">{data.archival} de archivo libre</Chip><Chip>{data.cards} tarjetas</Chip>
-      </div>
-      <div className="grid grid-cols-4 gap-3">
-        {data.shots.map((s) => (
-          <button key={s.id} onClick={() => setEdit(s)} className="card overflow-hidden text-left hover:border-primary/45 transition-colors group">
-            <div className="aspect-video bg-secondary relative">
-              {s.image ? <img loading="lazy" src={fileUrl(s.image, s.hash?.slice(0, 8))} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><ImageIcon size={20} /></div>}
-              <span className="absolute top-1.5 left-1.5 chip bg-black/60 border-white/20 text-white">{KIND[s.kind]}</span>
-              {s.dur && <span className="absolute bottom-1.5 right-1.5 chip bg-black/60 border-white/20 text-white tabular">{s.dur.toFixed(1)} s</span>}
-            </div>
-            <div className="p-2 text-[11px] text-muted-foreground line-clamp-2">{s.error ? <span className="text-amber-700 dark:text-amber-500">{s.error}</span> : s.prompt_en || s.archival_query || s.card_text || s.source_id}</div>
-          </button>
-        ))}
-      </div>
-      <ShotEditor video={video} shot={edit} onClose={() => setEdit(null)} />
-    </div>
-  );
-}
-
-export function ShotEditor({ video, shot, onClose }: { video: Video; shot: PlannedShot | null; onClose: () => void }) {
-  const [kind, setKind] = useState<PlannedShot["kind"]>("generated");
-  const [text, setText] = useState("");
-  const [overlay, setOverlay] = useState("");
-  useEffect(() => {
-    if (!shot) return;
-    setKind(shot.kind); setOverlay(shot.overlay_text ?? "");
-    setText(shot.kind === "generated" ? shot.prompt_en ?? "" : shot.kind === "archival" ? shot.archival_query ?? "" : shot.kind === "source_card" ? shot.source_id ?? "" : shot.card_text ?? "");
-  }, [shot]);
-  if (!shot) return null;
-  const p = shot.provenance;
-  return (
-    <Modal open={!!shot} onClose={onClose} title={`Toma ${shot.id}`} echo="toma" wide
-      footer={<>
-        <button className="btn-ghost" onClick={onClose}>Cerrar</button>
-        <AsyncButton className="btn-primary" onClick={async () => {
-          const patch: Partial<PlannedShot> = { kind, overlay_text: overlay };
-          if (kind === "generated") patch.prompt_en = text; else if (kind === "archival") patch.archival_query = text; else if (kind === "source_card") patch.source_id = text; else patch.card_text = text;
-          await redoShot(video, shot.id, patch);
-          await rerenderFrom(video.id, "visuals");
-          toast("info", "Toma en cola", "Solo se regenera esta toma y se vuelve a montar su segmento.");
-          onClose();
-        }}><RotateCcw size={14} /> Rehacer esta toma</AsyncButton>
-      </>}>
-      <div className="grid grid-cols-[1.3fr_1fr] gap-5">
-        <div>
-          {shot.image && <img src={fileUrl(shot.image, shot.hash?.slice(0, 8))} className="rounded-lg border border-border w-full" />}
-          {p && <div className="text-[11px] text-muted-foreground mt-2 space-y-0.5">
-            <div><b>Procedencia:</b> {p.provider}{p.license ? ` · ${p.license}` : ""}{p.attribution ? ` · ${p.attribution}` : ""}</div>
-            {p.sourceUrl && <button className="text-primary hover:underline" onClick={() => void openUrl(p.sourceUrl!)}>{p.sourceUrl}</button>}
-          </div>}
-        </div>
-        <div className="space-y-3">
-          <Field label="Tipo">
-            <select className="input" value={kind} onChange={(e) => setKind(e.target.value as any)}>
-              {Object.entries(KIND).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
-          </Field>
-          <Field label={kind === "generated" ? "Descripción de la imagen (inglés)" : kind === "archival" ? "Búsqueda en Wikimedia Commons" : kind === "source_card" ? "ID de la fuente (S1, S2…)" : "Texto de la tarjeta"}>
-            <textarea className="input min-h-28 text-xs" value={text} onChange={(e) => setText(e.target.value)} />
-          </Field>
-          <Field label="Rótulo inferior (opcional)"><input className="input" value={overlay} onChange={(e) => setOverlay(e.target.value)} /></Field>
-        </div>
-      </div>
-    </Modal>
   );
 }
 

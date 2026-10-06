@@ -7,6 +7,8 @@ import { log, logError, errorText, toast } from "../lib/events";
 import { STAGES, getVideo, getStages, setStage, updateVideo, resetFrom, listTopics, createVideo, activeChannel, listVideos, type StageId } from "../lib/repo";
 import { uid } from "../lib/util";
 import * as St from "./stages";
+import * as Ed from "./edit";
+import { activity, setLive } from "../lib/activity";
 import * as L from "./logic";
 import type { VerifyOut, ScriptOut } from "./types";
 
@@ -58,13 +60,18 @@ async function runOnce(r: Running) {
     if (stage === "publish" && video.status !== "approved" && video.status !== "scheduled") return;
 
     await setStage(video.id, stage, { status: "running", error: null, startedNow: true, bumpAttempt: true, progress: "Iniciando…" });
+    const label = STAGES.find((s) => s.id === stage)?.label ?? stage;
+    await activity(video.id, stage, "stage", `Etapa: ${label}`);
+    setLive(video.id, { caption: `${label}…`, progress: null });
     const ctx: St.Ctx = {
       video, jobId: r.jobId,
       progress: async (text) => { await db.execute("UPDATE stages SET progress=? WHERE video_id=? AND stage=?", [text, video.id, stage]); emit("stages"); },
       cancelled: () => r.cancelled,
     };
     try {
+      const t0 = Date.now();
       const output = await runStage(stage, ctx);
+      await activity(video.id, stage, "done", `${label} terminada en ${Math.max(1, Math.round((Date.now() - t0) / 1000))} s`);
       const gate = stage === "verify";
       await setStage(video.id, stage, { status: gate ? "review" : "done", output, finishedNow: true, progress: null });
       if (gate) { notifyReview(video.id, "El guion verificado espera tu revisión."); return; }
@@ -75,6 +82,7 @@ async function runOnce(r: Running) {
         return;
       }
       const { message, detail } = errorText(e);
+      await activity(video.id, stage, "warn", r.cancelled ? "Cancelado" : `Falló: ${message}`, detail.slice(0, 1500));
       await setStage(video.id, stage, { status: r.cancelled ? "pending" : "failed", error: r.cancelled ? "Cancelado" : `${message}\n\n${detail}`.trim(), progress: null, finishedNow: true });
       if (!r.cancelled) await logError(e, video.id, `${STAGES.find((s) => s.id === stage)?.label}`);
       return;
@@ -93,9 +101,12 @@ async function runStage(stage: StageId, ctx: St.Ctx): Promise<unknown> {
     case "script": return St.stageScript(ctx);
     case "verify": return St.stageVerify(ctx);
     case "voice": return St.stageVoice(ctx);
-    case "visuals": return St.stageVisuals(ctx);
+    case "storyboard": return Ed.stageStoryboard(ctx);
+    case "assets": return Ed.stageAssets(ctx);
+    case "polish": return Ed.stagePolish(ctx);
+    case "motion": return Ed.stageMotion(ctx);
     case "package": return St.stagePackage(ctx);
-    case "render": return St.stageRender(ctx);
+    case "render": return Ed.stageRenderV2(ctx);
     case "publish": return St.stagePublish(ctx);
     default: return null;
   }
@@ -147,7 +158,7 @@ export async function applyScriptFixes(videoId: string, notes: string) {
     await setStage(videoId, "script", { status: "done", output: revised });
     await setStage(videoId, "verify", { status: "pending", progress: null });
     // Las etapas posteriores deben rehacerse con el nuevo guion
-    for (const s of ["voice", "visuals", "package", "render", "final", "publish"] as StageId[]) await setStage(videoId, s, { status: "pending" });
+    for (const s of ["voice", "storyboard", "assets", "polish", "motion", "package", "render", "final", "publish"] as StageId[]) await setStage(videoId, s, { status: "pending" });
     runVideo(videoId);
   } catch (e) {
     await setStage(videoId, "verify", { status: "review", progress: null });

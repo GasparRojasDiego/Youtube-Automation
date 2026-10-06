@@ -8,13 +8,14 @@ import { UserError } from "../lib/events";
 import { stripHtml } from "../lib/util";
 
 export interface Provenance {
-  kind: "generated" | "archival" | "card" | "user";
+  kind: "generated" | "archival" | "stock" | "card" | "motion" | "user";
   provider: string;
   prompt?: string;
   license?: string;
   attribution?: string;
   sourceUrl?: string;
   title?: string;
+  assetId?: string;
 }
 
 export interface ImageJob { prompt: string; outBase: string; aspect?: "16:9" | "9:16" | "1:1"; videoId?: string | null; channelId?: string | null; label?: string }
