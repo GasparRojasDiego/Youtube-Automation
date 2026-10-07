@@ -55,7 +55,7 @@ export async function describeAssets(assets: Asset[], ctx: { videoId?: string | 
       catch { /* archivo ilegible: se omite */ }
     }
     if (!images.length) continue;
-    await activity(ctx.videoId, ctx.stage ?? "assets", "read", `Claude mira ${images.length} archivo(s) nuevos para describirlos`, batch.map((a) => a.title).join(" · "));
+    await activity(ctx.videoId, ctx.stage ?? "assets", "read", `Describiendo ${images.length} archivo(s)`, batch.map((a) => a.title).join(" · "));
     const r = await claudeRun<{ items: any[] }>({
       stage: "vision", label: `Visión: ${images.length} archivos`, system: VISION_SYSTEM, schema: VISION_SCHEMA, images, quiet: true,
       prompt: `Catalogue each of the ${images.length} files below. Return one item per file, using exactly the file id given before each image.`,

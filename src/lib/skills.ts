@@ -1,7 +1,7 @@
-// Habilidades: documentos Markdown que el usuario crea, activa, desactiva y
-// edita. La identidad de cada canal (narrativa, visual, voz, montaje…) vive
-// aquí, no en el código. Cada habilidad declara en qué etapas se inyecta.
-// Los parámetros numéricos se escriben en bloques ```atril:<nombre> {json}```.
+// Habilidades: documentos Markdown que el usuario escribe. Dos tipos:
+// «Instrucciones» (cómo debe salir el guion) y «Visuales» (imágenes, montaje,
+// animaciones). Los referentes añaden sus puntos fuertes como recordatorio.
+// Los parámetros se escriben en bloques ```atril:<nombre> {json}```.
 import { db } from "./ipc";
 import { emit } from "./bus";
 import { now, uid, safeJson } from "./util";
@@ -23,6 +23,18 @@ export const SCOPES = [
   { id: "analysis", label: "Análisis de referentes" },
 ] as const;
 export type Scope = (typeof SCOPES)[number]["id"];
+
+export type SkillKind = "script" | "visual";
+/** Etapas en las que se inyecta cada tipo de habilidad. */
+export const KIND_SCOPES: Record<SkillKind, Scope[]> = {
+  script: ["topics", "research", "script", "metadata"],
+  visual: ["visuals", "thumbnail", "montage", "motion", "edit"],
+};
+export function skillKindOf(scopes: string[]): SkillKind {
+  const visual = new Set<string>(KIND_SCOPES.visual);
+  const textual = scopes.filter((x) => !visual.has(x));
+  return scopes.length > 0 && textual.length === 0 ? "visual" : "script";
+}
 
 export interface Skill {
   id: string; channel_id: string | null; name: string; description: string; scopes: Scope[];
@@ -135,11 +147,25 @@ export const stripParamBlocks = (content: string) => stripComments(content).repl
 
 const matchesScope = (s: Skill, scope: Scope) => s.scopes.includes("all") || s.scopes.includes(scope);
 
+/** Puntos fuertes de los referentes activos (texto compacto). */
+export async function referentStrengths(channelId: string | null): Promise<string> {
+  const rows = await db.query<{ name: string; notes: string }>(
+    "SELECT name, notes FROM creators WHERE (channel_id IS ? OR channel_id IS NULL) AND COALESCE(enabled,1)=1 AND TRIM(COALESCE(notes,''))<>'' ORDER BY name", [channelId]);
+  return rows.map((r) => `## ${r.name}\n${r.notes.trim()}`).join("\n\n");
+}
+
+/** Etapas que reciben el recordatorio de referentes (una vez por llamada). */
+const REFERENT_SCOPES: Scope[] = ["topics", "script", "visuals", "edit", "thumbnail"];
+
 /** Texto de las habilidades activas para una etapa, listo para inyectar en un prompt. */
 export async function composeSkills(channelId: string | null, scope: Scope): Promise<string> {
   const skills = (await listSkills(channelId)).filter((s) => s.enabled && matchesScope(s, scope));
-  if (!skills.length) return "";
-  return skills.map((s) => `<skill name="${s.name}">\n${stripParamBlocks(s.content)}\n</skill>`).join("\n\n");
+  const parts = skills.map((s) => `<skill name="${s.name}">\n${stripParamBlocks(s.content)}\n</skill>`);
+  if (REFERENT_SCOPES.includes(scope)) {
+    const refs = await referentStrengths(channelId);
+    if (refs) parts.push(`<reference_strengths note="Strong points of reference channels: replicate the techniques, never their voice or content.">\n${refs}\n</reference_strengths>`);
+  }
+  return parts.join("\n\n");
 }
 
 /** Parámetros estructurados combinados (habilidades activas) sobre los valores por defecto del motor. */
@@ -201,40 +227,40 @@ export type ThumbnailParams = typeof THUMBNAIL_DEFAULTS;
 
 export const SCRIPT_DEFAULTS = { wordsPerMinute: 150 };
 
-export const SKILL_TEMPLATE = `---
-name: "Nueva habilidad"
-description: "Qué aporta y cuándo debe usarse"
-scopes: [script]
----
-# Nueva habilidad
+export const SKILL_TEMPLATES: Record<SkillKind, string> = {
+  script: `# Cómo debe salir el guion
 
-Escribe aquí las reglas en lenguaje natural. ATRIL inyecta este texto en las
-etapas marcadas en «scopes».
+- Gancho: …
+- Estructura: …
+- Tono y ritmo: …
+- Qué evitar: …
 
-<!--
-Parámetros opcionales que el motor lee directamente. Dentro de este
-comentario están DESACTIVADOS: muévelos fuera del comentario para activarlos.
-
-\`\`\`atril:montaje
-{ "shotSeconds": [3.5, 7], "transition": "fade", "transitionSeconds": 0.5,
-  "pauseBetweenSegments": 0.6, "kenBurns": 0.08, "musicVolumeDb": -22 }
-\`\`\`
-
-\`\`\`atril:visual
-{ "background": "#111113", "foreground": "#F2EFE9", "accent": "#C9A227",
-  "fontTitle": "Oswald", "fontBody": "Source Serif 4", "photorealistic": false }
-\`\`\`
-
-\`\`\`atril:miniatura
-{ "font": "Anton", "textColor": "#FFFFFF", "highlightColor": "#FFD400", "maxWords": 4 }
-\`\`\`
-
+<!-- Parámetro opcional (quita el comentario para activarlo):
 \`\`\`atril:guion
 { "wordsPerMinute": 150 }
 \`\`\`
+-->
+`,
+  visual: `# Estilo visual
 
-\`\`\`atril:voz
-{ "voice": "en-US-Chirp3-HD-Charon", "speakingRate": 1.0 }
+- Imágenes: …
+- Animaciones: …
+- Montaje y sonido: …
+- Miniatura: …
+
+<!-- Parámetros opcionales (quita el comentario para activarlos):
+\`\`\`atril:visual
+{ "background": "#111113", "foreground": "#F2EFE9", "accent": "#C9A227", "fontTitle": "Oswald", "fontBody": "Source Serif 4" }
+\`\`\`
+\`\`\`atril:montaje
+{ "shotSeconds": [3.5, 7], "kenBurns": 0.08, "musicVolumeDb": -22, "humor": false }
+\`\`\`
+\`\`\`atril:subtitulos
+{ "enabled": true, "font": "Poppins ExtraBold", "highlight": "#FFD400" }
+\`\`\`
+\`\`\`atril:miniatura
+{ "font": "Anton", "highlightColor": "#FFD400", "maxWords": 4 }
 \`\`\`
 -->
-`;
+`,
+};

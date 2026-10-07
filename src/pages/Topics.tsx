@@ -4,7 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useBus } from "../lib/bus";
 import { activeChannel, listTopics, addTopic, updateTopic, deleteTopic, type Topic, type Channel } from "../lib/repo";
 import { suggestTopics } from "../pipeline/extras";
-import { PageHeader, Card, Empty, Chip, Modal, Field, AsyncButton } from "../ui/kit";
+import { Card, Empty, Chip, Modal, Field, AsyncButton } from "../ui/kit";
 import { toast, logError } from "../lib/events";
 
 const Score = ({ label, v, invert = false }: { label: string; v?: number; invert?: boolean }) => {
@@ -12,7 +12,8 @@ const Score = ({ label, v, invert = false }: { label: string; v?: number; invert
   return <span className={`text-[11px] tabular ${good ? "text-green-700 dark:text-green-500" : bad ? "text-red-600 dark:text-red-500" : "text-muted-foreground"}`}>{label} {val || "–"}</span>;
 };
 
-export function Topics() {
+/** Banco de temas (pestaña «Temas» de Videos). */
+export function TopicsPanel() {
   const tick = useBus("topics", "channels", "settings");
   const [ch, setCh] = useState<Channel | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -41,7 +42,7 @@ export function Topics() {
         {t.angle && <div className="text-xs text-muted-foreground mt-0.5">{t.angle}</div>}
         <div className="flex flex-wrap gap-x-3 mt-1">
           <Score label="Interés" v={t.potential.interest} /><Score label="Competencia" v={t.potential.competition} invert /><Score label="Fuentes" v={t.potential.sources} />
-          <Score label="R. legal" v={t.risk.legal} invert /><Score label="R. políticas" v={t.risk.policy} invert /><Score label="R. verificación" v={t.risk.verification} invert />
+          <Score label="Riesgo legal" v={t.risk.legal} invert /><Score label="Políticas" v={t.risk.policy} invert /><Score label="Verificación" v={t.risk.verification} invert />
         </div>
         {t.sources.length > 0 && <div className="flex flex-wrap gap-2 mt-1">{t.sources.slice(0, 4).map((s) => <button key={s} className="text-[11px] text-primary hover:underline inline-flex items-center gap-1 max-w-[260px] truncate" onClick={() => void openUrl(s)}><ExternalLink size={10} />{s.replace(/^https?:\/\//, "")}</button>)}</div>}
       </div>
@@ -52,22 +53,19 @@ export function Topics() {
 
   return (
     <div className="space-y-5">
-      <PageHeader kicker="Etapa 1" title="Banco de temas" subtitle="Elige y preaprueba varios días de temas para no frenar el ritmo. La puntuación combina potencial y riesgo."
-        actions={<button className="btn-brand" onClick={() => setAdding(true)}><Plus size={15} /> Añadir tema</button>} />
-      <Card title="Sugerir temas con IA" icon={Sparkles}>
+      <Card title="Sugerir con IA" icon={Sparkles} actions={<button className="btn-brand btn-sm" onClick={() => setAdding(true)}><Plus size={14} /> Añadir a mano</button>}>
         <div className="flex gap-2">
-          <input className="input flex-1" value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Pista opcional: «instituciones educativas de EE. UU.», «empresas tecnológicas»…" />
+          <input className="input flex-1" value={hint} onChange={(e) => setHint(e.target.value)} placeholder="Pista (opcional)" />
           <input type="number" className="input w-20" min={3} max={20} value={count} onChange={(e) => setCount(+e.target.value)} />
           <button className="btn-primary" disabled={busy} onClick={async () => {
             setBusy(true);
-            try { const n = await suggestTopics(ch.id, count, hint); toast("success", `${n} temas nuevos para revisar`); }
+            try { const n = await suggestTopics(ch.id, count, hint); toast("success", `${n} temas nuevos`); }
             catch (e) { await logError(e, null, "Sugerir temas"); } finally { setBusy(false); }
-          }}>{busy ? "Investigando…" : "Sugerir"}</button>
+          }}>{busy ? "Buscando…" : "Sugerir"}</button>
         </div>
-        <div className="text-[11px] text-muted-foreground mt-2">Usa las habilidades activas con alcance «Banco de temas» y comprueba en la web si hay fuentes sólidas y cuánta competencia existe.</div>
       </Card>
-      <Card title={`Aprobados · en orden de producción (${approved.length})`} icon={Check}>
-        {approved.length === 0 ? <Empty icon={Lightbulb} title="Ningún tema aprobado" /> :
+      <Card title={`Aprobados (${approved.length})`} icon={Check}>
+        {approved.length === 0 ? <Empty icon={Lightbulb} title="Ninguno" /> :
           approved.map((t, i) => row(t, <>
             <button className="btn-ghost btn-sm" disabled={i === 0} onClick={() => void move(t, -1)}><ArrowUp size={13} /></button>
             <button className="btn-ghost btn-sm" disabled={i === approved.length - 1} onClick={() => void move(t, 1)}><ArrowDown size={13} /></button>
@@ -75,27 +73,27 @@ export function Topics() {
           </>))}
       </Card>
       <Card title={`Candidatos (${candidates.length})`} icon={Lightbulb}>
-        {candidates.length === 0 ? <div className="text-sm text-muted-foreground">No hay candidatos pendientes.</div> :
+        {candidates.length === 0 ? <div className="text-sm text-muted-foreground">Ninguno.</div> :
           candidates.map((t) => row(t, <>
             <button className="btn-brand btn-sm" onClick={() => void updateTopic(t.id, { status: "approved", position: Date.now() })}><Check size={13} /> Aprobar</button>
             <button className="btn-ghost btn-sm" onClick={() => void updateTopic(t.id, { status: "rejected" })}><X size={13} /></button>
           </>))}
       </Card>
-      {others.length > 0 && <Card title="Usados y descartados">{others.map((t) => row(t, <>
+      {others.length > 0 && <Card title="Usados o descartados">{others.map((t) => row(t, <>
         {t.status === "rejected" && <button className="btn-ghost btn-sm" onClick={() => void updateTopic(t.id, { status: "candidate" })}><Undo2 size={13} /></button>}
         <button className="btn-ghost btn-sm" onClick={() => void deleteTopic(t.id)}><Trash2 size={13} /></button>
       </>))}</Card>}
-      <Modal open={adding} onClose={() => setAdding(false)} title="Nuevo tema" echo="tema"
+      <Modal open={adding} onClose={() => setAdding(false)} title="Nuevo tema"
         footer={<><button className="btn-ghost" onClick={() => setAdding(false)}>Cancelar</button>
           <AsyncButton className="btn-primary" disabled={!form.title.trim()} onClick={async () => {
             await addTopic({ channel_id: ch.id, title: form.title.trim(), angle: form.angle, notes: form.notes, sources: form.sources.split(/\s+/).filter((x) => /^https?:/.test(x)), status: "approved" });
             setForm({ title: "", angle: "", notes: "", sources: "" }); setAdding(false);
-          }}>Añadir como aprobado</AsyncButton></>}>
+          }}>Añadir</AsyncButton></>}>
         <div className="space-y-3">
           <Field label="Tema"><input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
-          <Field label="Ángulo (qué hecho documentado y poco conocido)"><input className="input" value={form.angle} onChange={(e) => setForm({ ...form, angle: e.target.value })} /></Field>
+          <Field label="Ángulo"><input className="input" value={form.angle} onChange={(e) => setForm({ ...form, angle: e.target.value })} /></Field>
           <Field label="Notas"><textarea className="input min-h-20" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
-          <Field label="Fuentes sugeridas (URLs separadas por espacios)"><textarea className="input min-h-16 text-xs" value={form.sources} onChange={(e) => setForm({ ...form, sources: e.target.value })} /></Field>
+          <Field label="Fuentes (URLs)"><textarea className="input min-h-16 text-xs" value={form.sources} onChange={(e) => setForm({ ...form, sources: e.target.value })} /></Field>
         </div>
       </Modal>
     </div>

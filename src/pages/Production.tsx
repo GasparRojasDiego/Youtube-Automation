@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
-import { Clapperboard, Plus, ExternalLink } from "lucide-react";
+import { Clapperboard, Plus, ExternalLink, Lightbulb } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useBus } from "../lib/bus";
 import { db } from "../lib/ipc";
 import { activeChannel, createVideo, getStages, type StageRow, type Video, listVideos } from "../lib/repo";
 import { runVideo } from "../pipeline/runner";
 import { navigate } from "../ui/nav";
-import { PageHeader, Card, Empty, Chip, Modal, Field } from "../ui/kit";
+import { PageHeader, Card, Empty, Chip, Modal, Field, Tabs } from "../ui/kit";
+import { TopicsPanel } from "./Topics";
 import { awaiting } from "../ui/Stepper";
 import { fmtDate, fmtUsd } from "../lib/util";
 
 type Filter = "all" | "active" | "published" | "rejected";
 
-export function Production() {
+export function Production({ tab: initial }: { tab?: string }) {
+  const [tab, setTab] = useState<"videos" | "temas">(initial === "temas" ? "temas" : "videos");
+  useEffect(() => { if (initial === "temas" || initial === "videos") setTab(initial); }, [initial]);
   const tick = useBus("videos", "stages", "costs", "channels", "settings");
   const [rows, setRows] = useState<{ v: Video; stages: StageRow[]; cost: number; review: number }[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
@@ -34,8 +37,9 @@ export function Production() {
 
   return (
     <div>
-      <PageHeader kicker="Historial" title="Videos" subtitle="Todos los videos con sus fuentes, guiones, versiones, decisiones, costos y métricas."
-        actions={<button className="btn-brand" onClick={() => setAdhoc(true)}><Plus size={15} /> Video con tema libre</button>} />
+      <PageHeader title="Videos" actions={tab === "videos" && <button className="btn-brand" onClick={() => setAdhoc(true)}><Plus size={15} /> Video sin tema guardado</button>} />
+      <div className="mb-4"><Tabs value={tab} onChange={setTab} tabs={[{ id: "videos", label: "Videos", icon: Clapperboard }, { id: "temas", label: "Temas", icon: Lightbulb }]} /></div>
+      {tab === "temas" ? <TopicsPanel /> : (<>
       <div className="flex gap-1.5 mb-4">
         {(["all", "active", "published", "rejected"] as Filter[]).map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={`btn btn-sm rounded-full ${filter === f ? "bg-primary text-white" : "bg-secondary"}`}>
@@ -56,7 +60,7 @@ export function Production() {
                 return (
                   <tr key={v.id} className="border-b border-border/60 hover:bg-accent/40 cursor-pointer" onClick={() => navigate({ page: "video", id: v.id })}>
                     <td className="px-4 py-3"><div className="font-medium truncate max-w-[440px]">{v.title}</div>
-                      <div className="flex gap-1 mt-1">{v.mode === "premium" && <Chip tone="primary">Premium</Chip>}{v.voice_mode === "own" && <Chip tone="primary">Voz propia</Chip>}</div></td>
+                      <div className="flex gap-1 mt-1">{v.mode === "premium" && <Chip tone="primary">Premium</Chip>}{v.voice_mode === "own" && <Chip tone="primary">Mi voz</Chip>}</div></td>
                     <td className="px-2"><Chip tone={a.tone === "muted" ? "muted" : a.tone}>{a.text.length > 48 ? a.text.slice(0, 47) + "…" : a.text}</Chip></td>
                     <td className="px-2 text-muted-foreground text-xs">{fmtDate(v.created_at)}</td>
                     <td className="px-2 text-right tabular">{fmtUsd(cost)}</td>
@@ -69,17 +73,18 @@ export function Production() {
           </table>
         )}
       </Card>
-      <Modal open={adhoc} onClose={() => setAdhoc(false)} title="Video con tema libre" echo="crear"
+      </>)}
+      <Modal open={adhoc} onClose={() => setAdhoc(false)} title="Nuevo video"
         footer={<><button className="btn-ghost" onClick={() => setAdhoc(false)}>Cancelar</button>
           <button className="btn-primary" disabled={!title.trim()} onClick={async () => {
             const ch = await activeChannel(); if (!ch) return;
             const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title: title.trim(), angle: "", notes, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
             await db.execute("UPDATE videos SET topic_id=NULL WHERE id=?", [v.id]);
             setAdhoc(false); setTitle(""); setNotes(""); runVideo(v.id); navigate({ page: "video", id: v.id });
-          }}>Crear e iniciar</button></>}>
+          }}>Crear</button></>}>
         <div className="space-y-3">
           <Field label="Tema"><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej.: Harvard's 2022 report on its ties to slavery" /></Field>
-          <Field label="Notas para la investigación (opcional)"><textarea className="input min-h-24" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+          <Field label="Notas (opcional)"><textarea className="input min-h-24" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
         </div>
       </Modal>
     </div>

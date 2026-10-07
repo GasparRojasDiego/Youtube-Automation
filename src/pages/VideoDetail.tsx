@@ -52,8 +52,8 @@ export function VideoDetail({ id }: { id: string }) {
       <PageHeader kicker={`${video.mode === "premium" ? "Premium · " : ""}${fmtDate(video.created_at)}`} title={video.title}
         subtitle={<span className="flex items-center gap-2 flex-wrap">
           <Chip tone={a.tone === "muted" ? "muted" : a.tone}>{a.text}</Chip>
-          {video.voice_mode === "own" && <Chip tone="primary"><Mic size={10} /> Voz propia</Chip>}
-          <span className="text-xs">Costo: <b className="tabular">{fmtUsd(cost.usd)}</b>{cost.apiEquiv > 0 && <span className="text-muted-foreground"> · equivalente API {fmtUsd(cost.apiEquiv)} (cubierto por el plan)</span>}</span>
+          {video.voice_mode === "own" && <Chip tone="primary"><Mic size={10} /> Mi voz</Chip>}
+          <span className="text-xs">Costo: <b className="tabular">{fmtUsd(cost.usd)}</b></span>
         </span>}
         actions={<>
           <button className="btn-ghost" onClick={() => void openPath(video.dir)}><FolderOpen size={15} /> Carpeta</button>
@@ -61,7 +61,7 @@ export function VideoDetail({ id }: { id: string }) {
             : canContinue && <button className="btn-primary" onClick={() => runVideo(video.id)}><Play size={15} /> Continuar</button>}
         </>} />
       <Card pad><Stepper stages={stages} selected={current} onSelect={(s) => { setSel(s as StageId); setView("stages"); }} /></Card>
-      <Tabs value={mode} onChange={setView} tabs={[{ id: "live", label: "Estudio en vivo", icon: MonitorPlay }, { id: "stages", label: "Resultados por etapa", icon: ListChecks }]} />
+      <Tabs value={mode} onChange={setView} tabs={[{ id: "live", label: "En vivo", icon: MonitorPlay }, { id: "stages", label: "Resultados", icon: ListChecks }]} />
       {mode === "live" && <LiveStudio video={video} />}
 
       {mode === "stages" && row && (
@@ -73,9 +73,9 @@ export function VideoDetail({ id }: { id: string }) {
               {row.attempt > 1 && <span className="text-xs text-muted-foreground">intento {row.attempt}</span>}
             </div>
             {(row.status === "done" || row.status === "approved" || row.status === "failed") && current !== "publish" && (
-              <button className="btn-ghost btn-sm" title="Vuelve a ejecutar esta etapa y las siguientes (reutiliza lo ya generado si no cambió)"
-                onClick={() => { if (confirm("¿Rehacer esta etapa y las siguientes? Lo ya generado que no cambie se reutiliza sin volver a pagar.")) void rerenderFrom(video.id, current); }}>
-                <RotateCcw size={13} /> Rehacer desde aquí
+              <button className="btn-ghost btn-sm" title="Reutiliza lo que no cambió"
+                onClick={() => { if (confirm("¿Rehacer esta etapa y las siguientes?")) void rerenderFrom(video.id, current); }}>
+                <RotateCcw size={13} /> Rehacer
               </button>
             )}
           </div>
@@ -84,7 +84,7 @@ export function VideoDetail({ id }: { id: string }) {
             <div className="card border-red-500/50 p-4">
               <div className="flex items-center gap-2 font-semibold text-red-600 dark:text-red-500"><AlertTriangle size={16} /> La etapa falló</div>
               <pre className="text-xs whitespace-pre-wrap mt-2 text-muted-foreground max-h-64 overflow-y-auto">{row.error}</pre>
-              <div className="text-xs mt-2">El trabajo hecho quedó guardado; al reintentar se reanuda desde aquí sin volver a pagar lo generado.</div>
+              <div className="text-xs mt-2">Lo hecho quedó guardado.</div>
               <button className="btn-primary btn-sm mt-3" onClick={() => void retryStage(video.id, current)}><RotateCcw size={13} /> Reintentar</button>
             </div>
           )}
@@ -93,7 +93,7 @@ export function VideoDetail({ id }: { id: string }) {
         </div>
       )}
       {reviews.length > 0 && (
-        <Card title="Decisiones de revisión">
+        <Card title="Revisiones">
           <div className="space-y-1.5">
             {reviews.map((r) => (
               <div key={r.id} className="flex items-center gap-3 text-xs">

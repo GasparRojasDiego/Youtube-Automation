@@ -1,5 +1,6 @@
 // Esquema SQLite y migraciones. Cada migración se aplica una sola vez.
 import { db } from "./ipc";
+import { skillKindOf, KIND_SCOPES } from "./skills";
 
 const MIGRATIONS: string[] = [
   // 1 — esquema inicial
@@ -114,6 +115,15 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX IF NOT EXISTS idx_claude_runs ON claude_runs(ts);
   `,
+  // 3 — se quitan inglés, métricas y lectura pública de YouTube; referentes con interruptor
+  `
+  DROP TABLE IF EXISTS vocab;
+  DROP TABLE IF EXISTS metrics;
+  DROP TABLE IF EXISTS retention;
+  DROP TABLE IF EXISTS proposals;
+  DROP TABLE IF EXISTS creator_videos;
+  ALTER TABLE creators ADD COLUMN enabled INTEGER DEFAULT 1;
+  `,
 ];
 
 export async function migrate(): Promise<void> {
@@ -123,5 +133,28 @@ export async function migrate(): Promise<void> {
   while (v < MIGRATIONS.length) {
     await db.script(`BEGIN; ${MIGRATIONS[v]} INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','${v + 1}'); COMMIT;`);
     v++;
+    if (v === 3) await afterV3();
+  }
+}
+
+/** Datos de la 2.0: referentes analizados → puntos fuertes; habilidades → dos tipos. */
+async function afterV3() {
+  const creators = await db.query<{ id: string; notes: string; profile_json: string | null }>("SELECT id, notes, profile_json FROM creators");
+  for (const c of creators) {
+    if (c.notes?.trim() || !c.profile_json) continue;
+    try {
+      const p = JSON.parse(c.profile_json);
+      const pts: string[] = [...(p.principles_es ?? []), ...(p.hook_patterns_es ?? []).slice(0, 3)];
+      if (pts.length) await db.execute("UPDATE creators SET notes=? WHERE id=?", [pts.map((x) => `- ${x}`).join("\n"), c.id]);
+    } catch { /* perfil ilegible */ }
+  }
+  // La habilidad de ejemplo de la 1.0 (sin tocar) ya no sirve
+  await db.execute("DELETE FROM skills WHERE name='Ejemplo de formato (desactivada)' AND enabled=0 AND version=1");
+  const skills = await db.query<{ id: string; scopes: string }>("SELECT id, scopes FROM skills");
+  for (const sk of skills) {
+    let scopes: string[] = [];
+    try { scopes = JSON.parse(sk.scopes); } catch { /* noop */ }
+    const kind = skillKindOf(scopes);
+    await db.execute("UPDATE skills SET scopes=? WHERE id=?", [JSON.stringify(KIND_SCOPES[kind]), sk.id]);
   }
 }

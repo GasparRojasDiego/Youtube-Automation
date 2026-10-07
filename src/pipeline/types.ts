@@ -38,22 +38,11 @@ export interface VerifyOut {
   claims: ClaimCheck[];
   unlinked: { segment_id: string; text_en: string; issue_es: string; severity: Severity; resolution?: "accepted" | "fix" | null; user_note?: string }[];
   segment_glosses: { segment_id: string; summary_es: string }[];
-  vocab: { term: string; meaning_es: string; example_en: string; note_es: string }[];
   rounds?: number;
 }
 
 export interface VoiceSegment { segment_id: string; path: string; duration: number; hash: string }
 export interface VoiceOut { provider: string; segments: VoiceSegment[]; total: number }
-
-export interface PlannedShot {
-  id: string; segment_id: string; sentence_from: number; sentence_to: number;
-  kind: "generated" | "archival" | "source_card" | "title_card" | "quote_card" | "text_card";
-  prompt_en?: string; archival_query?: string; source_id?: string; card_text?: string; overlay_text?: string;
-  motion: Motion;
-  // resultado
-  image?: string; overlay?: string | null; provenance?: Provenance; dur?: number; error?: string | null; hash?: string;
-}
-export interface VisualsOut { shots: PlannedShot[]; generated: number; archival: number; cards: number; usd: number }
 
 export interface ThumbCandidate { concept_es: string; text: string; highlight: string; image_prompt_en: string; background_asset_id?: string; layout: "left" | "right" | "center"; image?: string; path?: string }
 export interface PackageOut {

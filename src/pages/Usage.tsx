@@ -30,7 +30,7 @@ export function RunShare({ r, cal }: { r: RunRow; cal: Calibration | null }) {
   const e5 = cal?.per5h != null ? r.api_equiv * cal.per5h : null;
   const e7 = cal?.per7d != null ? r.api_equiv * cal.per7d : null;
   return (
-    <span className="tabular text-xs" title="Medido: diferencia de la utilización oficial antes y después de la tarea (incluye cualquier otro uso simultáneo del plan). Estimado: según los tokens de la tarea y tu historial.">
+    <span className="tabular text-xs" title="≈ estimado por tokens; sin ≈, medido por Claude (pasos de 1 %).">
       {e5 != null ? `≈${pct(e5, 2)}` : measured(d5)} <span className="text-muted-foreground">/ 5 h</span>
       {" · "}{e7 != null ? `≈${pct(e7, 2)}` : measured(d7)} <span className="text-muted-foreground">/ 7 d</span>
     </span>
@@ -66,32 +66,29 @@ export function UsagePage() {
   const s = getSettings();
   const free = s.tts.google.freeCharsPerMonth;
   const perVideo = byVideo.length ? byVideo.reduce((x, v) => x + v.eq, 0) / byVideo.length : 0;
-  const est5 = cal?.per5h != null && perVideo ? `Un video completo usa ≈ ${pct(perVideo * cal.per5h, 1)} de esta ventana (estimado con tu historial).` : undefined;
-  const est7 = cal?.per7d != null && perVideo ? `Un video completo usa ≈ ${pct(perVideo * cal.per7d, 1)} de la semana.` : undefined;
+  const est5 = cal?.per5h != null && perVideo ? `Un video ≈ ${pct(perVideo * cal.per5h, 1)}` : undefined;
+  const est7 = cal?.per7d != null && perVideo ? `Un video ≈ ${pct(perVideo * cal.per7d, 1)}` : undefined;
 
   return (
     <div className="space-y-5">
-      <PageHeader kicker="Control" title="Consumo" subtitle="Lo que gasta cada tarea de tu plan de Claude y de las cuotas gratuitas, y cuándo se repone."
+      <PageHeader title="Consumo"
         actions={<RefreshUsageButton />} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: "claude", label: "Plan de Claude", icon: Bot }, { id: "otros", label: "Voz y API de medios", icon: Mic }, { id: "costos", label: "Gastos en dinero", icon: Gauge }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: "claude", label: "Claude", icon: Bot }, { id: "otros", label: "Voz y medios", icon: Mic }, { id: "costos", label: "Dinero", icon: Gauge }]} />
 
       {tab === "claude" && (<>
         <div className="grid grid-cols-2 gap-4">
           <Card><PlanBar title="Ventana de 5 horas" w={limits?.fiveHour} est={est5} /></Card>
-          <Card><PlanBar title="Límite semanal (7 días)" w={limits?.sevenDay} est={est7} /></Card>
+          <Card><PlanBar title="Semana (7 días)" w={limits?.sevenDay} est={est7} /></Card>
         </div>
         {limits && Object.keys(limits.extra ?? {}).length > 0 && (
           <div className="grid grid-cols-3 gap-4">{Object.entries(limits.extra!).map(([k, w]) => <Card key={k}><PlanBar title={k.replace(/_/g, " ")} w={w} /></Card>)}</div>
         )}
-        <div className="card p-3 text-xs text-muted-foreground flex gap-2">
-          <Info size={14} className="shrink-0 mt-0.5 text-primary" />
-          <div>
-            Datos oficiales: cada vez que ATRIL usa Claude Code, el propio CLI informa la utilización de tus ventanas (evento <code>rate_limit_event</code>). Última lectura: {limits ? fmtDate(limits.updatedAt) : "—"}{limits?.status ? ` · estado «${limits.status}»` : ""}.
-            El % de cada tarea se mide como la diferencia antes/después (con la resolución que da Claude) y, cuando hay historial suficiente ({cal?.samples ?? 0} tareas medidas), se estima con precisión según sus tokens. Los tokens leídos de caché pesan mucho menos que los nuevos. El uso que hagas de Claude fuera de ATRIL (chat, Claude Code) comparte las mismas ventanas.
-          </div>
+        <div className="text-xs text-muted-foreground flex gap-2 items-center">
+          <Info size={13} className="text-primary" />
+          Dato oficial de Claude Code · {limits ? fmtDate(limits.updatedAt) : "—"}. Incluye tu uso fuera de ATRIL.
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Card title="Por etapa (últimos 7 días)">
+          <Card title="Por etapa (7 días)">
             <table className="w-full text-xs">
               <thead><tr className="text-muted-foreground text-left"><th className="py-1">Etapa</th><th className="text-right">Tareas</th><th className="text-right">Entrada</th><th className="text-right">Salida</th><th className="text-right">≈ % 5 h</th></tr></thead>
               <tbody>{byStage.map((r) => (
@@ -105,10 +102,10 @@ export function UsagePage() {
               <tr key={v.video_id} className="border-t border-border/50 hover:bg-accent/40 cursor-pointer" onClick={() => navigate({ page: "video", id: v.video_id })}>
                 <td className="py-1.5 truncate max-w-[260px]">{v.title ?? v.video_id}</td><td className="text-right tabular">{v.n} tareas</td>
                 <td className="text-right tabular">{fmtK(v.inp)} / {fmtK(v.outp)}</td>
-                <td className="text-right tabular" title="Equivalente si se pagara por API (referencia; tu plan lo cubre)">{cal?.per7d != null ? `≈${pct(v.eq * cal.per7d, 1)} sem.` : `eq. ${fmtUsd(v.eq)}`}</td></tr>))}</tbody></table>
+                <td className="text-right tabular" title="Precio si fuera por API (tu plan lo cubre)">{cal?.per7d != null ? `≈${pct(v.eq * cal.per7d, 1)} sem.` : `eq. ${fmtUsd(v.eq)}`}</td></tr>))}</tbody></table>
           </Card>
         </div>
-        <Card title="Cada tarea de Claude" pad={false}>
+        <Card title="Tareas" pad={false}>
           <table className="w-full text-xs">
             <thead><tr className="text-muted-foreground text-left border-b border-border"><th className="px-4 py-2">Cuándo</th><th>Tarea</th><th>Modelo</th><th className="text-right">Entrada (caché)</th><th className="text-right">Salida</th><th className="text-right">Búsq.</th><th className="text-right">Duración</th><th className="text-right px-4">Plan</th></tr></thead>
             <tbody>{runs.map((r) => (
@@ -129,17 +126,17 @@ export function UsagePage() {
       {tab === "otros" && (<>
         <div className="grid grid-cols-3 gap-4">
           <Card>
-            <Stat label="Google TTS · este mes" value={`${fmtK(tts)} / ${fmtK(free)}`} sub={`caracteres gratis (${s.tts.google.voice.split("-").slice(2).join("-")}) · se repone el día 1`} tone={tts > free ? "red" : tts > free * 0.8 ? "amber" : undefined} />
+            <Stat label="Voz (Google) · mes" value={`${fmtK(tts)} / ${fmtK(free)}`} sub="caracteres gratis · se repone el día 1" tone={tts > free ? "red" : tts > free * 0.8 ? "amber" : undefined} />
             <Progress className="mt-3" value={(tts / Math.max(1, free)) * 100} />
-            <div className="text-[11px] text-muted-foreground mt-2">≈ {Math.max(0, Math.floor((free - tts) / 11000))} videos más sin costo (≈11 000 caracteres por video de 12 min). Después: {fmtUsd(s.tts.google.priceUsdPerMChars)} por millón.</div>
+            <div className="text-[11px] text-muted-foreground mt-2">≈ {Math.max(0, Math.floor((free - tts) / 11000))} videos más gratis.</div>
           </Card>
-          <Card title="Gastos en dinero este mes">
-            {paid.length === 0 ? <div className="text-sm text-muted-foreground">Nada: todo lo usado fue gratuito o del plan.</div> :
+          <Card title="Gastos del mes">
+            {paid.length === 0 ? <div className="text-sm text-muted-foreground">Nada.</div> :
               <table className="w-full text-xs"><tbody>{paid.map((p) => <tr key={p.provider} className="border-t border-border/50"><td className="py-1">{p.provider}</td><td className="text-right tabular">{p.n}×</td><td className="text-right tabular font-medium">{fmtUsd(p.usd, 3)}</td></tr>)}</tbody></table>}
           </Card>
-          <Card><Stat label="Reposición de la voz" value={fmtReset(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).getTime())} sub="La cuota gratuita de Google es mensual" /></Card>
+          <Card><Stat label="La voz se repone" value={fmtReset(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).getTime())} /></Card>
         </div>
-        <Card title="API de medios libres (llamadas y límites oficiales)" icon={ImageIcon} pad={false}>
+        <Card title="Fuentes de medios (llamadas / límite)" icon={ImageIcon} pad={false}>
           <table className="w-full text-xs">
             <thead><tr className="text-muted-foreground text-left border-b border-border"><th className="px-4 py-2">Fuente</th><th className="text-right">Último minuto</th><th className="text-right">Última hora</th><th className="text-right">Últimas 24 h</th><th className="text-right px-4">Últimos 30 días</th></tr></thead>
             <tbody>{Object.entries(API_LIMITS).map(([k, lim]) => {
@@ -148,7 +145,7 @@ export function UsagePage() {
               return (<tr key={k} className="border-b border-border/50"><td className="px-4 py-1.5">{lim.label}</td><td className="text-right tabular">{cell(c.min, lim.perMinute)}</td><td className="text-right tabular">{cell(c.hour, lim.perHour)}</td><td className="text-right tabular">{cell(c.day, lim.perDay)}</td><td className="text-right tabular px-4">{cell(c.month, lim.perMonth)}</td></tr>);
             })}</tbody>
           </table>
-          <div className="px-4 py-2 text-[11px] text-muted-foreground">ATRIL deja de llamar a una fuente al llegar al 90 % de su límite y usa las demás o la biblioteca. Openverse sin registrar tiene un límite muy bajo: regístralo en Ajustes → Medios.</div>
+          <div className="px-4 py-2 text-[11px] text-muted-foreground">Al 90 % del límite, ATRIL usa otra fuente.</div>
         </Card>
       </>)}
 

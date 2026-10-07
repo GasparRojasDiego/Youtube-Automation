@@ -1,12 +1,11 @@
 // Implementación de cada etapa. Todas son reanudables: lo ya generado (y
 // pagado) se reutiliza comparando huellas (hash) de sus entradas.
-import { fs, db } from "../lib/ipc";
+import { fs } from "../lib/ipc";
 import { getSettings } from "../lib/settings";
 import { composeSkills, skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS, THUMBNAIL_DEFAULTS, SCRIPT_DEFAULTS } from "../lib/skills";
 import { getStage, saveArtifact, updateVideo, listMusic, type Video, type StageId } from "../lib/repo";
 import { UserError, log } from "../lib/events";
-import { emit } from "../lib/bus";
-import { joinPath, sha256, now, uid, extName, splitSentences } from "../lib/util";
+import { joinPath, sha256, now, extName, splitSentences } from "../lib/util";
 import { claudeRun } from "../providers/claude";
 import { synthesize, chunkText, ttsProviderName, type VoiceOverride } from "../providers/tts";
 import { generateImage } from "../providers/images";
@@ -51,7 +50,7 @@ async function wordsTarget(v: Video): Promise<[number, number, number]> {
 // ---------- 2. Investigación ----------
 export async function stageResearch(ctx: Ctx): Promise<ResearchOut> {
   const v = ctx.video; const topic = v.data.topic ?? { title: v.title };
-  await ctx.progress("Buscando y leyendo fuentes (puede tardar varios minutos)…");
+  await ctx.progress("Investigando…");
   const r = await claudeRun<ResearchOut>({
     stage: "research", label: "Investigación", system: P.SYSTEM_BASE, schema: P.RESEARCH_SCHEMA, tools: ["WebSearch", "WebFetch"],
     prompt: P.researchPrompt({ skills: await composeSkills(v.channel_id, "research"), topic: topic.title, angle: topic.angle ?? "", notes: topic.notes ?? "", seedSources: topic.sources ?? [] }),
@@ -110,7 +109,7 @@ export async function stageVerify(ctx: Ctx): Promise<VerifyOut> {
   const research = await need<ResearchOut>(v, "research", "Investigación");
   const script = await need<ScriptOut>(v, "script", "Guion");
   const prev = await out<VerifyOut>(v, "verify");
-  await ctx.progress("Verificando cada afirmación contra sus fuentes…");
+  await ctx.progress("Verificando afirmaciones…");
   const r = await claudeRun<VerifyOut>({
     stage: "verify", label: "Verificación", system: P.SYSTEM_BASE, schema: P.VERIFY_SCHEMA, tools: ["WebFetch"],
     prompt: P.verifyPrompt({ skills: await composeSkills(v.channel_id, "verify"), research, script }),
@@ -118,14 +117,6 @@ export async function stageVerify(ctx: Ctx): Promise<VerifyOut> {
   });
   const merged = L.mergeVerification(r.data, script, L.checkScript(script, research));
   merged.rounds = (prev?.rounds ?? 0) + 1;
-  // vocabulario para la función de aprendizaje
-  const t = now();
-  for (const w of merged.vocab ?? []) {
-    if (!w.term?.trim()) continue;
-    await db.execute("INSERT OR IGNORE INTO vocab(id,term,meaning_es,example_en,note,video_id,due,created_at) VALUES(?,?,?,?,?,?,?,?)",
-      [uid("vo_"), w.term.trim(), w.meaning_es, w.example_en, w.note_es, v.id, t, t]);
-  }
-  emit("vocab");
   await saveArtifact(v.id, "verify", merged);
   return merged;
 }
@@ -137,7 +128,7 @@ async function alignVoice(seg: VoiceSegmentV2, text: string, videoId: string) {
   if (seg.sentences?.length === sentences.length) return;
   const stderr = await ffmpeg(["-hide_banner", "-nostats", "-i", seg.path, "-af", "silencedetect=noise=-38dB:d=0.16", "-f", "null", "-"]);
   seg.sentences = alignSentences(sentences, seg.duration, parseSilences(stderr, seg.duration));
-  await activity(videoId, "voice", "audio", `Voz alineada: ${sentences.length} frases con tiempos exactos`, "");
+  await activity(videoId, "voice", "audio", `Voz alineada (${sentences.length} frases)`, "");
 }
 export function ownVoiceDir(v: Video) { return joinPath(v.dir, "voice", "own"); }
 
@@ -214,7 +205,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   if (prev && !opts.regenerate) {
     pkg = { ...prev };
   } else {
-    await ctx.progress("Creando títulos, descripción y miniaturas…");
+    await ctx.progress("Títulos, descripción y miniaturas…");
     const r = await claudeRun<Omit<PackageOut, "chosen_title" | "description" | "chosen_thumbnail" | "chapters" | "srt">>({
       stage: "package", label: "Miniatura y metadatos", system: P.SYSTEM_BASE, schema: P.PACKAGE_SCHEMA,
       prompt: P.packagePrompt({ skills: [await composeSkills(v.channel_id, "thumbnail"), await composeSkills(v.channel_id, "metadata")].filter(Boolean).join("\n\n"),

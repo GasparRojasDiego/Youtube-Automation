@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Sun, Moon, Bell, Home, Clapperboard, Lightbulb, Sparkles, Users, BarChart3, Languages, Gauge, Settings, Stethoscope, BookOpen,
+  Sun, Moon, Bell, Home, Clapperboard, Sparkles, Gauge, Settings, Stethoscope,
   PanelLeftClose, PanelLeftOpen, Loader2, MonitorPlay, Library, type LucideIcon,
 } from "lucide-react";
 import { navigate, useRoute, type Page } from "./ui/nav";
@@ -16,11 +16,7 @@ import { NotificationsPanel } from "./pages/Notifications";
 import { Today } from "./pages/Today";
 import { Production } from "./pages/Production";
 import { VideoDetail } from "./pages/VideoDetail";
-import { Topics } from "./pages/Topics";
 import { Skills } from "./pages/Skills";
-import { Creators } from "./pages/Creators";
-import { Metrics } from "./pages/Metrics";
-import { Vocabulary } from "./pages/Vocabulary";
 import { UsagePage } from "./pages/Usage";
 import { StudioPage } from "./pages/Studio";
 import { LibraryPage } from "./pages/Library";
@@ -29,7 +25,6 @@ import { getLimits } from "./lib/usage";
 import { refreshPlanUsage } from "./providers/claude";
 import { SettingsPage } from "./pages/Settings";
 import { Diagnostics } from "./pages/Diagnostics";
-import { Guide } from "./pages/Guide";
 import { Welcome } from "./pages/Welcome";
 
 const NAV: { group: string; items: { id: Page; label: string; icon: LucideIcon }[] }[] = [
@@ -37,22 +32,14 @@ const NAV: { group: string; items: { id: Page; label: string; icon: LucideIcon }
     { id: "hoy", label: "Hoy", icon: Home },
     { id: "estudio", label: "Estudio en vivo", icon: MonitorPlay },
     { id: "produccion", label: "Videos", icon: Clapperboard },
-    { id: "temas", label: "Temas", icon: Lightbulb },
   ] },
-  { group: "Identidad y material", items: [
+  { group: "Identidad", items: [
     { id: "habilidades", label: "Habilidades", icon: Sparkles },
     { id: "biblioteca", label: "Biblioteca", icon: Library },
-    { id: "referentes", label: "Referentes", icon: Users },
   ] },
-  { group: "Mejora", items: [
-    { id: "metricas", label: "Métricas", icon: BarChart3 },
-    { id: "vocabulario", label: "Inglés", icon: Languages },
+  { group: "Control", items: [
     { id: "consumo", label: "Consumo", icon: Gauge },
-  ] },
-  { group: "Sistema", items: [
-    { id: "ajustes", label: "Ajustes", icon: Settings },
     { id: "diagnostico", label: "Diagnóstico", icon: Stethoscope },
-    { id: "guia", label: "Guía", icon: BookOpen },
   ] },
 ];
 
@@ -87,19 +74,14 @@ export default function App() {
   const page = (() => {
     switch (route.page) {
       case "hoy": return <Today />;
-      case "produccion": return <Production />;
+      case "produccion": return <Production tab={route.tab} />;
       case "video": return <VideoDetail key={route.id} id={route.id!} />;
-      case "temas": return <Topics />;
       case "habilidades": return <Skills />;
-      case "referentes": return <Creators />;
-      case "metricas": return <Metrics />;
-      case "vocabulario": return <Vocabulary />;
       case "estudio": return <StudioPage />;
       case "biblioteca": return <LibraryPage />;
-      case "consumo": case "costos": return <UsagePage />;
+      case "consumo": return <UsagePage />;
       case "ajustes": return <SettingsPage tab={route.tab} />;
       case "diagnostico": return <Diagnostics />;
-      case "guia": return <Guide />;
     }
   })();
 
@@ -130,9 +112,13 @@ export default function App() {
             </div>
           ))}
         </nav>
-        <div className="border-t border-border p-2.5 flex items-center justify-between">
-          {!collapsed && <span className="text-[10.5px] uppercase tracking-[0.2em] text-muted-foreground pl-1">VT Asvent · v2.0.0</span>}
-          <button className="btn-ghost btn-sm" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer menú">
+        <div className={`border-t border-border p-2.5 flex items-center gap-1 ${collapsed ? "flex-col" : ""}`}>
+          <button onClick={() => navigate({ page: "ajustes" })} title="Ajustes"
+            className={`flex-1 flex items-center gap-3 rounded-md px-2.5 h-9 text-sm transition-colors duration-200 ${route.page === "ajustes" ? "bg-primary text-primary-foreground font-medium" : "hover:bg-accent"}`}>
+            <Settings size={17} className={route.page === "ajustes" ? "" : "text-primary"} />
+            {!collapsed && <span>Ajustes</span>}
+          </button>
+          <button className="btn-ghost btn-sm" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expandir menú" : "Contraer menú"}>
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
         </div>

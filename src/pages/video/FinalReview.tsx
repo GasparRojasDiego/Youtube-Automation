@@ -63,9 +63,8 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
         <Tabs value={tab} onChange={setTab} tabs={[{ id: "video", label: "Video" }, { id: "shots", label: `Tomas (${shots.length})`, icon: ImageIcon }, { id: "motion", label: `Animaciones (${motion?.items.length ?? 0})`, icon: Sparkles }, { id: "voice", label: "Voz", icon: Mic }]} />
         {polish?.verify_es?.length ? (
           <div className="card border-amber-500/50 bg-amber-500/5 p-3 text-sm">
-            <div className="font-semibold text-amber-700 dark:text-amber-500 mb-1">Opus sugiere comprobar antes de publicar</div>
+            <div className="font-semibold text-amber-700 dark:text-amber-500 mb-1">Comprueba antes de publicar</div>
             <ul className="list-disc pl-5 space-y-0.5 text-xs">{polish.verify_es.map((x, i) => <li key={i}>{x}</li>)}</ul>
-            <div className="text-[11px] text-muted-foreground mt-1">Si algo resulta incorrecto, vuelve a la verificación del guion y corrígelo: nada se publica sin tu aprobación.</div>
           </div>
         ) : null}
         {tab === "video" && (
@@ -79,7 +78,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
         )}
         {tab === "shots" && (
           <div className="space-y-3">
-            {!polish && <Card><div className="text-sm text-muted-foreground">Este video se montó con la versión 1. Para usar la edición nueva, pulsa «Rehacer desde aquí» en la etapa Storyboard.</div></Card>}
+            {!polish && <Card><div className="text-sm text-muted-foreground">Video de la v1: rehazlo desde Storyboard para editarlo aquí.</div></Card>}
             {script.segments.map((sg) => (
               <Card key={sg.id} title={sg.title}>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
@@ -99,7 +98,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
                   <div key={sg.id} className="flex items-center gap-3">
                     <div className="w-52 text-sm truncate">{sg.title}</div>
                     {seg && <audio controls preload="none" className="h-8 flex-1" src={fileUrl(seg.path, seg.hash.slice(0, 8))} />}
-                    {video.voice_mode !== "own" && <button className="btn-ghost btn-sm" onClick={() => { if (confirm("¿Rehacer la voz de este segmento y volver a montar?")) void redoVoiceSegment(video.id, sg.id); }}><RotateCcw size={13} /> Rehacer</button>}
+                    {video.voice_mode !== "own" && <button className="btn-ghost btn-sm" onClick={() => { if (confirm("¿Rehacer esta voz?")) void redoVoiceSegment(video.id, sg.id); }}><RotateCcw size={13} /> Rehacer</button>}
                   </div>
                 );
               })}
@@ -146,7 +145,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
           <textarea className="input text-xs min-h-40 font-sans" value={pkg.description} disabled={!editable} onChange={(e) => setPkg({ ...pkg, description: e.target.value })} onBlur={() => void save(pkg)} />
           <input className="input text-xs mt-2" value={pkg.tags.join(", ")} disabled={!editable} onChange={(e) => setPkg({ ...pkg, tags: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} onBlur={() => void save(pkg)} />
           <div className="mt-3 flex items-center justify-between">
-            <Toggle checked={pkg.synthetic_media} onChange={(v) => editable && void save({ ...pkg, synthetic_media: v })} label="Declarar contenido alterado o sintético" />
+            <Toggle checked={pkg.synthetic_media} onChange={(v) => editable && void save({ ...pkg, synthetic_media: v })} label="Contenido sintético" />
           </div>
           <div className="text-[11px] text-muted-foreground mt-1">{pkg.synthetic_reason_es}</div>
         </Card>
@@ -154,7 +153,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
         {editable && (
           <Card title="Publicación" icon={CalendarClock}>
             <div className="space-y-2">
-              <Toggle checked={now} onChange={setNow} label="Publicar en cuanto termine la subida" />
+              <Toggle checked={now} onChange={setNow} label="Publicar al subir" />
               {!now && slot && (
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Fecha (Nueva York)"><input type="date" className="input" value={slot.date} onChange={(e) => setSlot({ ...slot, date: e.target.value })} /></Field>
@@ -164,10 +163,10 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
               {!now && scheduledUtc && <div className="text-[11px] text-muted-foreground">En tu hora: {scheduledUtc.toLocaleString("es-PE", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</div>}
               <AsyncButton className="btn-primary w-full" onClick={async () => {
                 const when = now ? null : scheduledUtc?.getTime() ?? null;
-                if (when && when < Date.now() + 20 * 60_000) { toast("warn", "Elige una hora al menos 20 minutos en el futuro."); return; }
+                if (when && when < Date.now() + 20 * 60_000) { toast("warn", "Elige una hora con 20 min de margen."); return; }
                 await addReview(video.id, "final", "approved", "", secs.current);
                 await approveFinal(video.id, when);
-                toast("success", "Aprobado", when ? "Se subirá y quedará programado." : "Se subirá y publicará.");
+                toast("success", "Aprobado");
               }}><CheckCircle2 size={15} /> Aprobar y {now ? "publicar" : "programar"}</AsyncButton>
               <div className="flex gap-2">
                 <ExportButton video={video} label="Exportar" />
@@ -182,7 +181,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
       <Modal open={reject} onClose={() => setReject(false)} title="Rechazar video" echo="rechazar"
         footer={<><button className="btn-ghost" onClick={() => setReject(false)}>Cancelar</button>
           <button className="btn-danger" onClick={async () => { await addReview(video.id, "final", "rejected", reason, secs.current); await rejectVideo(video.id, reason); setReject(false); }}>Rechazar</button></>}>
-        <Field label="Motivo (sirve para mejorar las habilidades)"><textarea className="input min-h-24" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+        <Field label="Motivo"><textarea className="input min-h-24" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
       </Modal>
     </div>
   );

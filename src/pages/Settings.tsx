@@ -49,7 +49,7 @@ export function SettingsPage({ tab: initial }: { tab?: string }) {
   useEffect(() => { if (initial) setTab(initial as Tab); }, [initial]);
   return (
     <div>
-      <PageHeader kicker="Sistema" title="Ajustes" subtitle="Todo lo que cambia con el tiempo (modelos, precios, voces) se ajusta aquí sin reprogramar." />
+      <PageHeader title="Ajustes" />
       <div className="mb-5"><Tabs tabs={TABS} value={tab} onChange={setTab} /></div>
       {tab === "channel" && <ChannelTab />}
       {tab === "keys" && <KeysTab />}
@@ -87,7 +87,6 @@ function ChannelTab() {
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del nuevo canal" />
           <button className="btn-brand" disabled={!name.trim()} onClick={async () => { await createChannel(name.trim()); setName(""); }}><Plus size={14} /> Crear</button>
         </div>
-        <div className="text-[11px] text-muted-foreground">Cada canal tiene sus temas, videos, referentes y habilidades. Las habilidades marcadas como «globales» se comparten.</div>
       </div>
     </Card>
   );
@@ -100,9 +99,9 @@ function SecretRow({ k, label, hint, test }: { k: string; label: string; hint: R
   return (
     <div className="grid grid-cols-[220px_1fr_auto] gap-3 items-start py-3 border-b border-border/60 last:border-0">
       <div><div className="text-sm font-medium">{label}</div><div className="text-[11px] text-muted-foreground mt-0.5">{hint}</div></div>
-      <input className="input font-mono text-xs" type="password" value={val} placeholder={has ? "•••••••• (guardada; escribe para reemplazar)" : "Pega la clave aquí"} onChange={(e) => setVal(e.target.value)} />
+      <input className="input font-mono text-xs" type="password" value={val} placeholder={has ? "•••••••• guardada" : "Pega la clave"} onChange={(e) => setVal(e.target.value)} />
       <div className="flex gap-1.5">
-        <AsyncButton className="btn-brand btn-sm" disabled={!val.trim()} onClick={async () => { await secrets.set(k, val.trim()); setVal(""); setHas(true); toast("success", `${label} guardada en el Administrador de credenciales`); }}>Guardar</AsyncButton>
+        <AsyncButton className="btn-brand btn-sm" disabled={!val.trim()} onClick={async () => { await secrets.set(k, val.trim()); setVal(""); setHas(true); toast("success", `${label} guardada`); }}>Guardar</AsyncButton>
         {test && <AsyncButton className="btn-ghost btn-sm" disabled={!has} onClick={async () => { try { const v = await secrets.get(k); toast("success", `${label}: funciona`, await test(v!)); } catch (e) { await logError(e, null, `${label}`); } }}>Probar</AsyncButton>}
         {has && <button className="btn-ghost btn-sm" onClick={async () => { await secrets.remove(k); setHas(false); }}><Trash2 size={13} /></button>}
       </div>
@@ -113,22 +112,22 @@ function SecretRow({ k, label, hint, test }: { k: string; label: string; hint: R
 function KeysTab() {
   return (
     <Card title="Credenciales" icon={KeyRound}>
-      <div className="text-xs text-muted-foreground mb-2">Se guardan cifradas en el Administrador de credenciales de Windows, nunca en archivos ni en el repositorio. Las cuentas deben estar a nombre del titular adulto.</div>
-      <SecretRow k={SECRET.googleApiKey} label="Google Cloud (clave de API)" hint="Para Text-to-Speech y YouTube Data API (lectura de referentes). Habilita ambas APIs en tu proyecto."
+      <div className="text-xs text-muted-foreground mb-2">Se guardan cifradas en Windows.</div>
+      <SecretRow k={SECRET.googleApiKey} label="Google Cloud" hint="Para la voz (Text-to-Speech)."
         test={async (v) => { const r = await requestJson<any>("Google TTS", { url: `https://texttospeech.googleapis.com/v1/voices?languageCode=en-US&key=${encodeURIComponent(v)}` }); return `${r.voices?.length ?? 0} voces disponibles`; }} />
-      <SecretRow k={SECRET.geminiApiKey} label="Gemini (clave de API)" hint="De Google AI Studio, con facturación activa en el proyecto. Imágenes y voz Gemini."
+      <SecretRow k={SECRET.geminiApiKey} label="Gemini (opcional)" hint="Imágenes generadas y voz Gemini. De pago."
         test={async (v) => { const r = await requestJson<any>("Gemini", { url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(v)}` }); return `${r.models?.length ?? 0} modelos accesibles`; }} />
-      <SecretRow k={SECRET.openaiApiKey} label="OpenAI (opcional)" hint="Alternativa para imágenes."
+      <SecretRow k={SECRET.openaiApiKey} label="OpenAI (opcional)" hint="Imágenes generadas. De pago."
         test={async (v) => { await requestJson<any>("OpenAI", { url: "https://api.openai.com/v1/models", headers: { Authorization: `Bearer ${v}` } }); return "Clave válida"; }} />
-      <SecretRow k={SECRET.elevenlabsApiKey} label="ElevenLabs (opcional)" hint="Alternativa de voz de mayor calidad (requiere plan de pago)."
+      <SecretRow k={SECRET.elevenlabsApiKey} label="ElevenLabs (opcional)" hint="Otra voz. De pago."
         test={async (v) => { const r = await requestJson<any>("ElevenLabs", { url: "https://api.elevenlabs.io/v1/user", headers: { "xi-api-key": v } }); return `Plan: ${r.subscription?.tier ?? "?"}`; }} />
-      <SecretRow k={SECRET.youtubeClientId} label="YouTube · ID de cliente OAuth" hint="Tipo «App de escritorio» en Google Cloud → Credenciales." />
-      <SecretRow k={SECRET.youtubeClientSecret} label="YouTube · secreto de cliente" hint="Del mismo cliente OAuth." />
+      <SecretRow k={SECRET.youtubeClientId} label="YouTube · ID de cliente" hint="Cliente OAuth tipo «App de escritorio»." />
+      <SecretRow k={SECRET.youtubeClientSecret} label="YouTube · secreto" hint="Del mismo cliente." />
     </Card>
   );
 }
 
-const STAGE_LABEL: Record<StageModelKey, string> = { topics: "Banco de temas", research: "Investigación", script: "Guion", verify: "Verificación", plan: "Plan visual (v1)", package: "Miniatura y metadatos", analysis: "Referentes y métricas", storyboard: "Storyboard y casting", vision: "Visión (describir medios)", polish: "Retoques de edición", motion: "Animaciones (motion)", critique: "Revisión visual de animaciones" };
+const STAGE_LABEL: Record<StageModelKey, string> = { topics: "Temas", research: "Investigación", script: "Guion", verify: "Verificación", storyboard: "Storyboard y casting", vision: "Visión", polish: "Retoques", motion: "Animaciones", critique: "Revisión de animaciones", package: "Metadatos", analysis: "Habilidades y referentes" };
 
 function ClaudeTab() {
   const { s, set } = useSetting();
@@ -137,14 +136,14 @@ function ClaudeTab() {
     <div className="space-y-4">
       <Card title="Claude Code" icon={Bot} actions={<AsyncButton className="btn-brand btn-sm" onClick={async () => setVer(await claudeVersion())}>Comprobar</AsyncButton>}>
         <Grid>
-          <Field label="Programa" hint="«claude» si está en el PATH, o la ruta completa a claude.exe"><Txt v={s.claude.path} on={(v) => set("claude.path", v)} mono /></Field>
+          <Field label="Programa" hint="«claude» o la ruta a claude.exe"><Txt v={s.claude.path} on={(v) => set("claude.path", v)} mono /></Field>
           <Field label="Tiempo máximo por tarea (min)"><Num v={s.claude.timeoutMin} on={(v) => set("claude.timeoutMin", v)} min={5} /></Field>
-          <Field label="Argumentos extra (avanzado)" hint="Se añaden al final; útil si una versión futura del CLI cambia algo. Ej.: --fallback-model sonnet"><Txt v={s.claude.extraArgs} on={(v) => set("claude.extraArgs", v)} mono /></Field>
+          <Field label="Argumentos extra (avanzado)"><Txt v={s.claude.extraArgs} on={(v) => set("claude.extraArgs", v)} mono /></Field>
         </Grid>
         {ver !== undefined && <div className="mt-3">{ver ? <Chip tone="green">{ver}</Chip> : <Chip tone="red">No se encontró Claude Code</Chip>}</div>}
       </Card>
       <Card title="Modelo y esfuerzo por etapa">
-        <div className="text-xs text-muted-foreground mb-3">Usa alias («opus», «sonnet», «haiku») o nombres completos. Opus consume más límite del plan; reservarlo para guion y verificación suele ser el mejor equilibrio.</div>
+        <div className="text-xs text-muted-foreground mb-3">«opus», «sonnet» o «haiku». Opus gasta más límite.</div>
         <div className="space-y-2">
           {(Object.keys(STAGE_LABEL) as StageModelKey[]).map((k) => (
             <div key={k} className="grid grid-cols-[220px_1fr_160px] gap-3 items-center">
@@ -179,7 +178,7 @@ function VoiceTab() {
               <option value="elevenlabs">ElevenLabs</option>
             </select>
           </Field>
-          <div className="text-[11px] text-muted-foreground self-end">La voz propia se elige por video (Hoy → «Mi propia voz»). Una habilidad puede fijar la voz con un bloque atril:voz.</div>
+          <div className="text-[11px] text-muted-foreground self-end">«Mi voz» se elige en Hoy, por video.</div>
         </Grid>
       </Card>
       {s.tts.provider === "google" && <Card title="Google Cloud TTS"><Grid cols={3}>
@@ -207,7 +206,7 @@ function VoiceTab() {
           <div className="space-y-3">
             <div className="flex gap-2">
               <AsyncButton className="btn-ghost btn-sm" onClick={async () => { try { setVoices((await listGoogleVoices()).map((v) => v.name).filter((n) => /Chirp3-HD|Studio|Neural2/.test(n))); } catch (e) { await logError(e, null, "Voces"); } }}>Cargar voces</AsyncButton>
-              <span className="text-xs text-muted-foreground self-center">Elige 3–5 y escúchalas sin saber cuál es cuál.</span>
+              <span className="text-xs text-muted-foreground self-center">Elige 3–5 y escúchalas a ciegas.</span>
             </div>
             {voices.length > 0 && <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">{voices.map((v) => <button key={v} onClick={() => setPick(pick.includes(v) ? pick.filter((x) => x !== v) : pick.length < 5 ? [...pick, v] : pick)} className={`chip ${pick.includes(v) ? "bg-primary text-white border-primary" : "border-border"}`}>{v.replace("en-US-", "")}</button>)}</div>}
             <textarea className="input text-sm min-h-16" value={sample} onChange={(e) => setSample(e.target.value)} />
@@ -242,52 +241,52 @@ function ImagesTab() {
   const [email, setEmail] = useState("");
   useEffect(() => { void libraryRoot().then(setRoot); }, [s.media.libraryDir]);
   const SRC: [keyof AppSettings["media"]["sources"], string, string][] = [
-    ["pexels", "Pexels", "Fotos y videos de calidad (licencia Pexels: uso libre, sin atribución)."],
-    ["pixabay", "Pixabay", "Fotos, ilustraciones y videos (licencia Pixabay)."],
-    ["wikimedia", "Wikimedia Commons", "Archivo histórico, ciudades, documentos, obras (CC0, dominio público, CC BY/BY-SA)."],
-    ["openverse", "Openverse", "Buscador de 800 M+ obras con licencia abierta (imágenes y audio)."],
-    ["nasa", "NASA", "Imágenes y videos espaciales y científicos (dominio público)."],
-    ["met", "The Met", "Obras de arte y objetos históricos en dominio público (CC0)."],
-    ["freesound", "Freesound", "Efectos de sonido y ambientes (solo CC0 y CC BY)."],
+    ["pexels", "Pexels", "Fotos y videos."],
+    ["pixabay", "Pixabay", "Fotos, ilustraciones y videos."],
+    ["wikimedia", "Wikimedia Commons", "Archivo histórico, lugares, documentos."],
+    ["openverse", "Openverse", "Imágenes y audio con licencia abierta."],
+    ["nasa", "NASA", "Espacio y ciencia."],
+    ["met", "The Met", "Arte y objetos históricos."],
+    ["freesound", "Freesound", "Efectos de sonido."],
   ];
   return (
     <div className="space-y-4">
       <Card title="Fuentes de material libre" icon={Library}>
-        <div className="text-xs text-muted-foreground mb-3">Solo se aceptan licencias que permiten uso comercial y modificación; cada archivo guarda su licencia, autor y página de origen. GIPHY y Tenor no se usan: su contenido suele tener derechos de terceros y no es apto para videos monetizados.</div>
+        <div className="text-xs text-muted-foreground mb-3">Solo licencias aptas para monetizar. Cada archivo guarda su licencia y origen.</div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2">
           {SRC.map(([k, label, hint]) => (
             <div key={k} className="flex items-start gap-3 py-1"><Toggle checked={s.media.sources[k]} onChange={(v) => set(`media.sources.${k}`, v)} /><div><div className="text-sm font-medium">{label}</div><div className="text-[11px] text-muted-foreground">{hint}</div></div></div>
           ))}
         </div>
       </Card>
-      <Card title="Claves gratuitas de las fuentes" icon={KeyRound}>
-        <SecretRow k={SECRET.pexelsApiKey} label="Pexels" hint={<>Gratis en <button className="text-primary hover:underline" onClick={() => void openUrl("https://www.pexels.com/api/")}>pexels.com/api</button>. 200 consultas/hora.</>}
+      <Card title="Claves (gratis)" icon={KeyRound}>
+        <SecretRow k={SECRET.pexelsApiKey} label="Pexels" hint={<button className="text-primary hover:underline" onClick={() => void openUrl("https://www.pexels.com/api/")}>pexels.com/api</button>}
           test={async (v) => { const r = await requestJson<any>("Pexels", { url: "https://api.pexels.com/v1/search?query=city&per_page=1", headers: { Authorization: v } }); return `${r.total_results ?? 0} resultados de prueba`; }} />
-        <SecretRow k={SECRET.pixabayApiKey} label="Pixabay" hint={<>Gratis en <button className="text-primary hover:underline" onClick={() => void openUrl("https://pixabay.com/api/docs/")}>pixabay.com/api/docs</button> (inicia sesión y aparece tu clave).</>}
+        <SecretRow k={SECRET.pixabayApiKey} label="Pixabay" hint={<button className="text-primary hover:underline" onClick={() => void openUrl("https://pixabay.com/api/docs/")}>pixabay.com/api/docs</button>}
           test={async (v) => { const r = await requestJson<any>("Pixabay", { url: `https://pixabay.com/api/?key=${encodeURIComponent(v)}&q=city&per_page=3` }); return `${r.totalHits ?? 0} resultados de prueba`; }} />
-        <SecretRow k={SECRET.freesoundApiKey} label="Freesound" hint={<>Crea una cuenta y una «API key» en <button className="text-primary hover:underline" onClick={() => void openUrl("https://freesound.org/apiv2/apply/")}>freesound.org/apiv2/apply</button>.</>}
+        <SecretRow k={SECRET.freesoundApiKey} label="Freesound" hint={<button className="text-primary hover:underline" onClick={() => void openUrl("https://freesound.org/apiv2/apply/")}>freesound.org/apiv2/apply</button>}
           test={async (v) => { const r = await requestJson<any>("Freesound", { url: `https://freesound.org/apiv2/search/text/?query=whoosh&page_size=1&token=${encodeURIComponent(v)}` }); return `${r.count ?? 0} sonidos de prueba`; }} />
         <div className="grid grid-cols-[220px_1fr_auto] gap-3 items-start py-3">
-          <div><div className="text-sm font-medium">Openverse (registro)</div><div className="text-[11px] text-muted-foreground mt-0.5">Sin registro: ~5 consultas/hora. Registrado: 100/min. Recibirás un correo para confirmar.</div></div>
+          <div><div className="text-sm font-medium">Openverse</div><div className="text-[11px] text-muted-foreground mt-0.5">Regístrate para más búsquedas. Luego confirma el correo.</div></div>
           <input className="input text-sm" value={email} placeholder="Tu correo" onChange={(e) => setEmail(e.target.value)} />
-          <AsyncButton className="btn-brand btn-sm" disabled={!/@/.test(email)} onClick={async () => { await registerOpenverse(email.trim()); toast("success", "ATRIL registrado en Openverse", "Confirma el correo que te llegó; luego las búsquedas usarán la cuota mayor."); }}>Registrar</AsyncButton>
+          <AsyncButton className="btn-brand btn-sm" disabled={!/@/.test(email)} onClick={async () => { await registerOpenverse(email.trim()); toast("success", "Registrado en Openverse", "Confirma el correo."); }}>Registrar</AsyncButton>
         </div>
       </Card>
-      <Card title="Biblioteca y búsqueda" icon={ImageIcon}>
+      <Card title="Biblioteca" icon={ImageIcon}>
         <Grid>
-          <Field label="Carpeta de la biblioteca" hint={<span className="font-mono">{root}</span>}>
+          <Field label="Carpeta" hint={<span className="font-mono">{root}</span>}>
             <div className="flex gap-2"><Txt v={s.media.libraryDir} on={(v) => set("media.libraryDir", v)} placeholder="Documentos\ATRIL\Biblioteca" mono />
               <button className="btn-ghost" onClick={async () => { const d = await openDialog({ directory: true }); if (d && !Array.isArray(d)) set("media.libraryDir", d); }}><FolderOpen size={14} /></button>
               <button className="btn-ghost" onClick={() => void openPath(root)}>Abrir</button></div>
           </Field>
-          <Field label="Buscar primero en la biblioteca" hint="Reutiliza lo ya descargado y descrito: ahorra cuota y tokens."><Toggle checked={s.media.libraryFirst} onChange={(v) => set("media.libraryFirst", v)} /></Field>
-          <Field label="Candidatos descargados por toma" hint="Claude elige el mejor. Más candidatos = mejor elección, más visión."><Num v={s.media.candidatesPerBeat} on={(v) => set("media.candidatesPerBeat", v)} min={1} max={6} /></Field>
-          <Field label="Archivos por llamada de visión" hint="Cada imagen cuesta ≈ 500 tokens una sola vez."><Num v={s.media.visionBatch} on={(v) => set("media.visionBatch", v)} min={1} max={20} /></Field>
-          <Field label="Duración máxima de un clip en pantalla (s)"><Num v={s.media.maxClipSeconds} on={(v) => set("media.maxClipSeconds", v)} min={2} max={12} /></Field>
-          <Field label="Permitir imágenes generadas (con costo)" hint="Solo cuando no hay material libre adecuado."><Toggle checked={s.media.allowGenerated} onChange={(v) => set("media.allowGenerated", v)} /></Field>
+          <Field label="Buscar primero en la biblioteca"><Toggle checked={s.media.libraryFirst} onChange={(v) => set("media.libraryFirst", v)} /></Field>
+          <Field label="Candidatos por toma"><Num v={s.media.candidatesPerBeat} on={(v) => set("media.candidatesPerBeat", v)} min={1} max={6} /></Field>
+          <Field label="Imágenes por llamada de visión"><Num v={s.media.visionBatch} on={(v) => set("media.visionBatch", v)} min={1} max={20} /></Field>
+          <Field label="Clip máximo (s)"><Num v={s.media.maxClipSeconds} on={(v) => set("media.maxClipSeconds", v)} min={2} max={12} /></Field>
+          <Field label="Imágenes generadas (de pago)" hint="Solo si no hay material libre."><Toggle checked={s.media.allowGenerated} onChange={(v) => set("media.allowGenerated", v)} /></Field>
         </Grid>
       </Card>
-      <Card title="Imágenes generadas (opcional, de pago)" icon={ImageIcon}>
+      <Card title="Imágenes generadas" icon={ImageIcon}>
         <Grid cols={3}>
           <Field label="Proveedor">
             <select className="input" value={s.images.provider} onChange={(e) => set("images.provider", e.target.value)}>
@@ -299,7 +298,7 @@ function ImagesTab() {
           <Field label="OpenAI · modelo"><Txt v={s.images.openai.model} on={(v) => set("images.openai.model", v)} mono /></Field>
           <Field label="OpenAI · calidad"><Txt v={s.images.openai.quality} on={(v) => set("images.openai.quality", v)} mono /></Field>
           <Field label="OpenAI · USD por imagen"><Num v={s.images.openai.priceUsd} step={0.001} on={(v) => set("images.openai.priceUsd", v)} /></Field>
-          <Field label="Candidatas de miniatura"><Num v={s.images.thumbnailCandidates} on={(v) => set("images.thumbnailCandidates", v)} min={1} max={5} /></Field>
+          <Field label="Miniaturas a proponer"><Num v={s.images.thumbnailCandidates} on={(v) => set("images.thumbnailCandidates", v)} min={1} max={5} /></Field>
         </Grid>
       </Card>
     </div>
@@ -310,16 +309,16 @@ function MotionTab() {
   const { s, set } = useSetting();
   const [found, setFound] = useState<string | null | undefined>(undefined);
   return (
-    <Card title="Animaciones con Opus (motion graphics)" icon={Sparkles}
+    <Card title="Animaciones (Opus)" icon={Sparkles}
       actions={<AsyncButton className="btn-brand btn-sm" onClick={async () => setFound(await findBrowser())}>Detectar navegador</AsyncButton>}>
-      <div className="text-xs text-muted-foreground mb-3">Opus escribe cada animación (HTML + GSAP: textos, mapas reales, líneas de tiempo, contadores, llamadas sobre fotos) y ATRIL la renderiza cuadro a cuadro con Microsoft Edge sin ventana. Sonnet revisa una hoja de cuadros y, si ve defectos, Opus la corrige una vez.</div>
+      <div className="text-xs text-muted-foreground mb-3">Opus diseña las animaciones; Edge las graba.</div>
       <Grid cols={3}>
-        <Field label="Activar animaciones"><Toggle checked={s.motion.enabled} onChange={(v) => set("motion.enabled", v)} /></Field>
-        <Field label="Máximo por video · estándar"><Num v={s.motion.perVideo.standard} on={(v) => set("motion.perVideo.standard", v)} min={0} max={30} /></Field>
-        <Field label="Máximo por video · premium"><Num v={s.motion.perVideo.premium} on={(v) => set("motion.perVideo.premium", v)} min={0} max={40} /></Field>
-        <Field label="Revisión visual y corrección" hint="Más calidad; cuesta una revisión de Sonnet por animación."><Toggle checked={s.motion.critique} onChange={(v) => set("motion.critique", v)} /></Field>
-        <Field label="Animaciones por llamada a Opus" hint="2–3 ahorra tokens repetidos; 1 da más atención a cada una."><Num v={s.motion.perCall} on={(v) => set("motion.perCall", v)} min={1} max={4} /></Field>
-        <Field label="Navegador (opcional)" hint="Vacío = Edge o Chrome detectados."><Txt v={s.motion.browserPath} on={(v) => set("motion.browserPath", v)} mono placeholder="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" /></Field>
+        <Field label="Activadas"><Toggle checked={s.motion.enabled} onChange={(v) => set("motion.enabled", v)} /></Field>
+        <Field label="Máx. por video · estándar"><Num v={s.motion.perVideo.standard} on={(v) => set("motion.perVideo.standard", v)} min={0} max={30} /></Field>
+        <Field label="Máx. por video · premium"><Num v={s.motion.perVideo.premium} on={(v) => set("motion.perVideo.premium", v)} min={0} max={40} /></Field>
+        <Field label="Revisión visual" hint="Sonnet revisa y Opus corrige."><Toggle checked={s.motion.critique} onChange={(v) => set("motion.critique", v)} /></Field>
+        <Field label="Por llamada a Opus"><Num v={s.motion.perCall} on={(v) => set("motion.perCall", v)} min={1} max={4} /></Field>
+        <Field label="Navegador" hint="Vacío = Edge."><Txt v={s.motion.browserPath} on={(v) => set("motion.browserPath", v)} mono placeholder="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" /></Field>
       </Grid>
       {found !== undefined && <div className="mt-3">{found ? <Chip tone="green">{found}</Chip> : <Chip tone="red">No se encontró Edge ni Chrome</Chip>}</div>}
     </Card>
@@ -344,20 +343,20 @@ function MusicTab() {
           } catch (e) { await logError(e, null, "Importar música"); }
         }
       }}><Plus size={13} /> Añadir archivos</AsyncButton>}>
-      <div className="text-xs text-muted-foreground mb-3">Tus pistas tienen prioridad sobre la música de la biblioteca (la Biblioteca de Audio de YouTube es la opción más segura para monetizar). Escribe su ambiente en inglés para que ATRIL elija la adecuada para cada capítulo; si la licencia exige atribución, escríbela: se añade sola a la descripción.</div>
+      <div className="text-xs text-muted-foreground mb-3">Tus pistas van primero. Escribe su ambiente en inglés. La Biblioteca de audio de YouTube es lo más seguro.</div>
       <div className="space-y-2">
         {list.map((t) => (
           <div key={t.id} className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_1.4fr_auto] gap-2 items-center">
             <Toggle checked={!!t.enabled} onChange={(v) => void updateTrack(t.id, { enabled: v ? 1 : 0 })} />
             <input className="input text-xs" defaultValue={t.title} onBlur={(e) => void updateTrack(t.id, { title: e.target.value })} />
-            <input className="input text-xs" defaultValue={t.mood} placeholder="Ambiente (en inglés): dark, tense, piano…" onBlur={(e) => void updateTrack(t.id, { mood: e.target.value })} />
+            <input className="input text-xs" defaultValue={t.mood} placeholder="Ambiente: dark, piano…" onBlur={(e) => void updateTrack(t.id, { mood: e.target.value })} />
             <input className="input text-xs" defaultValue={t.artist} placeholder="Artista" onBlur={(e) => void updateTrack(t.id, { artist: e.target.value })} />
             <input className="input text-xs" defaultValue={t.license} placeholder="Licencia" onBlur={(e) => void updateTrack(t.id, { license: e.target.value })} />
-            <input className="input text-xs" defaultValue={t.attribution} placeholder="Atribución (si la licencia la exige)" onBlur={(e) => void updateTrack(t.id, { attribution: e.target.value })} />
+            <input className="input text-xs" defaultValue={t.attribution} placeholder="Atribución (si hace falta)" onBlur={(e) => void updateTrack(t.id, { attribution: e.target.value })} />
             <button className="btn-ghost btn-sm" onClick={async () => { await deleteTrack(t.id); await fs.remove(t.path).catch(() => null); }}><Trash2 size={13} /></button>
           </div>
         ))}
-        {list.length === 0 && <div className="text-sm text-muted-foreground">Sin pistas. Los videos se montarán sin música.</div>}
+        {list.length === 0 && <div className="text-sm text-muted-foreground">Sin pistas.</div>}
       </div>
     </Card>
   );
@@ -368,17 +367,16 @@ function MontageTab() {
   return (
     <Card title="Montaje" icon={Film}>
       <Grid cols={3}>
-        <Field label="Codificador" hint="«Automático» prueba Intel Quick Sync y, si falla, x264.">
+        <Field label="Codificador">
           <select className="input" value={s.ffmpeg.encoder} onChange={(e) => set("ffmpeg.encoder", e.target.value)}>
             <option value="auto">Automático</option><option value="h264_qsv">Intel Quick Sync</option><option value="libx264">x264 (CPU)</option><option value="h264_mf">Media Foundation</option>
           </select>
         </Field>
-        <Field label="Calidad (menor = mejor, 18–26)"><Num v={s.ffmpeg.quality} on={(v) => set("ffmpeg.quality", v)} min={14} max={32} /></Field>
+        <Field label="Calidad (menor = mejor)"><Num v={s.ffmpeg.quality} on={(v) => set("ffmpeg.quality", v)} min={14} max={32} /></Field>
         <div />
-        <Field label="Ruta de ffmpeg (opcional)"><Txt v={s.ffmpeg.path} on={(v) => set("ffmpeg.path", v)} mono placeholder="Incluido con ATRIL" /></Field>
-        <Field label="Ruta de ffprobe (opcional)"><Txt v={s.ffmpeg.ffprobePath} on={(v) => set("ffmpeg.ffprobePath", v)} mono placeholder="Incluido con ATRIL" /></Field>
+        <Field label="ffmpeg (opcional)"><Txt v={s.ffmpeg.path} on={(v) => set("ffmpeg.path", v)} mono placeholder="Incluido con ATRIL" /></Field>
+        <Field label="ffprobe (opcional)"><Txt v={s.ffmpeg.ffprobePath} on={(v) => set("ffmpeg.ffprobePath", v)} mono placeholder="Incluido con ATRIL" /></Field>
       </Grid>
-      <div className="text-[11px] text-muted-foreground mt-3">Las reglas estéticas del montaje (duración de tomas, transiciones, Ken Burns, música, rótulos) se ajustan en tus habilidades con un bloque <code className="font-mono">atril:montaje</code>.</div>
     </Card>
   );
 }
@@ -389,27 +387,26 @@ function YouTubeTab() {
   useEffect(() => { void secrets.get(SECRET.youtubeRefreshToken).then(async (t) => { if (!t) { setCh(null); return; } try { setCh((await myChannel())?.snippet?.title ?? "(conectado)"); } catch { setCh("(conectado; no se pudo leer el canal)"); } }); }, []);
   return (
     <div className="space-y-4">
-      <Card title="Conexión con YouTube" icon={MonitorPlay}>
+      <Card title="YouTube" icon={MonitorPlay}>
         <div className="flex items-center gap-3">
           {ch === undefined ? <Chip>Comprobando…</Chip> : ch ? <Chip tone="green"><Check size={11} /> {ch}</Chip> : <Chip tone="amber">No conectado</Chip>}
           <AsyncButton className="btn-primary btn-sm" onClick={async () => { try { setCh(await connectYouTube()); toast("success", "YouTube conectado"); } catch (e) { await logError(e, null, "YouTube"); } }}>{ch ? "Reconectar" : "Conectar"}</AsyncButton>
           {ch && <button className="btn-ghost btn-sm" onClick={async () => { await disconnectYouTube(); setCh(null); }}>Desconectar</button>}
         </div>
         <div className="text-xs text-muted-foreground mt-3 space-y-1">
-          <div>Requisitos (ver Guía): proyecto de Google Cloud con YouTube Data API v3, YouTube Analytics API y YouTube Reporting API habilitadas; cliente OAuth «App de escritorio»; pantalla de consentimiento en modo «En producción» (si queda en «Prueba», la autorización caduca cada 7 días).</div>
-          <div><b>Importante:</b> hasta que Google apruebe la auditoría de tu proyecto, todo video subido por API queda privado. Mientras tanto usa «Exportar paquete» y súbelo a mano en YouTube Studio.</div>
-          <button className="text-primary hover:underline" onClick={() => void openUrl("https://support.google.com/youtube/contact/yt_api_form")}>Formulario de auditoría de la API de YouTube</button>
+          <div>Sin auditoría de Google, los videos subidos quedan privados. Mientras tanto, exporta y sube a mano.</div>
+          <button className="text-primary hover:underline" onClick={() => void openUrl("https://support.google.com/youtube/contact/yt_api_form")}>Pedir auditoría</button>
         </div>
       </Card>
       <Card title="Publicación">
         <Grid cols={3}>
-          <Field label="Zona horaria del público"><Txt v={s.publishing.timeZone} on={(v) => set("publishing.timeZone", v)} mono /></Field>
-          <Field label="Hora de publicación por defecto"><input type="time" className="input" value={s.publishing.time} onChange={(e) => set("publishing.time", e.target.value)} /></Field>
+          <Field label="Zona horaria"><Txt v={s.publishing.timeZone} on={(v) => set("publishing.timeZone", v)} mono /></Field>
+          <Field label="Hora por defecto"><input type="time" className="input" value={s.publishing.time} onChange={(e) => set("publishing.time", e.target.value)} /></Field>
           <Field label="Categoría (27 = Educación)"><Txt v={s.publishing.categoryId} on={(v) => set("publishing.categoryId", v)} mono /></Field>
           <Field label="Idioma"><Txt v={s.publishing.defaultLanguage} on={(v) => set("publishing.defaultLanguage", v)} mono /></Field>
-          <Field label="URL de la política de privacidad (para la auditoría)"><Txt v={s.publishing.privacyPolicyUrl} on={(v) => set("publishing.privacyPolicyUrl", v)} /></Field>
+          <Field label="Política de privacidad (URL)"><Txt v={s.publishing.privacyPolicyUrl} on={(v) => set("publishing.privacyPolicyUrl", v)} /></Field>
         </Grid>
-        <div className="mt-4"><Field label="Aviso de IA que se añade a cada descripción"><textarea className="input min-h-16 text-sm" value={s.publishing.aiDisclosure} onChange={(e) => set("publishing.aiDisclosure", e.target.value)} /></Field></div>
+        <div className="mt-4"><Field label="Aviso de IA en la descripción"><textarea className="input min-h-16 text-sm" value={s.publishing.aiDisclosure} onChange={(e) => set("publishing.aiDisclosure", e.target.value)} /></Field></div>
       </Card>
     </div>
   );
@@ -421,10 +418,10 @@ function BudgetTab() {
     <Card title="Presupuesto" icon={Wallet}>
       <Grid cols={3}>
         <Field label="Presupuesto mensual (S/)"><Num v={s.budget.monthlyPen} on={(v) => set("budget.monthlyPen", v)} /></Field>
-        <Field label="Soles por dólar" hint="Actualízalo de vez en cuando."><Num v={s.budget.penPerUsd} step={0.01} on={(v) => set("budget.penPerUsd", v)} /></Field>
+        <Field label="Soles por dólar"><Num v={s.budget.penPerUsd} step={0.01} on={(v) => set("budget.penPerUsd", v)} /></Field>
         <Field label="Avisar al llegar al (%)"><Num v={s.budget.warnAtPct} on={(v) => set("budget.warnAtPct", v)} /></Field>
       </Grid>
-      <div className="mt-4"><Toggle checked={s.budget.hardStop} onChange={(v) => set("budget.hardStop", v)} label="Tope duro: no gastar por encima del presupuesto (las etapas se pausan con aviso)" /></div>
+      <div className="mt-4"><Toggle checked={s.budget.hardStop} onChange={(v) => set("budget.hardStop", v)} label="No gastar más del presupuesto" /></div>
     </Card>
   );
 }
@@ -435,15 +432,15 @@ function ProductionTab() {
   return (
     <Card title="Producción" icon={Factory}>
       <Grid cols={3}>
-        <Field label="Minutos objetivo · estándar (mín.)"><Num v={p.targetMinutes.standard[0]} on={(v) => set("production.targetMinutes.standard", [v, p.targetMinutes.standard[1]])} /></Field>
-        <Field label="Minutos objetivo · estándar (máx.)"><Num v={p.targetMinutes.standard[1]} on={(v) => set("production.targetMinutes.standard", [p.targetMinutes.standard[0], v])} /></Field>
+        <Field label="Minutos · estándar (mín.)"><Num v={p.targetMinutes.standard[0]} on={(v) => set("production.targetMinutes.standard", [v, p.targetMinutes.standard[1]])} /></Field>
+        <Field label="Minutos · estándar (máx.)"><Num v={p.targetMinutes.standard[1]} on={(v) => set("production.targetMinutes.standard", [p.targetMinutes.standard[0], v])} /></Field>
         <Field label="Pasadas de guion · estándar"><Num v={p.scriptPasses.standard} on={(v) => set("production.scriptPasses.standard", v)} min={1} max={3} /></Field>
-        <Field label="Minutos objetivo · premium (mín.)"><Num v={p.targetMinutes.premium[0]} on={(v) => set("production.targetMinutes.premium", [v, p.targetMinutes.premium[1]])} /></Field>
-        <Field label="Minutos objetivo · premium (máx.)"><Num v={p.targetMinutes.premium[1]} on={(v) => set("production.targetMinutes.premium", [p.targetMinutes.premium[0], v])} /></Field>
+        <Field label="Minutos · premium (mín.)"><Num v={p.targetMinutes.premium[0]} on={(v) => set("production.targetMinutes.premium", [v, p.targetMinutes.premium[1]])} /></Field>
+        <Field label="Minutos · premium (máx.)"><Num v={p.targetMinutes.premium[1]} on={(v) => set("production.targetMinutes.premium", [p.targetMinutes.premium[0], v])} /></Field>
         <Field label="Pasadas de guion · premium"><Num v={p.scriptPasses.premium} on={(v) => set("production.scriptPasses.premium", v)} min={1} max={4} /></Field>
-        <Field label="Meta de revisión diaria (min)"><Num v={s.review.dailyMinutesGoal} on={(v) => set("review.dailyMinutesGoal", v)} /></Field>
+        <Field label="Revisión diaria (min)"><Num v={s.review.dailyMinutesGoal} on={(v) => set("review.dailyMinutesGoal", v)} /></Field>
       </Grid>
-      <div className="mt-4"><Toggle checked={p.autoRunToReview} onChange={(v) => set("production.autoRunToReview", v)} label="Al abrir la app, reanudar automáticamente los videos en curso hasta el siguiente punto de revisión" /></div>
+      <div className="mt-4"><Toggle checked={p.autoRunToReview} onChange={(v) => set("production.autoRunToReview", v)} label="Reanudar videos al abrir la app" /></div>
     </Card>
   );
 }
@@ -453,8 +450,8 @@ function LookTab() {
   return (
     <Card title="Apariencia" icon={Palette}>
       <div className="flex gap-2">
-        <button className={s.theme === "dark" ? "btn-primary" : "btn-secondary"} onClick={() => set("theme", "dark")}>Grafito (oscuro)</button>
-        <button className={s.theme === "light" ? "btn-primary" : "btn-secondary"} onClick={() => set("theme", "light")}>Arena (claro)</button>
+        <button className={s.theme === "dark" ? "btn-primary" : "btn-secondary"} onClick={() => set("theme", "dark")}>Oscuro</button>
+        <button className={s.theme === "light" ? "btn-primary" : "btn-secondary"} onClick={() => set("theme", "light")}>Claro</button>
       </div>
     </Card>
   );

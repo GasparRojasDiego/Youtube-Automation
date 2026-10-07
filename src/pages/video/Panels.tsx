@@ -43,7 +43,7 @@ export function ResearchPanel({ data }: { data: ResearchOut }) {
         </div>
       </Card>
       {(data.risks.length > 0 || data.open_questions_es.length > 0) && (
-        <Card title="Riesgos y preguntas abiertas">
+        <Card title="Riesgos y dudas">
           <ul className="text-sm space-y-1 list-disc pl-5">
             {data.risks.map((r, i) => <li key={i}><Chip tone="amber">{r.kind === "legal" ? "legal" : r.kind === "policy" ? "políticas" : "verificación"}</Chip> {r.note_es}</li>)}
             {data.open_questions_es.map((q, i) => <li key={`q${i}`} className="text-muted-foreground">{q}</li>)}
@@ -84,7 +84,7 @@ export function VoicePanel({ video, row, script }: { video: Video; row: StageRow
   if (!data) return null;
   return (
     <Card title={`Narración · ${fmtDuration(data.total)} · ${data.provider}`}
-      actions={video.voice_mode === "own" && <button className="btn-brand btn-sm" onClick={async () => { await resetFrom(video.id, "voice"); await setStage(video.id, "voice", { status: "review", progress: "Regraba los segmentos que quieras y continúa." }); }}><Mic size={13} /> Regrabar</button>}>
+      actions={video.voice_mode === "own" && <button className="btn-brand btn-sm" onClick={async () => { await resetFrom(video.id, "voice"); await setStage(video.id, "voice", { status: "review", progress: "Regraba lo que quieras y continúa." }); }}><Mic size={13} /> Regrabar</button>}>
       <div className="space-y-2">
         {script.segments.map((s) => {
           const seg = data.segments.find((x) => x.segment_id === s.id);
@@ -93,7 +93,7 @@ export function VoicePanel({ video, row, script }: { video: Video; row: StageRow
               <div className="w-56 text-sm truncate">{s.title}</div>
               {seg ? <audio controls preload="none" className="h-8 flex-1" src={fileUrl(seg.path, seg.hash.slice(0, 8))} /> : <span className="flex-1 text-xs text-muted-foreground">sin audio</span>}
               <span className="text-xs tabular text-muted-foreground w-12 text-right">{seg ? fmtDuration(seg.duration) : ""}</span>
-              {video.voice_mode !== "own" && <button className="btn-ghost btn-sm" title="Rehacer la voz de este segmento" onClick={() => void redoVoiceSegment(video.id, s.id)}><RotateCcw size={13} /></button>}
+              {video.voice_mode !== "own" && <button className="btn-ghost btn-sm" title="Rehacer" onClick={() => void redoVoiceSegment(video.id, s.id)}><RotateCcw size={13} /></button>}
             </div>
           );
         })}
@@ -137,7 +137,7 @@ function OwnVoiceRecorder({ video, script }: { video: Video; script: ScriptOut }
   const all = script.segments.every((s) => done[s.id]);
 
   return (
-    <Card title={`Grabación con tu voz · segmento ${idx + 1}/${script.segments.length}`} icon={Mic}
+    <Card title={`Tu voz · segmento ${idx + 1}/${script.segments.length}`} icon={Mic}
       actions={<div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Tamaño</span><input type="range" min={20} max={48} value={fontPx} onChange={(e) => setFontPx(+e.target.value)} /></div>}>
       <div className="flex gap-1.5 flex-wrap mb-3">
         {script.segments.map((s, i) => <button key={s.id} onClick={() => !recording && setIdx(i)} className={`chip ${i === idx ? "border-primary text-primary bg-primary/10" : done[s.id] ? "border-green-500/50 text-green-700 dark:text-green-500" : "border-border"}`}>{done[s.id] && <Check size={10} />}{i + 1}</button>)}
@@ -155,7 +155,7 @@ function OwnVoiceRecorder({ video, script }: { video: Video; script: ScriptOut }
           <Play size={14} /> Procesar grabaciones y continuar
         </button>
       </div>
-      <div className="text-[11px] text-muted-foreground mt-2">Consejo: lee con calma; los silencios del inicio y del final se recortan solos y se reduce el ruido de fondo.</div>
+      <div className="text-[11px] text-muted-foreground mt-2">Lee con calma: los silencios y el ruido se limpian solos.</div>
     </Card>
   );
 }
@@ -168,7 +168,7 @@ export function PackagePanel({ data }: { data: PackageOut }) {
       <Card title="Miniaturas"><div className="grid grid-cols-2 gap-2">{data.thumbnails.map((t, i) => t.path && <img key={i} src={fileUrl(t.path, Date.now())} className={`rounded-md border ${i === data.chosen_thumbnail ? "border-primary ring-2 ring-primary/40" : "border-border"}`} />)}</div></Card>
       <Card title="Descripción" className="col-span-2"><pre className="text-xs whitespace-pre-wrap font-sans">{data.description}</pre></Card>
       <Card title="Etiquetas" className="col-span-2"><div className="flex flex-wrap gap-1.5">{data.tags.map((t) => <Chip key={t}>{t}</Chip>)}</div>
-        <div className="text-xs mt-3">{data.synthetic_media ? <Chip tone="amber">Se declarará contenido alterado o sintético</Chip> : <Chip tone="green">No requiere declaración de contenido sintético</Chip>} <span className="text-muted-foreground">{data.synthetic_reason_es}</span></div></Card>
+        <div className="text-xs mt-3">{data.synthetic_media ? <Chip tone="amber">Se declarará contenido sintético</Chip> : <Chip tone="green">Sin declaración de contenido sintético</Chip>} <span className="text-muted-foreground">{data.synthetic_reason_es}</span></div></Card>
     </div>
   );
 }
@@ -176,7 +176,7 @@ export function PackagePanel({ data }: { data: PackageOut }) {
 // ---------- Montaje ----------
 export function RenderPanel({ data }: { data: RenderOut }) {
   return (
-    <Card title={`Video final · ${fmtDuration(data.duration)} · ${fmtBytes(data.sizeBytes)} · codificador ${data.encoder}`}>
+    <Card title={`Video final · ${fmtDuration(data.duration)} · ${fmtBytes(data.sizeBytes)}`}>
       <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(data.file, data.renderedAt)} poster={data.poster ? fileUrl(data.poster, data.renderedAt) : undefined} />
       <button className="btn-ghost btn-sm mt-2" onClick={() => void openPath(data.file)}>Abrir en el reproductor del sistema</button>
     </Card>
@@ -207,12 +207,12 @@ export function PublishPanel({ video, row }: { video: Video; row: StageRow }) {
           </div>
         </div>
       ) : video.status === "approved" ? <div className="text-sm text-muted-foreground">En cola para subir.</div>
-        : <Empty icon={MonitorPlay} title="Pendiente de la revisión final">Solo se publica tras tu aprobación explícita.</Empty>}
+        : <Empty icon={MonitorPlay} title="Falta la revisión final">Solo se publica con tu aprobación.</Empty>}
     </Card>
   );
 }
 
-export function ExportButton({ video, label = "Exportar paquete para subir a mano" }: { video: Video; label?: string }) {
+export function ExportButton({ video, label = "Exportar para subir a mano" }: { video: Video; label?: string }) {
   return (
     <AsyncButton className="btn-secondary" onClick={async () => {
       const dir = await openDialog({ directory: true, title: "Carpeta donde guardar el paquete" });

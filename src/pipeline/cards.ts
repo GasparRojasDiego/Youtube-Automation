@@ -1,5 +1,5 @@
 // Tarjetas y rótulos dibujados en un canvas del propio WebView (costo 0):
-// fuente en pantalla, título de capítulo, cita, texto, rótulo inferior y miniatura.
+// fuente en pantalla, título de capítulo, cita, texto y miniatura.
 import { fs } from "../lib/ipc";
 import type { VisualParams, ThumbnailParams } from "../lib/skills";
 
@@ -120,20 +120,6 @@ export async function renderTextCard(o: { text: string }, v: VisualParams, out: 
     ctx.fillText(l, W / 2, top + i * t.px * 1.12);
   });
   grain(ctx, W, H);
-  return save(c, out);
-}
-
-/** Rótulo inferior sobre fondo transparente (se superpone a la toma). */
-export async function renderLowerThird(o: { text: string }, v: VisualParams, out: string) {
-  await ensureFonts([v.fontTitle]);
-  const { c, ctx } = canvas();
-  ctx.font = `600 44px "${v.fontTitle}"`;
-  const text = o.text.slice(0, 70);
-  const w = Math.min(W - 240, ctx.measureText(text).width + 80);
-  const x = 120, y = H - 210;
-  ctx.fillStyle = "rgba(10,10,12,0.72)"; ctx.fillRect(x, y, w, 86);
-  ctx.fillStyle = v.accent; ctx.fillRect(x, y, 8, 86);
-  ctx.fillStyle = "#FFFFFF"; ctx.fillText(text, x + 40, y + 58);
   return save(c, out);
 }
 

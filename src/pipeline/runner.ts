@@ -56,7 +56,7 @@ async function runOnce(r: Running) {
     const stage = next.stage;
     r.stage = stage;
     await updateVideo(video.id, { stage });
-    if (stage === "final") { await setStage(video.id, "final", { status: "review", progress: "Lista para tu revisión final" }); notifyReview(video.id, "La revisión final está lista."); return; }
+    if (stage === "final") { await setStage(video.id, "final", { status: "review", progress: "Lista para tu revisión final" }); notifyReview(video.id, "Video listo para la revisión final."); return; }
     if (stage === "publish" && video.status !== "approved" && video.status !== "scheduled") return;
 
     await setStage(video.id, stage, { status: "running", error: null, startedNow: true, bumpAttempt: true, progress: "Iniciando…" });
@@ -74,7 +74,7 @@ async function runOnce(r: Running) {
       await activity(video.id, stage, "done", `${label} terminada en ${Math.max(1, Math.round((Date.now() - t0) / 1000))} s`);
       const gate = stage === "verify";
       await setStage(video.id, stage, { status: gate ? "review" : "done", output, finishedNow: true, progress: null });
-      if (gate) { notifyReview(video.id, "El guion verificado espera tu revisión."); return; }
+      if (gate) { notifyReview(video.id, "Guion listo para revisar."); return; }
     } catch (e) {
       if (e instanceof St.NeedsUser) {
         await setStage(video.id, stage, { status: "review", progress: e.messageEs });

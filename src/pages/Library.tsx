@@ -41,7 +41,7 @@ export function LibraryPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader kicker="Material" title="Biblioteca" subtitle="Cada archivo se descarga una vez, con su licencia y procedencia, y Claude lo describe una sola vez. Los próximos videos buscan aquí primero."
+      <PageHeader title="Biblioteca"
         actions={<>
           <button className="btn-ghost" onClick={async () => void openPath(await libraryRoot())}><FolderOpen size={15} /> Carpeta</button>
           <button className="btn-ghost" onClick={() => setWeb(true)}><Globe size={15} /> Buscar en internet</button>
@@ -49,34 +49,34 @@ export function LibraryPage() {
             const sel0 = await openDialog({ multiple: true, filters: [{ name: "Medios", extensions: ["jpg", "jpeg", "png", "webp", "mp4", "mov", "webm", "mp3", "wav", "m4a", "ogg"] }] });
             const files = Array.isArray(sel0) ? sel0 : sel0 ? [sel0] : [];
             if (!files.length) return;
-            const note = prompt("¿De dónde viene este material y qué derecho tienes a usarlo? (queda registrado)", "Material propio") ?? "Material propio";
+            const note = prompt("¿De dónde viene y con qué derecho lo usas?", "Material propio") ?? "Material propio";
             for (const f of files) {
               const ext = f.split(".").pop()!.toLowerCase();
               const k: AssetKind = ["mp4", "mov", "webm"].includes(ext) ? "video" : ["mp3", "wav", "m4a", "ogg"].includes(ext) ? "sfx" : "image";
               try { await importLocalFile(f, k, { note }); } catch (e) { await logError(e, null, "Importar a la biblioteca"); }
             }
-            toast("success", `${files.length} archivo(s) importados.`, "Pulsa «Describir pendientes» para que Claude los catalogue.");
+            toast("success", `${files.length} importado(s)`);
           }}><Upload size={15} /> Importar propios</AsyncButton>
-          <AsyncButton className="btn-primary" disabled={!undescribed} onClick={async () => { const n = await describePending(40); toast("success", `${n} archivo(s) descritos.`); }}>
-            <Eye size={15} /> Describir pendientes ({undescribed})
+          <AsyncButton className="btn-primary" disabled={!undescribed} onClick={async () => { const n = await describePending(40); toast("success", `${n} descrito(s)`); }}>
+            <Eye size={15} /> Describir ({undescribed})
           </AsyncButton>
         </>} />
       <div className="grid grid-cols-5 gap-4">
         <Card><Stat label="Imágenes" value={stats.image?.n ?? 0} /></Card>
         <Card><Stat label="Clips" value={stats.video?.n ?? 0} /></Card>
         <Card><Stat label="Efectos" value={stats.sfx?.n ?? 0} /></Card>
-        <Card><Stat label="Música" value={stats.music?.n ?? 0} sub={<button className="hover:underline" onClick={() => navigate({ page: "ajustes", tab: "music" })}>+ pistas propias</button>} /></Card>
-        <Card><Stat label="Espacio" value={fmtBytes(bytes)} sub={`${undescribed} sin describir`} /></Card>
+        <Card><Stat label="Música" value={stats.music?.n ?? 0} sub={<button className="hover:underline" onClick={() => navigate({ page: "ajustes", tab: "music" })}>+ propias</button>} /></Card>
+        <Card><Stat label="Espacio" value={fmtBytes(bytes)} sub={undescribed ? `${undescribed} sin describir` : undefined} /></Card>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <Tabs value={kind} onChange={setKind} tabs={[{ id: "all", label: "Todo" }, { id: "image", label: "Imágenes" }, { id: "video", label: "Clips" }, { id: "sfx", label: "Efectos" }, { id: "music", label: "Música" }]} />
         <form className="flex-1 flex gap-2 min-w-[280px]" onSubmit={(e) => { e.preventDefault(); setQuery(q); }}>
-          <input className="input" placeholder="Buscar por lo que muestra (en inglés o español): «abandoned hospital», «cielo nocturno»…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input" placeholder="Buscar por lo que muestra" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn-brand"><Search size={15} /></button>
         </form>
         <button className={`btn-ghost ${fav ? "text-amber-500" : ""}`} onClick={() => setFav(!fav)}><Star size={15} /> Favoritos</button>
       </div>
-      {list.length === 0 ? <Card><Empty icon={LibraryIcon} title={query ? "Sin coincidencias" : "La biblioteca está vacía"}>{query ? "Prueba otras palabras o busca en internet." : "Se llena sola mientras produces videos. También puedes buscar en internet o importar material propio."}</Empty></Card> : (
+      {list.length === 0 ? <Card><Empty icon={LibraryIcon} title={query ? "Sin resultados" : "Vacía"}>{query ? "" : "Se llena sola al producir videos."}</Empty></Card> : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
           {list.map((a) => (
             <button key={a.id} onClick={() => setSel(a)} className="card overflow-hidden text-left hover:border-primary/60 transition-colors">
@@ -113,9 +113,9 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
     <Modal open={!!asset} onClose={onClose} title={a.described_at ? (a.tags.split(",")[0] || a.title) : a.title} wide
       footer={<>
         <button className="btn-ghost" onClick={() => void updateAsset(a.id, { favorite: a.favorite ? 0 : 1 })}><Star size={14} className={a.favorite ? "fill-amber-400 text-amber-400" : ""} /> {a.favorite ? "Quitar favorito" : "Favorito"}</button>
-        <button className="btn-ghost" onClick={() => void updateAsset(a.id, { usable: a.usable ? 0 : 1 })}>{a.usable ? <><Ban size={14} /> Marcar «no usar»</> : <><CheckCircle2 size={14} /> Permitir</>}</button>
-        {(a.kind === "image" || a.kind === "video") && <AsyncButton className="btn-ghost" onClick={async () => { await describeAssets([{ ...a, described_at: null }]); }}><Eye size={14} /> {a.described_at ? "Volver a describir" : "Describir"}</AsyncButton>}
-        <button className="btn-ghost text-red-500" onClick={async () => { if (confirm("¿Borrar el archivo de la biblioteca? Los videos ya montados no cambian.")) { await deleteAsset(a.id); onClose(); } }}><Trash2 size={14} /> Borrar</button>
+        <button className="btn-ghost" onClick={() => void updateAsset(a.id, { usable: a.usable ? 0 : 1 })}>{a.usable ? <><Ban size={14} /> No usar</> : <><CheckCircle2 size={14} /> Permitir</>}</button>
+        {(a.kind === "image" || a.kind === "video") && <AsyncButton className="btn-ghost" onClick={async () => { await describeAssets([{ ...a, described_at: null }]); }}><Eye size={14} /> {a.described_at ? "Redescribir" : "Describir"}</AsyncButton>}
+        <button className="btn-ghost text-red-500" onClick={async () => { if (confirm("¿Borrar este archivo?")) { await deleteAsset(a.id); onClose(); } }}><Trash2 size={14} /> Borrar</button>
       </>}>
       <div className="grid grid-cols-[1.3fr_1fr] gap-5">
         <div>
@@ -123,12 +123,12 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
             a.kind === "video" ? <video src={fileUrl(a.path)} controls className="w-full rounded border border-border" /> :
               <div className="space-y-2"><Thumb a={a} className="w-full h-24 rounded" /><audio src={fileUrl(a.path)} controls className="w-full" /></div>}
           <div className="flex gap-2 mt-2">
-            <button className="btn-ghost btn-sm" onClick={() => void openPath(a.path)}><FolderOpen size={13} /> Abrir archivo</button>
-            {a.page_url && <button className="btn-ghost btn-sm" onClick={() => void openUrl(a.page_url!)}><ExternalLink size={13} /> Página de origen</button>}
+            <button className="btn-ghost btn-sm" onClick={() => void openPath(a.path)}><FolderOpen size={13} /> Abrir</button>
+            {a.page_url && <button className="btn-ghost btn-sm" onClick={() => void openUrl(a.page_url!)}><ExternalLink size={13} /> Origen</button>}
           </div>
         </div>
         <div className="space-y-3 text-sm">
-          {a.description ? <p className="leading-relaxed">{a.description}</p> : <p className="text-muted-foreground">Aún sin descripción de Claude.</p>}
+          {a.description ? <p className="leading-relaxed">{a.description}</p> : <p className="text-muted-foreground">Sin describir.</p>}
           {a.tags && <div className="flex flex-wrap gap-1">{a.tags.split(",").slice(1, 26).map((t, i) => <Chip key={i}>{t.trim()}</Chip>)}</div>}
           <table className="w-full text-xs"><tbody>
             {([
@@ -137,7 +137,7 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
               ["Atribución", <span className="break-all">{a.attribution || "—"}</span>],
               ["Tamaño", `${a.kind === "sfx" || a.kind === "music" ? "audio" : `${a.width ?? "?"}×${a.height ?? "?"}`}${a.kind !== "image" && a.duration ? ` · ${a.duration.toFixed(1)} s` : ""} · ${fmtBytes(a.bytes ?? 0)}`],
               ["Calidad", a.quality ? `${a.quality}/5` : "—"], ["Ambiente", a.mood || "—"],
-              ["Persona real", a.real_person ? "Sí (no se usa para representar a otra persona)" : "No"],
+              ["Persona real", a.real_person ? "Sí" : "No"],
               ["Problemas", a.issues || "—"], ["Buscado como", a.query || "—"], ["Usos", `${a.used_count}${a.last_used ? ` · último ${fmtDate(a.last_used)}` : ""}`],
               ["Descargado", fmtDate(a.created_at)],
             ] as [string, React.ReactNode][]).map(([k, v]) => <tr key={k} className="border-t border-border/50"><td className="py-1 text-muted-foreground w-28 align-top">{k}</td><td className="py-1">{v}</td></tr>)}
@@ -153,7 +153,7 @@ function WebSearchModal({ open, onClose }: { open: boolean; onClose: () => void 
   const [res, setRes] = useState<Candidate[]>([]); const [errors, setErrors] = useState<string[]>([]);
   const [added, setAdded] = useState<Record<string, boolean>>({});
   return (
-    <Modal open={open} onClose={onClose} title="Buscar material libre en internet" wide>
+    <Modal open={open} onClose={onClose} title="Buscar en internet" wide>
       <form className="flex gap-2 mb-3" onSubmit={async (e) => {
         e.preventDefault(); if (!q.trim()) return;
         const r = await searchSources(q.trim(), kind, 8);
@@ -162,10 +162,10 @@ function WebSearchModal({ open, onClose }: { open: boolean; onClose: () => void 
         <select className="input w-36" value={kind} onChange={(e) => setKind(e.target.value as AssetKind)}>
           <option value="image">Imágenes</option><option value="video">Clips</option><option value="sfx">Efectos</option><option value="music">Música</option>
         </select>
-        <input className="input" placeholder="En inglés da más resultados: «foggy forest at night»" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Mejor en inglés: «foggy forest»" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn-primary"><Search size={15} /> Buscar</button>
       </form>
-      <div className="text-[11px] text-muted-foreground mb-2">Solo licencias que permiten uso comercial y modificación (CC0, dominio público, CC BY, CC BY-SA, Pexels, Pixabay). GIPHY y Tenor no se usan: su contenido suele tener derechos de terceros.</div>
+      <div className="text-[11px] text-muted-foreground mb-2">Solo licencias aptas para monetizar.</div>
       {errors.length > 0 && <div className="text-xs text-amber-500 mb-2">{errors.join(" · ")}</div>}
       <div className="grid grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
         {res.map((c) => {
@@ -179,7 +179,7 @@ function WebSearchModal({ open, onClose }: { open: boolean; onClose: () => void 
                 <AsyncButton className="btn-brand btn-sm w-full" disabled={added[k]} onClick={async () => {
                   const a = await importCandidate(c); setAdded({ ...added, [k]: true });
                   if (a.kind === "image" || a.kind === "video") await describeAssets([a]);
-                }}>{added[k] ? <><CheckCircle2 size={13} /> En la biblioteca</> : <><Plus size={13} /> Agregar</>}</AsyncButton>
+                }}>{added[k] ? <><CheckCircle2 size={13} /> Agregado</> : <><Plus size={13} /> Agregar</>}</AsyncButton>
               </div>
             </div>
           );

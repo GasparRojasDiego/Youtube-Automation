@@ -74,8 +74,8 @@ export function AssetsPanel({ video, data, editable = true }: { video: Video; da
   return (
     <div className="space-y-3">
       <div className="flex gap-2 text-xs flex-wrap">
-        <Chip tone="green">{data.reused} reutilizados de la biblioteca</Chip><Chip tone="primary">{data.downloaded} descargados</Chip>
-        <Chip>{data.described} descritos por Claude</Chip>{data.fallbacks > 0 && <Chip tone="amber">{data.fallbacks} sin material (tarjeta)</Chip>}
+        <Chip tone="green">{data.reused} de la biblioteca</Chip><Chip tone="primary">{data.downloaded} descargados</Chip>
+        <Chip>{data.described} descritos</Chip>{data.fallbacks > 0 && <Chip tone="amber">{data.fallbacks} con tarjeta</Chip>}
       </div>
       {bySegment(data.shots).map((g) => (
         <div key={g.id} className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
@@ -92,11 +92,11 @@ export function PolishPanel({ video, data }: { video: Video; data: PolishOut }) 
   const motionShots = new Set(data.motion.flatMap((m) => m.shot_ids));
   return (
     <div className="space-y-3">
-      <Card title="Qué mejoró Opus" icon={Wand2}><div className="text-sm whitespace-pre-wrap">{data.notes_es || "—"}</div>
+      <Card title="Cambios de Opus" icon={Wand2}><div className="text-sm whitespace-pre-wrap">{data.notes_es || "—"}</div>
         <div className="flex gap-2 mt-2 text-xs flex-wrap"><Chip>Etalonaje: {data.grade}</Chip><Chip>{data.shots.filter((s) => s.transition_in && s.transition_in !== "cut").length} transiciones</Chip>
           <Chip>{data.shots.filter((s) => s.punch_at != null).length} golpes de zoom</Chip><Chip>{data.sfx.length} efectos</Chip><Chip tone="primary">{data.motion.length} animaciones</Chip></div>
       </Card>
-      {data.motion.length > 0 && <Card title="Animaciones encargadas">
+      {data.motion.length > 0 && <Card title="Animaciones">
         <div className="space-y-2 text-xs">{data.motion.map((m) => <div key={m.id}><b>{m.id}</b> · {m.kind === "overlay" ? "capa" : "pantalla completa"} · {m.duration.toFixed(1)} s — {m.brief_en}{m.text ? <span className="text-muted-foreground"> · «{m.text}»</span> : null}</div>)}</div>
       </Card>}
       {bySegment(data.shots).map((g) => (
@@ -110,7 +110,7 @@ export function PolishPanel({ video, data }: { video: Video; data: PolishOut }) 
 }
 
 export function MotionPanel({ video, data }: { video: Video; data: MotionOut }) {
-  if (!data.items.length) return <Card><Empty icon={Sparkles} title="Sin animaciones">Opus no encargó animaciones para este video, o el motor está desactivado en Ajustes → Motion.</Empty></Card>;
+  if (!data.items.length) return <Card><Empty icon={Sparkles} title="Sin animaciones" /></Card>;
   return (
     <div className="grid grid-cols-2 gap-3">
       {data.items.map((m) => (
@@ -121,7 +121,7 @@ export function MotionPanel({ video, data }: { video: Video; data: MotionOut }) 
           <details className="text-xs mt-2"><summary className="cursor-pointer line-clamp-2">{m.brief_en}</summary><div className="mt-1 text-muted-foreground">{m.brief_en}</div></details>
           {m.text && <div className="text-xs text-muted-foreground">Texto: «{m.text}»</div>}
           {m.critique_es && <div className="text-[11px] text-muted-foreground mt-1">Revisión: {m.critique_es}</div>}
-          {m.attempts && m.attempts > 1 && <div className="text-[11px] text-muted-foreground">{m.attempts} intentos</div>}
+          {m.attempts && m.attempts > 1 ? <div className="text-[11px] text-muted-foreground">{m.attempts} intentos</div> : null}
         </Card>
       ))}
     </div>
@@ -143,7 +143,7 @@ export function ShotEditorV2({ video, shot, onClose }: { video: Video; shot: Sho
   const apply = async (assetId: string | null) => {
     await replaceShotAsset(video.id, shot.id, assetId);
     await rerenderFrom(video.id, "package");
-    toast("info", "Toma cambiada", "Solo se vuelve a montar el segmento afectado; las decisiones de Opus se conservan.");
+    toast("info", "Toma cambiada");
     onClose();
   };
   const p = shot.provenance;
@@ -163,20 +163,20 @@ export function ShotEditorV2({ video, shot, onClose }: { video: Video; shot: Sho
             {p.attribution && <div className="break-all">{p.attribution}</div>}
             {p.sourceUrl && <button className="text-primary hover:underline inline-flex items-center gap-1" onClick={() => void openUrl(p.sourceUrl!)}>Página de origen <ExternalLink size={10} /></button>}
           </div>}
-          {shot.cast_note_es && <div className="text-xs mt-2">Por qué se eligió: {shot.cast_note_es}</div>}
+          {shot.cast_note_es && <div className="text-xs mt-2">{shot.cast_note_es}</div>}
           {shot.must_show_es && <div className="text-xs text-muted-foreground">Debe mostrar: {shot.must_show_es}</div>}
         </div>
         <div className="space-y-4">
-          {cands.length > 0 && <div><div className="label mb-1.5">Otros candidatos</div><div className="grid grid-cols-3 gap-2">{cands.map((a) => <Pick key={a.id} a={a} />)}</div></div>}
+          {cands.length > 0 && <div><div className="label mb-1.5">Candidatos</div><div className="grid grid-cols-3 gap-2">{cands.map((a) => <Pick key={a.id} a={a} />)}</div></div>}
           <div>
-            <div className="label mb-1.5">Buscar en la biblioteca</div>
+            <div className="label mb-1.5">Biblioteca</div>
             <form className="flex gap-2" onSubmit={async (e) => { e.preventDefault(); setHits(await searchLibrary(q, shot.media === "video" ? "video" : null, 12)); }}>
               <input className="input text-sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Qué debe verse" />
               <button className="btn-brand"><Search size={14} /></button>
             </form>
             {hits.length > 0 && <div className="grid grid-cols-3 gap-2 mt-2 max-h-64 overflow-y-auto">{hits.filter((a) => a.kind === "image" || a.kind === "video").map((a) => <Pick key={a.id} a={a} />)}</div>}
           </div>
-          <Field label="O usar una tarjeta de texto">
+          <Field label="Tarjeta de texto">
             <div className="flex gap-2">
               <input className="input text-sm" value={text} onChange={(e) => setText(e.target.value)} />
               <AsyncButton className="btn-brand" disabled={!text.trim()} onClick={async () => { await shotToCard(video, shot.id, text.trim()); await rerenderFrom(video.id, "package"); onClose(); }}><Type size={14} /></AsyncButton>
@@ -204,7 +204,7 @@ export function MusicBeds({ video, beds, editable }: { video: Video; beds: Music
               const t = tracks.find((x) => x.path === v); const a = lib.find((x) => x.path === v);
               await setBedTrack(video.id, i, v ? { path: v, title: t?.title ?? a?.title ?? "", asset_id: a?.id ?? null } : null);
               await rerenderFrom(video.id, "package");
-              toast("info", "Música cambiada", "Se rehace solo la mezcla final.");
+              toast("info", "Música cambiada");
             }}>
               <option value="">Sin música</option>
               {b.path && !tracks.some((t) => t.path === b.path) && !lib.some((a) => a.path === b.path) && <option value={b.path}>{b.title ?? "Pista actual"}</option>}

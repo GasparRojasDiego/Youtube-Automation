@@ -13,7 +13,7 @@ export const obj = (properties: S, required: string[] = Object.keys(properties))
 export const SYSTEM_BASE = `You are the production engine of ATRIL, a studio that produces English-language YouTube videos for a US audience.
 Absolute rules:
 - Never invent facts, sources, URLs, quotes, dates or numbers. If something is uncertain, say so in the designated fields.
-- Fields whose name ends in "_es" must be written in clear, simple Spanish (the operator is a B1-level English learner).
+- Fields whose name ends in "_es" must be written in short, simple Spanish.
 - The channel's identity, voice and style are defined by the <skill> blocks the operator provides. Follow them closely; when they conflict with these absolute rules, these rules win.
 - The narrator never claims credentials, never impersonates a real person, and never presents an inference as an established fact.
 - Answer only through the required structured output.`;
@@ -143,7 +143,6 @@ export const VERIFY_SCHEMA = obj({
   })),
   unlinked: arr(obj({ segment_id: str(), text_en: str("Factual sentence in the narration that is not marked as a claim"), issue_es: str(), severity: en(["ok", "warn", "block"]) })),
   segment_glosses: arr(obj({ segment_id: str(), summary_es: str("Resumen fiel del segmento en español sencillo") })),
-  vocab: arr(obj({ term: str("Useful English word or expression used in the script"), meaning_es: str(), example_en: str("The sentence from the script where it appears"), note_es: str("Matiz de uso, registro o falso amigo") })),
 });
 
 export function verifyPrompt(o: { skills: string; research: unknown; script: unknown }) {
@@ -158,49 +157,12 @@ For EVERY claim: compare its text with the quotes of the linked facts. Mark:
 Severity: "block" for anything legally risky, false or unsupported; "warn" for imprecision; "ok" otherwise.
 You may fetch a cited URL to confirm a quote when the stored quote looks doubtful.
 Also scan the narration for factual sentences that are NOT marked as claims (unlinked), check every title option against the script, and judge whether the video adds original analysis or merely paraphrases sources.
-Finally, pick 5-8 vocabulary items from the script that are genuinely useful for a B1 English learner (not trivial words).
 
 RESEARCH:
 ${JSON.stringify(o.research)}
 
 SCRIPT:
 ${JSON.stringify(o.script)}`;
-}
-
-// ---------- Plan visual ----------
-export const PLAN_SCHEMA = obj({
-  shots: arr(obj({
-    segment_id: str(), sentence_from: num("First sentence index covered (inclusive)"), sentence_to: num("Last sentence index covered (inclusive)"),
-    kind: en(["generated", "archival", "source_card", "title_card", "quote_card", "text_card"]),
-    prompt_en: str("For generated: detailed image prompt following the visual skill; empty otherwise"),
-    archival_query: str("For archival: concrete Wikimedia Commons search query (place, building, document, historical photo); empty otherwise"),
-    source_id: str("For source_card: the source id; empty otherwise"),
-    card_text: str("For title/quote/text cards: the text to display (short); empty otherwise"),
-    overlay_text: str("Optional short lower-third text (max 8 words); empty if none"),
-    motion: en(["zoom_in", "zoom_out", "pan_left", "pan_right", "static"]),
-  })),
-});
-
-export function planPrompt(o: { skills: string; visual: unknown; segments: { id: string; title: string; sentences: string[]; on_screen_sources: string[] }[]; sources: unknown; maxGenerated: number; shotSeconds: [number, number]; wps: number }) {
-  return `Plan the visuals of this video shot by shot.${wrapSkills(o.skills)}
-
-VISUAL PARAMETERS: ${JSON.stringify(o.visual)}
-
-Rules:
-- Cover every sentence of every segment, in order, with no gaps or overlaps. Each shot covers one or more consecutive sentences.
-- Target shot length ${o.shotSeconds[0]}-${o.shotSeconds[1]} seconds (narration speed ≈ ${o.wps.toFixed(1)} words per second). Long sentences may get their own shot.
-- At most ${o.maxGenerated} shots of kind "generated" in the whole video. Use them where they matter most.
-- When the narration cites a document or source listed in on_screen_sources, use a "source_card" with that source id at that moment.
-- Use "archival" for real places, buildings, historical photos, maps or documents that likely exist on Wikimedia Commons; give a concrete query.
-- Use title/quote/text cards for chapter openings, key numbers and short quotations.
-- Generated images must never depict identifiable real people photorealistically, must not show logos, brands, trademarks or copyrighted characters, and must follow the visual skill for coherence.
-- Vary motion; avoid the same motion twice in a row.
-- On-screen text (cards and lower thirds) must be at least as cautious as the narration: never state as fact something the narration presents as an inference or opinion, and never add claims that are not in the narration.
-
-SOURCES: ${JSON.stringify(o.sources)}
-
-SEGMENTS (sentence indices start at 0 inside each segment):
-${o.segments.map((s) => `## ${s.id} — ${s.title}${s.on_screen_sources.length ? ` (on-screen sources: ${s.on_screen_sources.join(", ")})` : ""}\n${s.sentences.map((t, i) => `[${i}] ${t}`).join("\n")}`).join("\n\n")}`;
 }
 
 // ---------- Miniatura y metadatos ----------
@@ -230,82 +192,24 @@ ${o.images?.length ? `IMAGES USED IN THE VIDEO (choose a strong, uncluttered one
 VERIFICATION SUMMARY: ${JSON.stringify(o.verify)}`;
 }
 
-// ---------- Métricas ----------
-export const PROPOSALS_SCHEMA = obj({
-  summary_es: str("Qué funcionó y qué no, en español sencillo"),
-  findings_es: arr(str()),
-  proposals: arr(obj({
-    skill_name: str("Exact name of an existing skill, or a new name"),
-    title_es: str(), rationale_es: str("Con qué datos se justifica"),
-    new_content: str("Complete new Markdown content of the skill with the change applied"),
-  })),
+// ---------- Referentes ----------
+export const NOTEBOOK_RUBRIC = `Analiza todos los videos de este cuaderno. Lista, con un ejemplo breve cada uno, los puntos fuertes que otro canal podría replicar:
+1. Títulos y miniaturas.
+2. Ganchos (primeros 30 s).
+3. Estructura y ritmo.
+4. Uso de fuentes.
+5. Edición: cortes, animaciones, sonido.
+6. Cierres.`;
+
+export const REFERENT_SCHEMA = obj({
+  strengths_es: arr(str("Punto fuerte concreto y replicable, en una frase corta"), "5-10 puntos"),
 });
 
-export function proposalsPrompt(o: { skills: string; metrics: unknown; allSkills: { name: string; content: string }[] }) {
-  return `Analyze the performance of this channel's videos and propose concrete, minimal changes to its skills (hooks, titles, thumbnails, rhythm, duration, topics).${wrapSkills(o.skills)}
+export function referentPrompt(o: { name: string; notes: string }) {
+  return `From these notes about the YouTube channel "${o.name}", extract its strongest, replicable techniques (hooks, structure, rhythm, titles, thumbnails, editing, use of sources). Each point must be concrete and short. Skip its personal voice and anything not worth copying.
 
-Base every proposal on the data. Retention (audienceWatchRatio) and CTR come from the channel's own analytics. Be explicit about uncertainty when there are few videos.
-Keep each skill's existing structure; change only what the evidence supports.
-
-METRICS: ${JSON.stringify(o.metrics)}
-
-CURRENT SKILLS:
-${o.allSkills.map((s) => `<skill name="${s.name}">\n${s.content}\n</skill>`).join("\n\n")}`;
-}
-
-// ---------- Referentes (fase cero) ----------
-export const NOTEBOOK_RUBRIC = `Analiza TODOS los videos de este cuaderno y escribe un único documento Markdown titulado "Perfil de <canal>" con exactamente estas secciones. Usa ejemplos textuales (citas breves) de los videos para cada afirmación.
-
-1. Promesa del canal: qué ofrece y a quién.
-2. Títulos: estructura, longitud, palabras gatillo, tipo de promesa, relación título-contenido. 5 ejemplos.
-3. Ganchos (primeros 30 segundos): tipos de apertura, recursos, duración. 5 ejemplos transcritos.
-4. Estructura narrativa: esqueleto típico del video, cómo pasa de la intriga al hecho y del hecho al significado.
-5. Ritmo y frases: longitud media de frase, alternancia, frecuencia de giros, uso de preguntas, pausas.
-6. Vocabulario y registro: palabras y expresiones recurrentes, tono, ironía, humor.
-7. Uso de fuentes: cómo las introduce, cuántas, qué tipo, cómo las muestra.
-8. Cierres: cómo terminan los videos, llamadas a la acción.
-9. Rasgos DISTINTIVOS (lo que solo este canal hace) frente a rasgos COMUNES del género.
-10. Debilidades o vicios a evitar.
-11. Principios transferibles (reglas aplicables a otro canal sin copiar su voz).`;
-
-export const CREATOR_SCHEMA = obj({
-  profile_md: str("Perfil legible en español (Markdown) con las mismas secciones de la rúbrica, condensado"),
-  distinctive_es: arr(str("Rasgo distintivo de este canal")),
-  principles_es: arr(str("Principio transferible")),
-  title_patterns_es: arr(str()),
-  hook_patterns_es: arr(str()),
-  structure_es: str(),
-  avoid_es: arr(str()),
-});
-
-export function creatorPrompt(o: { skills: string; name: string; notebook: string; videos: { title: string; views: number; publishedAt: string; durationS: number }[] }) {
-  return `Analyze this reference creator for the knowledge base of a new channel. Separate what is DISTINCTIVE of this creator (their personal voice, not to be copied) from TRANSFERABLE principles.${wrapSkills(o.skills)}
-
-CREATOR: ${o.name}
-
-NOTEBOOK ANALYSIS (made by the operator with NotebookLM from the creator's videos):
-${o.notebook || "(not provided)"}
-
-PUBLIC METADATA (title, views, date, duration). Views correlate only partially with quality; retention and CTR are not public.
-${o.videos.slice(0, 120).map((v) => `- ${v.title} | ${v.views} views | ${v.publishedAt.slice(0, 10)} | ${Math.round(v.durationS / 60)} min`).join("\n") || "(not fetched)"}`;
-}
-
-export const DISTILL_SCHEMA = obj({
-  overview_es: str("Qué aprendimos del conjunto, en español"),
-  skills: arr(obj({
-    name: str(), description: str(), scopes: arr(en(["all", "topics", "research", "script", "verify", "voice", "visuals", "thumbnail", "metadata", "montage", "metrics", "analysis"])),
-    content: str("Markdown content of the skill draft, with positive and negative examples"),
-  })),
-});
-
-export function distillPrompt(o: { goal: string; profiles: { name: string; weight: number; profile: unknown }[] }) {
-  return `Distill these reference-creator profiles into DRAFT skills for a new channel. Do not average styles into something generic: keep the strongest transferable principles, note which creator each comes from, and leave the distinctive voice choices as explicit options for the operator to decide.
-Each skill must contain rules plus positive and negative examples.
-
-OPERATOR GOAL: ${o.goal || "(not specified)"}
-
-PROFILES (weight = importance set by the operator):
-${o.profiles.map((p) => `### ${p.name} (weight ${p.weight})\n${JSON.stringify(p.profile)}`).join("\n\n")}`;
+NOTES:
+${o.notes}`;
 }
 
 // ---------- Refinar una habilidad (ciclo propone → corrige → incorpora) ----------
@@ -319,7 +223,7 @@ export function refinePrompt(o: { name: string; content: string; request: string
 
 OPERATOR CORRECTIONS (Spanish):
 ${o.request}
-${o.context ? `\nREFERENCE MATERIAL:\n${o.context}\n` : ""}
+${o.context ? `\nREFERENCE STRENGTHS:\n${o.context}\n` : ""}
 <skill name="${o.name}">
 ${o.content}
 </skill>`;

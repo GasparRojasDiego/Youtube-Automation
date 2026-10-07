@@ -1,4 +1,4 @@
-// Acceso a datos de canales, temas, videos, etapas, revisiones, vocabulario y música.
+// Acceso a datos de canales, temas, videos, etapas, revisiones y música.
 import { db, appPaths, fs } from "./ipc";
 import { emit } from "./bus";
 import { now, uid, safeJson, joinPath, slugify } from "./util";
@@ -88,10 +88,10 @@ export const STAGES = [
   { id: "verify", label: "Verificación", short: "Verificar", gate: true },
   { id: "voice", label: "Voz", short: "Voz" },
   { id: "storyboard", label: "Storyboard", short: "Storyboard" },
-  { id: "assets", label: "Medios y casting", short: "Medios" },
-  { id: "polish", label: "Retoques (Opus)", short: "Retoques" },
+  { id: "assets", label: "Medios", short: "Medios" },
+  { id: "polish", label: "Retoques", short: "Retoques" },
   { id: "motion", label: "Animaciones", short: "Motion" },
-  { id: "package", label: "Miniatura y metadatos", short: "Metadatos" },
+  { id: "package", label: "Metadatos", short: "Metadatos" },
   { id: "render", label: "Montaje", short: "Montaje" },
   { id: "final", label: "Revisión final", short: "Revisión", gate: true },
   { id: "publish", label: "Publicación", short: "Publicar" },

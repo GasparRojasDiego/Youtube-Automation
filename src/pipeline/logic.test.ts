@@ -4,7 +4,7 @@ import { parseSkillFile, parseParamBlocks, stripParamBlocks } from "../lib/skill
 import { splitSentences, extractJson, zonedTimeToUtc, lineDiff, joinPath } from "../lib/util";
 import { buildClaudeArgs, parseClaudeOutput, splitArgs } from "../providers/claude";
 import { chunkText } from "../providers/tts";
-import { buildVideoResource, isoDurationToSeconds } from "../providers/youtube";
+import { buildVideoResource } from "../providers/youtube";
 import type { ScriptOut, ResearchOut } from "./types";
 
 const research: ResearchOut = {
@@ -30,7 +30,7 @@ describe("guion", () => {
     expect(issues.some((i) => i.claim_id === "C3")).toBe(false);
   });
   it("combina verificación del modelo con comprobaciones mecánicas", () => {
-    const v = L.mergeVerification({ overall_es: "", title_checks: [], originality: { verdict: "ok", note_es: "" }, unlinked: [], segment_glosses: [], vocab: [],
+    const v = L.mergeVerification({ overall_es: "", title_checks: [], originality: { verdict: "ok", note_es: "" }, unlinked: [], segment_glosses: [],
       claims: [{ claim_id: "C1", verdict: "supported", severity: "ok", issues: [], note_es: "", suggested_fix_en: "", gloss_es: "", quote_gloss_es: "" }] },
       script, L.checkScript(script, research));
     expect(v.claims).toHaveLength(3);
@@ -41,50 +41,13 @@ describe("guion", () => {
   });
 });
 
-describe("plan visual", () => {
-  const segs = L.segmentSentences(script);
-  it("cubre todas las oraciones sin huecos y limita las generadas", () => {
-    const shots = L.repairPlan([
-      { segment_id: "seg1", sentence_from: 1, sentence_to: 1, kind: "generated", prompt_en: "a", motion: "zoom_in" },
-      { segment_id: "seg1", sentence_from: 1, sentence_to: 2, kind: "generated", prompt_en: "b", motion: "zoom_in" },
-      { segment_id: "seg2", sentence_from: 5, sentence_to: 9, kind: "archival", archival_query: "", motion: "static" },
-    ], segs, 1);
-    const s1 = shots.filter((s) => s.segment_id === "seg1");
-    expect(s1[0].sentence_from).toBe(0);
-    expect(s1[s1.length - 1].sentence_to).toBe(2);
-    expect(shots.filter((s) => s.kind === "generated")).toHaveLength(1);
-    const s2 = shots.filter((s) => s.segment_id === "seg2");
-    expect(s2[0].sentence_from).toBe(0); expect(s2[0].sentence_to).toBe(1); expect(s2[0].kind).toBe("text_card");
-    expect(shots[1].motion).not.toBe(shots[0].motion);
-  });
-  it("reparte duraciones y suma la pausa al final del segmento", () => {
-    const shots = L.repairPlan([
-      { segment_id: "seg1", sentence_from: 0, sentence_to: 0, kind: "text_card", card_text: "a", motion: "zoom_in" },
-      { segment_id: "seg1", sentence_from: 1, sentence_to: 2, kind: "text_card", card_text: "b", motion: "zoom_out" },
-      { segment_id: "seg2", sentence_from: 0, sentence_to: 1, kind: "text_card", card_text: "c", motion: "pan_left" },
-    ], segs, 0);
-    const d = L.allocateDurations(shots, segs, { seg1: 6, seg2: 4 }, 0.5);
-    const sum1 = d.filter((s) => s.segment_id === "seg1").reduce((a, s) => a + s.dur!, 0);
-    expect(sum1).toBeCloseTo(6.5, 5);
-    expect(d.find((s) => s.segment_id === "seg2")!.dur).toBeCloseTo(4.5, 5);
-  });
-});
-
 describe("metadatos", () => {
   it("capítulos, subtítulos y descripción", () => {
     const ch = L.chapters([{ id: "a", title: "A" }, { id: "b", title: "B" }, { id: "c", title: "C" }], { a: 30, b: 5, c: 40 });
     expect(ch[0].t).toBe(0); expect(ch.map((c) => c.title)).toEqual(["A", "B"]);
-    const srt = L.buildSrt(L.segmentSentences(script), { seg1: 6, seg2: 4 }, { seg1: 6.5, seg2: 4.5 });
-    expect(srt.startsWith("1\n00:00:00,000 --> ")).toBe(true);
     const desc = L.composeDescription({ body: "Body", chapters: [{ t: 0, title: "A" }, { t: 60, title: "B" }, { t: 130, title: "C" }], sources: research.sources, credits: ["Music: x"], disclosure: "AI voice." });
     expect(desc).toContain("0:00 A"); expect(desc).toContain("2:10 C"); expect(desc).toContain("[1] Report — A (2022): https://a.org/r");
     expect(L.sanitizeTags(["a", "a", "b<c"])).toEqual(["a", "bc"]);
-  });
-  it("repetición espaciada", () => {
-    let c = { interval_d: 0, ease: 2.5, reps: 0 };
-    const a = L.srsNext(c, 2); expect(a.interval_d).toBe(1);
-    c = a; const b = L.srsNext(c, 2); expect(b.interval_d).toBe(3);
-    expect(L.srsNext(b, 0).reps).toBe(0);
   });
 });
 
@@ -133,6 +96,5 @@ describe("proveedores", () => {
   it("recurso de video para YouTube", () => {
     const r = buildVideoResource({ title: "t", description: "d", tags: ["a"], categoryId: "27", defaultLanguage: "en", privacy: "public", publishAt: "2026-10-07T16:00:00Z", containsSyntheticMedia: true });
     expect(r.status.privacyStatus).toBe("private"); expect(r.status.publishAt).toBe("2026-10-07T16:00:00Z"); expect(r.status.containsSyntheticMedia).toBe(true);
-    expect(isoDurationToSeconds("PT1H2M3S")).toBe(3723);
   });
 });

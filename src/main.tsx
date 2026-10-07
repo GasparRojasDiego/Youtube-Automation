@@ -20,7 +20,6 @@ import App from "./App";
 import { migrate } from "./lib/schema";
 import { loadSettings } from "./lib/settings";
 import { recoverOnStartup } from "./pipeline/runner";
-import { purgeStaleCreatorData } from "./pipeline/extras";
 import { logError } from "./lib/events";
 
 async function boot() {
@@ -30,7 +29,6 @@ async function boot() {
     const s = await loadSettings();
     document.documentElement.classList.toggle("dark", s.theme === "dark");
     root.render(<React.StrictMode><App /></React.StrictMode>);
-    await purgeStaleCreatorData().catch(() => null);
     await recoverOnStartup();
   } catch (e) {
     console.error(e);

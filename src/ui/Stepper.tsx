@@ -7,13 +7,13 @@ export function awaiting(video: Video, stages: StageRow[]): { text: string; tone
   if (video.status === "scheduled") return { text: `Programado${video.scheduled_at ? " para " + new Date(video.scheduled_at).toLocaleString("es-PE", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}`, tone: "green" };
   if (video.status === "rejected") return { text: "Rechazado", tone: "muted" };
   const failed = stages.find((s) => s.status === "failed");
-  if (failed) return { text: `Falló «${STAGES.find((x) => x.id === failed.stage)?.label}»: revisa y reintenta`, tone: "red", action: "Ver el error" };
+  if (failed) return { text: `Falló: ${STAGES.find((x) => x.id === failed.stage)?.label}`, tone: "red", action: "Ver error" };
   const review = stages.find((s) => s.status === "review");
   if (review) {
-    if (review.stage === "verify") return { text: "Te espera: revisar el guion verificado", tone: "amber", action: "Revisar guion" };
-    if (review.stage === "final") return { text: "Te espera: revisión final del video", tone: "amber", action: "Revisión final" };
-    if (review.stage === "voice") return { text: review.progress ?? "Te espera: grabar tu voz", tone: "amber", action: "Grabar voz" };
-    return { text: review.progress ?? "Te espera una acción", tone: "amber", action: "Abrir" };
+    if (review.stage === "verify") return { text: "Revisa el guion", tone: "amber", action: "Revisar guion" };
+    if (review.stage === "final") return { text: "Revisión final", tone: "amber", action: "Revisión final" };
+    if (review.stage === "voice") return { text: review.progress ?? "Graba tu voz", tone: "amber", action: "Grabar voz" };
+    return { text: review.progress ?? "Te espera", tone: "amber", action: "Abrir" };
   }
   const running = stages.find((s) => s.status === "running");
   if (running) return { text: running.progress ?? `${STAGES.find((x) => x.id === running.stage)?.label}…`, tone: "primary" };

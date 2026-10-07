@@ -52,7 +52,7 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual]));
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
 
-  await ctx.progress("Armando el storyboard: qué se ve y qué se oye en cada frase…");
+  await ctx.progress("Armando el storyboard…");
   const r = await claudeRun<{ beats: any[]; music: any[]; emphasis: { segment_id: string; words: string[] }[]; notes_es: string }>({
     stage: "storyboard", activityStage: "storyboard", label: "Storyboard", system: SYSTEM_BASE, schema: P2.STORYBOARD_SCHEMA,
     prompt: P2.storyboardPrompt({
@@ -103,7 +103,7 @@ async function huntShot(ctx: Ctx, sh: Shot, exclude: Set<string>): Promise<{ can
       await activity(v.id, "assets", "search", `Buscando ${kind === "video" ? "clips" : "imágenes"} libres: «${q}»`);
       const rep = await searchSources(q, kind, m.candidatesPerBeat);
       for (const e of rep.errors) await activity(v.id, "assets", "warn", `${SOURCE_LABEL[e.source]}: ${e.message.slice(0, 160)}`);
-      if (rep.skipped.length) await activity(v.id, "assets", "warn", `Cuota casi agotada, se omite: ${rep.skipped.map((x) => SOURCE_LABEL[x]).join(", ")}`);
+      if (rep.skipped.length) await activity(v.id, "assets", "warn", `Sin cuota: ${rep.skipped.map((x) => SOURCE_LABEL[x]).join(", ")}`);
       const ranked = rankCandidates(rep.candidates, kind, m.maxClipSeconds).filter((c) => kind !== "video" || !c.duration || c.duration <= 90);
       for (const c of ranked.slice(0, m.candidatesPerBeat)) {
         try {
@@ -230,7 +230,7 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
   const toDescribe = [...new Map([...allNew, ...[...pool.values()].flat()].filter((a) => !a.described_at).map((a) => [a.id, a])).values()];
   let described = 0;
   if (toDescribe.length) {
-    await ctx.progress(`Claude mira y describe ${toDescribe.length} archivo(s) nuevos…`);
+    await ctx.progress(`Describiendo ${toDescribe.length} archivo(s)…`);
     described = await describeAssets(toDescribe, { videoId: v.id, channelId: v.channel_id, stage: "assets", jobId: ctx.jobId });
   }
   // 3) Casting (Sonnet, solo texto): elegir el mejor candidato de cada toma
@@ -240,7 +240,7 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
     for (let i = 0; i < pending.length; i += 30) {
       checkCancel(ctx);
       const chunk = pending.slice(i, i + 30);
-      await ctx.progress(`Eligiendo el mejor material (${Math.min(i + 30, pending.length)}/${pending.length})…`);
+      await ctx.progress(`Eligiendo material (${Math.min(i + 30, pending.length)}/${pending.length})…`);
       const r = await claudeRun<{ picks: { shot_id: string; asset_id: string; focus_x: number; focus_y: number; clip_in: number; note_es: string }[] }>({
         stage: "storyboard", activityStage: "assets", label: "Casting de material", system: SYSTEM_BASE, schema: P2.CASTING_SCHEMA, quiet: true,
         prompt: P2.castingPrompt({ shots: chunk.map((sh) => ({
@@ -323,8 +323,8 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
     return `${s.visual}: "${(s.card_text ?? "").slice(0, 80)}"`;
   };
   const edl = buildEdl(assets.shots, segs, offsets, assets.sfx, describe);
-  await ctx.progress("Opus revisa la edición y la mejora…");
-  await activity(v.id, "polish", "think", "Opus analiza el corte completo: ritmo, transiciones, sonido y animaciones");
+  await ctx.progress("Opus pule la edición…");
+  await activity(v.id, "polish", "think", "Opus revisa el corte");
   const r = await claudeRun<PolishRaw>({
     stage: "polish", activityStage: "polish", label: "Retoques de edición", system: SYSTEM_BASE, schema: P2.POLISH_SCHEMA,
     prompt: P2.polishPrompt({ skills: [await composeSkills(v.channel_id, "montage"), await composeSkills(v.channel_id, "edit")].filter(Boolean).join("\n\n"),
@@ -341,10 +341,10 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   for (const sh of applied.shots) if (!sh.grade) sh.grade = applied.grade;
   for (const m of applied.motion) await activity(v.id, "polish", "motion", `Animación ${m.id} (${m.kind === "overlay" ? "capa" : "pantalla completa"}, ${m.duration.toFixed(1)} s)`, `${m.brief_en}${m.text ? `\nTexto: ${m.text}` : ""}`);
   const changed = (r.data.shots ?? []).length;
-  await activity(v.id, "polish", "decision", `Retoques: ${changed} tomas ajustadas · ${(r.data.sfx_add ?? []).length} efectos añadidos · ${applied.motion.length} animaciones`, r.data.notes_es ?? "");
+  await activity(v.id, "polish", "decision", `Retoques: ${changed} tomas · ${(r.data.sfx_add ?? []).length} efectos · ${applied.motion.length} animaciones`, r.data.notes_es ?? "");
   const verify = (r.data.verify_es ?? []).map((x) => x.trim()).filter(Boolean);
   if (verify.length) {
-    await activity(v.id, "polish", "warn", `Opus sugiere comprobar ${verify.length} dato(s) antes de publicar`, verify.join("\n"));
+    await activity(v.id, "polish", "warn", `Comprobar ${verify.length} dato(s) antes de publicar`, verify.join("\n"));
     await log("warn", "retoques", `Opus sugiere comprobar ${verify.length} dato(s) antes de publicar.`, verify.join("\n"), v.id);
   }
   const sfx = await resolveSfx(ctx, applied.sfx);
@@ -456,7 +456,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 
   let failed = 0;
   try {
-    await activity(v.id, "motion", "stage", "Abriendo el navegador sin ventana para renderizar animaciones");
+    await activity(v.id, "motion", "stage", "Abriendo el motor de animaciones");
     browser = await launchBrowser(tauriHost, browserPath, work);
     for (let i = 0; i < todo.length; i += Math.max(1, cfg.perCall)) {
       checkCancel(ctx);

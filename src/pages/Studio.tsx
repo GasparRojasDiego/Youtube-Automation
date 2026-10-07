@@ -38,7 +38,7 @@ function Feed({ videoId }: { videoId: string }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => { void listActivity(videoId, 500).then(setRows); }, [videoId, tick]);
   useEffect(() => { if (follow && box.current) box.current.scrollTop = box.current.scrollHeight; }, [rows, follow]);
-  if (!rows.length) return <Empty icon={ActivityIcon} title="Aún no hay actividad">Cuando el video avance, aquí verás cada paso: búsquedas, fuentes leídas, imágenes encontradas, decisiones y animaciones.</Empty>;
+  if (!rows.length) return <Empty icon={ActivityIcon} title="Sin actividad todavía" />;
   return (
     <div ref={box} onScroll={(e) => { const el = e.currentTarget; setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 40); }}
       className="h-[640px] overflow-y-auto pr-1 space-y-0.5">
@@ -84,7 +84,7 @@ function Monitor({ video, stages }: { video: Video; stages: StageRow[] }) {
     <div className="rounded-lg overflow-hidden border border-border bg-black relative aspect-video">
       {showFinal ? <video key={render!.file} src={fileUrl(render!.file!, render!.renderedAt)} poster={render!.poster ? fileUrl(render!.poster, render!.renderedAt) : undefined} controls className="w-full h-full" /> :
         live?.frame ? <img src={src(live.frame)} className="w-full h-full object-contain" /> :
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60 gap-2"><MonitorPlay size={34} /><span className="text-sm">{running ? "Preparando la vista previa…" : "Sin vista previa todavía"}</span></div>}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60 gap-2"><MonitorPlay size={34} /><span className="text-sm">{running ? "Preparando…" : "Sin vista previa"}</span></div>}
       {!showFinal && (live?.caption || running?.progress) && (
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-3 pt-8">
           <div className="text-white text-[13px] font-medium">{live?.caption || running?.progress}</div>
@@ -106,7 +106,7 @@ function Timeline({ stages }: { stages: StageRow[] }) {
   const get = (s: string) => stages.find((x) => x.stage === s)?.output as any;
   const src0 = get("polish") ?? get("assets") ?? get("storyboard");
   const motion: MotionItem[] = (get("motion")?.items ?? get("polish")?.motion ?? []) as MotionItem[];
-  if (!src0?.shots?.length) return <div className="text-xs text-muted-foreground p-3">La línea de tiempo aparece cuando el storyboard esté listo.</div>;
+  if (!src0?.shots?.length) return <div className="text-xs text-muted-foreground p-3">Aparece tras el storyboard.</div>;
   const shots: Shot[] = src0.shots; const sfx: SfxCue[] = src0.sfx ?? []; const music: MusicBed[] = src0.music ?? [];
   // inicio global de cada segmento
   const segOrder = [...new Set(shots.map((s) => s.segment_id))];
@@ -159,7 +159,7 @@ function VideoUsage({ videoId }: { videoId: string }) {
       <div className="space-y-0.5"><MiniBar label="5h" u={limits?.fiveHour?.utilization} resetsAt={limits?.fiveHour?.resetsAt} /><MiniBar label="7d" u={limits?.sevenDay?.utilization} resetsAt={limits?.sevenDay?.resetsAt} /></div>
       <div><div className="label">Este video</div><div className="tabular">{runs.length} tareas · {fmtK(inp)} entrada · {fmtK(outp)} salida</div></div>
       {last && <div><div className="label">Última tarea</div><div className="tabular truncate max-w-[280px]">{last.label} · {fmtK(totalInput(last))}/{fmtK(last.output_tokens)}</div></div>}
-      <button className="btn-ghost btn-sm ml-auto" onClick={() => navigate({ page: "consumo" })}><Gauge size={13} /> Consumo detallado</button>
+      <button className="btn-ghost btn-sm ml-auto" onClick={() => navigate({ page: "consumo" })}><Gauge size={13} /> Detalle</button>
     </div>
   );
 }
@@ -198,11 +198,11 @@ export function StudioPage() {
   })(); }, [tick]);
   return (
     <div className="space-y-4">
-      <PageHeader kicker="En vivo" title="Estudio" subtitle={video ? <button className="hover:underline" onClick={() => navigate({ page: "video", id: video.id })}>{video.title}</button> : "Ningún video en producción"} />
+      <PageHeader title="Estudio en vivo" subtitle={video ? <button className="hover:underline" onClick={() => navigate({ page: "video", id: video.id })}>{video.title}</button> : "Ningún video en producción"} />
       {video ? (<>
         <Card pad><Stepper stages={stages} onSelect={() => navigate({ page: "video", id: video.id })} /></Card>
         <LiveStudio video={video} />
-      </>) : <Card><Empty icon={MonitorPlay} title="Nada en producción">Inicia un video desde «Hoy» o «Videos» y aquí verás cómo se investiga, se escribe, se busca el material y se edita, paso a paso.</Empty></Card>}
+      </>) : <Card><Empty icon={MonitorPlay} title="Nada en producción">Inicia un video en Hoy.</Empty></Card>}
     </div>
   );
 }

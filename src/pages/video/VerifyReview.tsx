@@ -1,5 +1,5 @@
-// Revisión del guion verificado: pensada para decidir rápido y entender el
-// inglés (B1) sin perder rigor. Cada afirmación muestra su fuente y su cita.
+// Revisión del guion verificado: decidir rápido sin perder rigor.
+// Cada afirmación muestra su fuente y su cita.
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, Wrench, Undo2, ExternalLink, Eye, ShieldAlert, Sparkles, Languages, CheckCircle2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -104,26 +104,11 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
               </Card>
             );
           })}
-          {v.vocab?.length > 0 && (
-            <Card title="Inglés de este guion" icon={Languages}>
-              <div className="text-xs text-muted-foreground mb-2">Se añadieron a tu repaso. Intenta deducir el significado antes de mirarlo.</div>
-              <div className="grid grid-cols-2 gap-2">
-                {v.vocab.map((w) => (
-                  <details key={w.term} className="rounded-md border border-border p-2.5 group">
-                    <summary className="cursor-pointer text-sm font-semibold text-primary list-none">{w.term}</summary>
-                    <div className="text-xs mt-1.5"><b>{w.meaning_es}</b></div>
-                    <div className="text-xs italic text-muted-foreground mt-1">“{w.example_en}”</div>
-                    {w.note_es && <div className="text-[11px] mt-1">{w.note_es}</div>}
-                  </details>
-                ))}
-              </div>
-            </Card>
-          )}
         </div>
 
         <div className="sticky top-2 space-y-3">
           <Card title={selectedClaim ? `Afirmación ${selectedClaim.claim_id}` : selectedUnlinked ? "Frase sin fuente marcada" : "Detalle"}>
-            {!selectedClaim && !selectedUnlinked && <div className="text-sm text-muted-foreground">Toca una frase resaltada. Rojo: bloquea la aprobación. Ámbar: aviso. Subrayado azul: respaldada.</div>}
+            {!selectedClaim && !selectedUnlinked && <div className="text-sm text-muted-foreground">Rojo: bloquea · Ámbar: aviso · Azul: respaldada.</div>}
             {selectedClaim && (() => {
               const c = allClaims.find((x) => x.id === selectedClaim.claim_id);
               const facts = research.facts.filter((f) => c?.fact_ids.includes(f.id));
@@ -133,7 +118,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
                   <div className="font-medium leading-relaxed" style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}>“{c?.text_en}”</div>
                   {selectedClaim.gloss_es && (showGloss[key]
                     ? <div className="text-xs border-l-2 border-primary/50 pl-2.5">{selectedClaim.gloss_es}</div>
-                    : <button className="btn-ghost btn-sm" onClick={() => setShowGloss((x) => ({ ...x, [key]: true }))}><Languages size={13} /> Primero intenta entenderla · Ver traducción</button>)}
+                    : <button className="btn-ghost btn-sm" onClick={() => setShowGloss((x) => ({ ...x, [key]: true }))}><Languages size={13} /> Ver traducción</button>)}
                   <div className="flex flex-wrap gap-1.5">
                     <Chip tone={sevTone(selectedClaim.severity)}>{VERDICT[selectedClaim.verdict] ?? selectedClaim.verdict}</Chip>
                     {c?.kind && c.kind !== "fact" && <Chip tone="primary">{c.kind === "inference" ? "Inferencia" : "Opinión"}</Chip>}
@@ -155,7 +140,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
                       </div>
                     );
                   })}
-                  {!facts.length && <div className="text-xs text-red-600 dark:text-red-500">Ningún hecho de la investigación respalda esta frase.</div>}
+                  {!facts.length && <div className="text-xs text-red-600 dark:text-red-500">Ningún hecho la respalda.</div>}
                   {selectedClaim.suggested_fix_en && <div className="text-xs"><span className="label">Propuesta</span><div className="mt-1" style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}>{selectedClaim.suggested_fix_en}</div></div>}
                   {editable && <ResolveBar resolution={selectedClaim.resolution ?? null} note={selectedClaim.user_note ?? ""}
                     onAccept={(n) => void resolveClaim(key, "accepted", n)} onFix={(n) => void resolveClaim(key, "fix", n)} onUndo={() => void resolveClaim(key, null)} />}
@@ -180,7 +165,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
                   <Chip tone={blocks ? "red" : "green"}>{blocks} bloqueos abiertos</Chip>
                   <Chip tone={fixes ? "amber" : "muted"}>{fixes} correcciones pedidas</Chip>
                 </div>
-                <textarea className="input min-h-20 text-xs" placeholder="Notas generales para corregir el guion (en español está bien): «el gancho es lento», «quita el chiste del segmento 3»…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <textarea className="input min-h-20 text-xs" placeholder="Notas para corregir el guion" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 <div className="flex gap-2">
                   <AsyncButton className="btn-brand flex-1" disabled={!fixes && !notes.trim() && !blocks}
                     onClick={async () => { await addReview(video.id, "verify", "fixes", notes, secs.current); await applyScriptFixes(video.id, notes); setNotes(""); }}>
@@ -191,7 +176,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
                     <CheckCircle2 size={14} /> Aprobar guion
                   </AsyncButton>
                 </div>
-                {blocks > 0 && <div className="text-[11px] text-muted-foreground">Para aprobar, resuelve cada marca roja: acéptala con una nota (asumes el riesgo) o pide su corrección.</div>}
+                {blocks > 0 && <div className="text-[11px] text-muted-foreground">Resuelve cada marca roja para aprobar.</div>}
               </div>
             </Card>
           )}
@@ -212,7 +197,7 @@ function ResolveBar({ resolution, note, onAccept, onFix, onUndo }: { resolution:
   );
   return (
     <div className="space-y-2">
-      <input className="input text-xs" placeholder="Nota (opcional): por qué la aceptas o qué cambiar" value={n} onChange={(e) => setN(e.target.value)} />
+      <input className="input text-xs" placeholder="Nota (opcional)" value={n} onChange={(e) => setN(e.target.value)} />
       <div className="flex gap-2">
         <button className="btn-secondary btn-sm flex-1" onClick={() => onAccept(n)}><Check size={13} /> Está bien</button>
         <button className="btn-brand btn-sm flex-1" onClick={() => onFix(n)}><Wrench size={13} /> Pedir corrección</button>

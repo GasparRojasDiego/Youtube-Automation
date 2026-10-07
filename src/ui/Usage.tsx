@@ -38,7 +38,7 @@ export function HeaderUsage() {
       {l ? (<>
         <MiniBar label="5h" u={l.fiveHour?.utilization} resetsAt={l.fiveHour?.resetsAt} />
         <MiniBar label="7d" u={l.sevenDay?.utilization} resetsAt={l.sevenDay?.resetsAt} />
-      </>) : <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Gauge size={12} /> Plan: sin datos</span>}
+      </>) : <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Gauge size={12} /> Plan: —</span>}
     </button>
   );
 }
@@ -55,8 +55,8 @@ export function PlanBar({ title, w, est }: { title: string; w: { utilization: nu
       </div>
       <div className="h-2.5 rounded-full bg-muted overflow-hidden mt-1.5"><div className={`h-full transition-all ${tone(u)}`} style={{ width: `${u * 100}%` }} /></div>
       <div className="flex justify-between text-xs text-muted-foreground mt-1.5">
-        <span>{w ? (expired ? "La ventana ya se repuso" : `Se repone ${fmtReset(w.resetsAt)}`) : "Aún no hay lecturas"}</span>
-        <span>{w && !expired ? `${pct(1 - u)} disponible` : ""}</span>
+        <span>{w ? (expired ? "Repuesta" : `Se repone ${fmtReset(w.resetsAt)}`) : "Sin datos"}</span>
+        <span>{w && !expired ? `${pct(1 - u, 0)} libre` : ""}</span>
       </div>
       {est && <div className="text-[11px] text-muted-foreground mt-1">{est}</div>}
     </div>
@@ -66,9 +66,9 @@ export function PlanBar({ title, w, est }: { title: string; w: { utilization: nu
 export function RefreshUsageButton() {
   const [busy, setBusy] = useState(false);
   return (
-    <button className="btn-ghost btn-sm" disabled={busy} title="Hace una consulta mínima (Haiku, sin herramientas: unos cientos de tokens) para leer el estado oficial del plan"
+    <button className="btn-ghost btn-sm" disabled={busy} title="Consulta mínima con Haiku"
       onClick={async () => { setBusy(true); try { await refreshPlanUsage(); } finally { setBusy(false); } }}>
-      <RefreshCw size={13} className={busy ? "animate-spin" : ""} /> Actualizar ahora
+      <RefreshCw size={13} className={busy ? "animate-spin" : ""} /> Actualizar
     </button>
   );
 }

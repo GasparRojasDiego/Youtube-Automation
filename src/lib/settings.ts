@@ -3,7 +3,7 @@ import { db } from "./ipc";
 import { safeJson } from "./util";
 import { emit } from "./bus";
 
-export type StageModelKey = "topics" | "research" | "script" | "verify" | "plan" | "package" | "analysis" | "storyboard" | "vision" | "polish" | "motion" | "critique";
+export type StageModelKey = "topics" | "research" | "script" | "verify" | "package" | "analysis" | "storyboard" | "vision" | "polish" | "motion" | "critique";
 
 export interface AppSettings {
   theme: "dark" | "light";
@@ -26,8 +26,6 @@ export interface AppSettings {
     provider: "gemini" | "openai" | "none";
     gemini: { model: string; priceUsd: number };
     openai: { model: string; quality: string; size: string; priceUsd: number };
-    useWikimedia: boolean;
-    maxGenerated: { standard: number; premium: number };
     thumbnailCandidates: number;
   };
   budget: { monthlyPen: number; penPerUsd: number; warnAtPct: number; hardStop: boolean };
@@ -67,9 +65,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   claude: {
     path: "claude",
     extraArgs: "",
-    models: { topics: "sonnet", research: "sonnet", script: "opus", verify: "opus", plan: "sonnet", package: "sonnet", analysis: "opus",
+    models: { topics: "sonnet", research: "sonnet", script: "opus", verify: "opus", package: "sonnet", analysis: "sonnet",
       storyboard: "sonnet", vision: "sonnet", polish: "opus", motion: "opus", critique: "sonnet" },
-    effort: { topics: "medium", research: "medium", script: "high", verify: "high", plan: "low", package: "medium", analysis: "high",
+    effort: { topics: "medium", research: "medium", script: "high", verify: "high", package: "medium", analysis: "medium",
       storyboard: "medium", vision: "low", polish: "high", motion: "high", critique: "low" },
     timeoutMin: 40,
   },
@@ -83,8 +81,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     provider: "gemini",
     gemini: { model: "gemini-2.5-flash-image", priceUsd: 0.039 },
     openai: { model: "gpt-image-1-mini", quality: "low", size: "1536x1024", priceUsd: 0.006 },
-    useWikimedia: true,
-    maxGenerated: { standard: 10, premium: 30 },
     thumbnailCandidates: 3,
   },
   budget: { monthlyPen: 100, penPerUsd: 3.75, warnAtPct: 80, hardStop: true },

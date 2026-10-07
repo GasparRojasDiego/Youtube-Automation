@@ -104,15 +104,15 @@ export function parseClaudeOutput<T>(stdout: string, stderr: string, code: numbe
   const all = `${stdout}\n${stderr}`.toLowerCase();
   if (!out) {
     if (/log ?in|logged in|authenticat|\/login|api key/.test(all))
-      throw new UserError("Claude Code no tiene una sesión iniciada.", "Abre una terminal, ejecuta «claude» y entra con la cuenta del plan. " + stderr.slice(-800), "claude", false);
+      throw new UserError("Claude Code no tiene una sesión iniciada.", "En una terminal ejecuta «claude» e inicia sesión. " + stderr.slice(-800), "claude", false);
     throw new UserError(`Claude Code terminó sin respuesta válida (código ${code}).`, (stderr || stdout).slice(-2000), "claude");
   }
   if (out.is_error || (out.subtype && out.subtype !== "success")) {
     const msg = String(out.result ?? out.error ?? out.subtype ?? "error desconocido");
     if (/usage limit|limit reached|rate limit|quota/i.test(msg))
-      throw new UserError("Se alcanzó el límite de uso del plan de Claude.", `El trabajo hecho quedó guardado. Reanuda cuando se renueve el límite. Detalle: ${msg}`, "claude");
+      throw new UserError("Se agotó el límite de uso del plan.", `Lo hecho quedó guardado. Reanuda cuando se reponga. ${msg}`, "claude");
     if (/max.?turns/i.test(String(out.subtype)))
-      throw new UserError("Claude Code agotó el número de pasos permitido para esta tarea.", msg, "claude");
+      throw new UserError("Claude Code se quedó sin pasos.", msg, "claude");
     throw new UserError(`Claude Code devolvió un error: ${msg.slice(0, 300)}`, JSON.stringify(out).slice(0, 3000), "claude");
   }
   let data = out.structured_output;
@@ -158,8 +158,8 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
   const program = cfg.path || "claude";
   const resolved = await proc.which(program);
   if (!resolved) {
-    throw new UserError("No encuentro Claude Code en este equipo.",
-      "Instálalo (https://claude.com/claude-code), abre una terminal, ejecuta «claude» una vez para iniciar sesión y vuelve a intentarlo. Si está en otra ruta, indícala en Ajustes → Claude Code.", "claude", false);
+    throw new UserError("No encuentro Claude Code.",
+      "Instálalo, ejecuta «claude» para iniciar sesión y reintenta. Otra ruta: Ajustes → Claude Code.", "claude", false);
   }
   const { program: exe, prefix } = await resolveLauncher(resolved);
   const args = [...prefix, ...buildClaudeArgs(c, cfg)];
