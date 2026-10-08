@@ -1,5 +1,5 @@
 // Instrucciones y esquemas de salida de cada tarea de lenguaje. Son reglas del
-// motor (rigor, formato, verificación); la identidad del canal llega por las
+// motor (formato, exactitud básica); la identidad del canal llega por las
 // habilidades del usuario, que se inyectan en cada prompt.
 
 type S = Record<string, any>;
@@ -10,15 +10,15 @@ export const arr = (items: S, description?: string): S => ({ type: "array", item
 export const en = (values: string[], description?: string): S => ({ type: "string", enum: values, ...(description ? { description } : {}) });
 export const obj = (properties: S, required: string[] = Object.keys(properties)): S => ({ type: "object", properties, required, additionalProperties: false });
 
-export const SYSTEM_BASE = `You are the production engine of ATRIL, a studio that produces English-language YouTube videos for a US audience.
-Absolute rules:
-- Never invent facts, sources, URLs, quotes, dates or numbers. If something is uncertain, say so in the designated fields.
+export const SYSTEM_BASE = `You are the production engine of ATRIL, a studio that produces engaging, high-quality English-language YouTube videos for a US audience.
+Rules:
+- Do not invent facts, sources, URLs, quotes, dates or numbers. Widely known general knowledge is fine; specific figures must come from real sources.
 - Fields whose name ends in "_es" must be written in short, simple Spanish.
-- The channel's identity, voice and style are defined by the <skill> blocks the operator provides. Follow them closely; when they conflict with these absolute rules, these rules win.
-- The narrator never claims credentials, never impersonates a real person, and never presents an inference as an established fact.
+- The channel's identity, voice and style are defined by the <skill> blocks the operator provides. Follow them closely.
+- The narrator never claims credentials and never impersonates a real person.
 - Answer only through the required structured output.`;
 
-export const wrapSkills = (skills: string) => skills ? `\n\n<channel_skills>\n${skills}\n</channel_skills>` : "\n\n(No channel skills are active for this stage: use a neutral, rigorous documentary register.)";
+export const wrapSkills = (skills: string) => skills ? `\n\n<channel_skills>\n${skills}\n</channel_skills>` : "\n\n(No channel skills are active for this stage: use an engaging, clear, well-paced YouTube storytelling register.)";
 
 // ---------- Banco de temas ----------
 export const TOPICS_SCHEMA = obj({
@@ -57,7 +57,7 @@ export const RESEARCH_SCHEMA = obj({
   })),
   facts: arr(obj({
     id: str("F1, F2, ..."), text_en: str("The fact, stated precisely and neutrally"),
-    source_ids: arr(str()), quote: str("Verbatim excerpt copied from the fetched source that supports the fact (max ~60 words)"),
+    source_ids: arr(str()), quote: str("Short supporting excerpt from the source (may be empty)"),
     quote_location: str("Section, page or paragraph where the quote appears"),
     confidence: en(["high", "medium", "low"]), about_real_person: bool(), note_es: str(),
   })),
@@ -66,17 +66,17 @@ export const RESEARCH_SCHEMA = obj({
 });
 
 export function researchPrompt(o: { skills: string; topic: string; angle: string; notes: string; seedSources: string[] }) {
-  return `Research this topic for a 10-15 minute documentary video.
+  return `Research this topic for an engaging 10-15 minute YouTube video. The operator's request may be a topic, an idea or full instructions: follow it.
 
 TOPIC: ${o.topic}
 ${o.angle ? `ANGLE: ${o.angle}\n` : ""}${o.notes ? `OPERATOR NOTES: ${o.notes}\n` : ""}${o.seedSources.length ? `SUGGESTED STARTING SOURCES:\n${o.seedSources.map((s) => `- ${s}`).join("\n")}\n` : ""}${wrapSkills(o.skills)}
 
-Method:
-1. Search the web broadly, then OPEN (fetch) every source you intend to cite. Never cite a page you did not open.
-2. Prioritize primary sources: official reports, institutional documents, court records, government data, academic papers, and recognized investigative journalism. Use encyclopedias only to find primary sources.
-3. Collect 8-20 sources and 25-60 atomic facts. Each fact must carry a verbatim quote copied exactly from the fetched page; if you cannot quote it, drop the fact.
-4. Flag every fact about a real, identifiable person (about_real_person = true) and be extra precise with them.
-5. Record contradictions between sources, missing evidence and legal/policy risks honestly.`;
+Method (be efficient: good material, not an academic investigation):
+1. Search the web and open the pages you rely on. Reputable sources are enough: established media, official sites, encyclopedias, specialist sites.
+2. Collect 5-12 sources and 20-45 facts, prioritising surprising details, stories, numbers and examples that make a video compelling.
+3. Add a short supporting excerpt (quote) when you have it; it can be brief.
+4. Flag facts about real, identifiable people (about_real_person = true) and keep them precise.
+5. Note real legal/policy risks briefly, if any.`;
 }
 
 // ---------- Guion ----------
@@ -94,14 +94,14 @@ export const SCRIPT_SCHEMA = obj({
   originality_note_es: str("Qué análisis propio aporta el video más allá de resumir las fuentes"),
 });
 
-const SCRIPT_RULES = (minW: number, maxW: number) => `Hard requirements:
-- Total narration between ${minW} and ${maxW} words, split into 6-10 segments. The first two sentences of segment 1 are the hook.
-- Every factual statement in the narration must appear as a claim whose text_en is an exact substring of the segment text, linked to the fact ids and source ids from the research. Do not state facts that are not in the research.
-- Inferences and interpretations are allowed only as kind "inference" or "opinion" and must be phrased as such ("this suggests", "one reading is").
-- Statements about real people must be precise, attributed, and never imply wrongdoing beyond what sources document.
-- The video must deliver original analysis (connections, context, meaning), not a paraphrase of the sources.
+const SCRIPT_RULES = (minW: number, maxW: number) => `Requirements:
+- Total narration between ${minW} and ${maxW} words, split into 6-10 segments. The first two sentences of segment 1 are a strong hook.
+- Mark the key factual statements as claims (text_en = exact substring of the segment text) linked to research facts and sources. Specific numbers, dates and names must come from the research; general knowledge and storytelling need no claim.
+- Interpretations are welcome when phrased as such.
+- Statements about real people must be fair and never imply wrongdoing beyond what sources show.
+- Entertain and explain: tension, curiosity gaps, concrete examples, payoffs, a satisfying ending. Add perspective, not a paraphrase of sources.
 - Write for the ear: varied sentence length, no lists, no stage directions, no URLs read aloud, numbers written as they are spoken.
-- Titles must not promise more than the script demonstrates.`;
+- Titles must be intriguing and delivered by the video.`;
 
 export function scriptPrompt(o: { skills: string; topic: string; research: unknown; minWords: number; maxWords: number; premium: boolean }) {
   return `Write the narration script for this video.${wrapSkills(o.skills)}
@@ -111,7 +111,7 @@ MODE: ${o.premium ? "premium (weekly flagship: richer analysis, more careful rhy
 
 ${SCRIPT_RULES(o.minWords, o.maxWords)}
 
-RESEARCH (the only factual material you may use):
+RESEARCH (your factual base):
 ${JSON.stringify(o.research)}`;
 }
 
@@ -146,17 +146,14 @@ export const VERIFY_SCHEMA = obj({
 });
 
 export function verifyPrompt(o: { skills: string; research: unknown; script: unknown }) {
-  return `You are the independent fact-checker. Assume the script contains errors: language models invent sources and distort what sources say.${wrapSkills(o.skills)}
+  return `You are a quick, practical fact-checker for an entertainment/education YouTube video (not an academic paper). Flag only what would embarrass the channel or create risk.${wrapSkills(o.skills)}
 
-For EVERY claim: compare its text with the quotes of the linked facts. Mark:
-- unsupported / unsourced: no linked fact actually supports it;
-- mismatch / source_mismatch: the source says something different, narrower, older, or less certain;
-- defamation_risk: a statement about a real, identifiable person or organization that implies wrongdoing beyond what the sources document;
-- inference_as_fact: an interpretation stated as fact;
-- overpromise: wording that promises more than the evidence shows.
-Severity: "block" for anything legally risky, false or unsupported; "warn" for imprecision; "ok" otherwise.
-You may fetch a cited URL to confirm a quote when the stored quote looks doubtful.
-Also scan the narration for factual sentences that are NOT marked as claims (unlinked), check every title option against the script, and judge whether the video adds original analysis or merely paraphrases sources.
+For each claim, compare it with the linked facts:
+- "block" ONLY for statements that are clearly false, invented specific numbers/dates/names, or defamatory about a real person or organization;
+- "warn" for imprecision or overstatement;
+- "ok" otherwise (general knowledge and reasonable storytelling are ok).
+Flagged sentences will be rewritten automatically, so give a concrete suggested_fix_en for every "block".
+Also list up to 5 unlinked sentences only if they look clearly false, and check that titles do not promise something the video never delivers.
 
 RESEARCH:
 ${JSON.stringify(o.research)}

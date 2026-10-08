@@ -1,5 +1,6 @@
-// Orquestador: ejecuta las etapas en orden hasta el siguiente punto de
-// revisión, guarda cada resultado y se reanuda donde quedó tras un fallo.
+// Orquestador: ejecuta todas las etapas sin detenerse hasta la revisión final
+// (lo único que espera al usuario), guarda cada resultado y se reanuda donde
+// quedó tras un fallo.
 import { db, proc } from "../lib/ipc";
 import { emit } from "../lib/bus";
 import { getSettings } from "../lib/settings";
@@ -9,7 +10,6 @@ import { uid } from "../lib/util";
 import * as St from "./stages";
 import * as Ed from "./edit";
 import { activity, setLive } from "../lib/activity";
-import * as L from "./logic";
 import type { VerifyOut, ScriptOut } from "./types";
 
 interface Running { videoId: string; jobId: string; cancelled: boolean; stage: StageId | null }
@@ -52,7 +52,9 @@ async function runOnce(r: Running) {
     const stages = await getStages(video.id);
     const next = stages.find((s) => !["done", "approved", "skipped"].includes(s.status));
     if (!next) { await updateVideo(video.id, { stage: null }); return; }
-    if (next.status === "review") return; // espera al usuario
+    // Videos antiguos detenidos en la revisión del guion: ya no se espera, se sigue
+    if (next.status === "review" && next.stage === "verify") { await setStage(video.id, "verify", { status: "approved", progress: null }); continue; }
+    if (next.status === "review") return; // espera al usuario (revisión final o grabar tu voz)
     const stage = next.stage;
     r.stage = stage;
     await updateVideo(video.id, { stage });
@@ -72,9 +74,7 @@ async function runOnce(r: Running) {
       const t0 = Date.now();
       const output = await runStage(stage, ctx);
       await activity(video.id, stage, "done", `${label} terminada en ${Math.max(1, Math.round((Date.now() - t0) / 1000))} s`);
-      const gate = stage === "verify";
-      await setStage(video.id, stage, { status: gate ? "review" : "done", output, finishedNow: true, progress: null });
-      if (gate) { notifyReview(video.id, "Guion listo para revisar."); return; }
+      await setStage(video.id, stage, { status: "done", output, finishedNow: true, progress: null });
     } catch (e) {
       if (e instanceof St.NeedsUser) {
         await setStage(video.id, stage, { status: "review", progress: e.messageEs });
@@ -99,7 +99,7 @@ async function runStage(stage: StageId, ctx: St.Ctx): Promise<unknown> {
   switch (stage) {
     case "research": return St.stageResearch(ctx);
     case "script": return St.stageScript(ctx);
-    case "verify": return St.stageVerify(ctx);
+    case "verify": return verifyAndFix(ctx);
     case "voice": return St.stageVoice(ctx);
     case "storyboard": return Ed.stageStoryboard(ctx);
     case "assets": return Ed.stageAssets(ctx);
@@ -110,6 +110,47 @@ async function runStage(stage: StageId, ctx: St.Ctx): Promise<unknown> {
     case "publish": return St.stagePublish(ctx);
     default: return null;
   }
+}
+
+/**
+ * Revisión de datos sin detenerse: si hay marcas rojas, Opus reescribe esas
+ * frases una vez y el video sigue. En modo «desactivada» no se revisa.
+ */
+async function verifyAndFix(ctx: St.Ctx): Promise<VerifyOut> {
+  if (getSettings().production.verifyMode === "off") {
+    return { overall_es: "Revisión de datos desactivada en Ajustes.", title_checks: [], originality: { verdict: "ok", note_es: "" }, claims: [], unlinked: [], segment_glosses: [], rounds: 0 };
+  }
+  const v = await St.stageVerify(ctx);
+  const issues = scriptIssues(v, await getStages(ctx.video.id), true);
+  if (!issues.length) return v;
+  await ctx.progress(`Corrigiendo ${issues.length} frase(s) marcadas…`);
+  await activity(ctx.video.id, "verify", "decision", `Revisión de datos: ${issues.length} frase(s) a corregir; se corrigen solas`, issues.map((i: any) => `• ${i.claim ?? i.sentence ?? i.title}: ${i.problem}`).join("\n").slice(0, 1500));
+  try {
+    const revised = await St.stageScript(ctx, { issues, notes: "Automatic fix: rewrite ONLY the flagged sentences so they are accurate (soften, attribute or remove the doubtful detail). Keep everything else, including length and structure." });
+    await setStage(ctx.video.id, "script", { status: "done", output: revised });
+    for (const c of v.claims) if (c.severity === "block") { c.resolution = "accepted"; c.user_note = "Corregida automáticamente"; }
+    for (const u of v.unlinked) if (u.severity === "block") { u.resolution = "accepted"; u.user_note = "Corregida automáticamente"; }
+    v.overall_es = `${v.overall_es} Se corrigieron solas ${issues.length} frase(s).`.trim();
+  } catch (e) {
+    // Si la corrección falla, se sigue con el guion original (no se detiene el video)
+    await activity(ctx.video.id, "verify", "warn", "No se pudo corregir el guion; se sigue con el original", errorText(e).message);
+  }
+  return v;
+}
+
+/** Problemas a corregir: marcas rojas (y en revisión manual, también lo pedido por el usuario). */
+function scriptIssues(v: VerifyOut, stages: Awaited<ReturnType<typeof getStages>>, autoOnly: boolean) {
+  const script = stages.find((s) => s.stage === "script")?.output as ScriptOut;
+  const want = (sev: string, res?: string | null) => autoOnly ? sev === "block" : res === "fix" || (sev === "block" && res !== "accepted");
+  return [
+    ...v.claims.filter((c) => want(c.severity, c.resolution)).map((c) => {
+      const claim = script?.segments.flatMap((s) => s.claims).find((x) => x.id === c.claim_id);
+      return { claim_id: c.claim_id, claim: claim?.text_en, problem: c.note_es, suggested_fix: c.suggested_fix_en, operator_note: c.user_note ?? "" };
+    }),
+    ...v.unlinked.filter((u) => want(u.severity, u.resolution)).map((u) => ({ segment_id: u.segment_id, sentence: u.text_en, problem: u.issue_es, operator_note: u.user_note ?? "" })),
+    // Los títulos se rehacen en Metadatos: en la corrección automática no justifican reescribir el guion
+    ...(autoOnly ? [] : v.title_checks.filter((t) => t.verdict === "overpromise").map((t) => ({ title: t.title, problem: t.note_es }))),
+  ];
 }
 
 // ---------- Acciones de revisión ----------
@@ -123,13 +164,8 @@ export async function saveVerification(videoId: string, v: VerifyOut) {
   emit("stages");
 }
 
-/** Aprueba el guion (sin bloqueos abiertos) y continúa el pipeline. */
+/** Aprueba el guion y continúa (las marcas rojas ya no bloquean). */
 export async function approveScript(videoId: string) {
-  const st = (await getStages(videoId)).find((s) => s.stage === "verify");
-  const v = st?.output as VerifyOut | null;
-  if (!v) throw new Error("No hay verificación");
-  if (L.openBlocks(v) > 0) throw new Error("Quedan marcas bloqueantes sin resolver.");
-  if (L.pendingFixes(v) > 0) throw new Error("Hay correcciones pedidas: aplícalas antes de aprobar.");
   await setStage(videoId, "verify", { status: "approved" });
   runVideo(videoId);
 }
@@ -138,15 +174,7 @@ export async function approveScript(videoId: string) {
 export async function applyScriptFixes(videoId: string, notes: string) {
   const stages = await getStages(videoId);
   const v = stages.find((s) => s.stage === "verify")?.output as VerifyOut;
-  const script = stages.find((s) => s.stage === "script")?.output as ScriptOut;
-  const issues = [
-    ...v.claims.filter((c) => c.resolution === "fix" || (c.severity === "block" && c.resolution !== "accepted")).map((c) => {
-      const claim = script.segments.flatMap((s) => s.claims).find((x) => x.id === c.claim_id);
-      return { claim_id: c.claim_id, claim: claim?.text_en, problem: c.note_es, suggested_fix: c.suggested_fix_en, operator_note: c.user_note ?? "" };
-    }),
-    ...v.unlinked.filter((u) => u.resolution === "fix" || (u.severity === "block" && u.resolution !== "accepted")).map((u) => ({ segment_id: u.segment_id, sentence: u.text_en, problem: u.issue_es, operator_note: u.user_note ?? "" })),
-    ...v.title_checks.filter((t) => t.verdict === "overpromise").map((t) => ({ title: t.title, problem: t.note_es })),
-  ];
+  const issues = scriptIssues(v, stages, false);
   const video = await getVideo(videoId);
   if (!video) return;
   // Ejecuta la corrección dentro de la cola para no competir con otro trabajo.
@@ -204,6 +232,19 @@ export async function recoverOnStartup() {
     const next = stages.find((s) => !["done", "approved", "skipped"].includes(s.status));
     if (next && next.status !== "review" && next.status !== "failed") runVideo(v.id);
   }
+}
+
+/** Crea un video a partir de lo que escribas (una idea, un tema o instrucciones) y lo produce hasta la revisión final. */
+export async function startFromPrompt(prompt: string, opts: { mode?: "standard" | "premium"; voiceMode?: "ai" | "own" } = {}): Promise<string | null> {
+  const ch = await activeChannel();
+  if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
+  const text = prompt.trim();
+  if (!text) return null;
+  const first = text.split(/\n/)[0].trim();
+  const title = first.length > 90 ? `${first.slice(0, 87)}…` : first;
+  const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, opts);
+  runVideo(v.id);
+  return v.id;
 }
 
 /** Inicia el siguiente video con el próximo tema aprobado (si no hay uno en curso). */

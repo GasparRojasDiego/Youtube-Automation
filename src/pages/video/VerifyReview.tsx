@@ -162,7 +162,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
             <Card>
               <div className="space-y-2.5">
                 <div className="flex gap-1.5 flex-wrap">
-                  <Chip tone={blocks ? "red" : "green"}>{blocks} bloqueos abiertos</Chip>
+                  <Chip tone={blocks ? "amber" : "green"}>{blocks} marcas rojas</Chip>
                   <Chip tone={fixes ? "amber" : "muted"}>{fixes} correcciones pedidas</Chip>
                 </div>
                 <textarea className="input min-h-20 text-xs" placeholder="Notas para corregir el guion" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -171,12 +171,11 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
                     onClick={async () => { await addReview(video.id, "verify", "fixes", notes, secs.current); await applyScriptFixes(video.id, notes); setNotes(""); }}>
                     <Wrench size={14} /> Aplicar correcciones
                   </AsyncButton>
-                  <AsyncButton className="btn-primary flex-1" disabled={blocks > 0 || fixes > 0}
+                  <AsyncButton className="btn-primary flex-1"
                     onClick={async () => { try { await addReview(video.id, "verify", "approved", notes, secs.current); await approveScript(video.id); toast("success", "Guion aprobado", "Sigue la voz, las imágenes y el montaje."); } catch (e) { toast("warn", String((e as Error).message)); } }}>
                     <CheckCircle2 size={14} /> Aprobar guion
                   </AsyncButton>
                 </div>
-                {blocks > 0 && <div className="text-[11px] text-muted-foreground">Resuelve cada marca roja para aprobar.</div>}
               </div>
             </Card>
           )}

@@ -20,9 +20,10 @@ export function checkScript(script: ScriptOut, research: ResearchOut): ScriptIss
         issues.push({ segment_id: seg.id, claim_id: c.id, problem_es: "El texto de la afirmación no aparece literalmente en la narración.", severity: "warn" });
       if (c.kind === "fact") {
         const known = c.fact_ids.filter((f) => factIds.has(f));
-        if (!known.length) issues.push({ segment_id: seg.id, claim_id: c.id, problem_es: "Afirmación factual sin ningún hecho de la investigación que la respalde.", severity: "block" });
-        if (c.fact_ids.some((f) => !factIds.has(f))) issues.push({ segment_id: seg.id, claim_id: c.id, problem_es: "Cita hechos que no existen en la investigación.", severity: "block" });
-        if (c.source_ids.some((s) => !srcIds.has(s))) issues.push({ segment_id: seg.id, claim_id: c.id, problem_es: "Cita fuentes que no existen en la investigación.", severity: "block" });
+        // Avisos, no bloqueos: la revisión del modelo decide si algo es falso
+        if (!known.length) issues.push({ segment_id: seg.id, claim_id: c.id, problem_es: "Afirmación factual sin ningún hecho de la investigación que la respalde.", severity: "warn" });
+        if (c.fact_ids.some((f) => !factIds.has(f))) issues.push({ segment_id: seg.id, claim_id: c.id, problem_es: "Cita hechos que no existen en la investigación.", severity: "warn" });
+        if (c.source_ids.some((s) => !srcIds.has(s))) issues.push({ segment_id: seg.id, claim_id: c.id, problem_es: "Cita fuentes que no existen en la investigación.", severity: "warn" });
       }
     }
   }

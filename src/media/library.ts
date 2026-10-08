@@ -94,6 +94,10 @@ export async function importCandidate(c: Candidate): Promise<Asset> {
 
 /** Importa un archivo propio (con derechos del usuario) a la biblioteca. */
 export async function importLocalFile(src: string, kind: AssetKind, meta: { title?: string; license?: string; attribution?: string; note?: string } = {}): Promise<Asset> {
+  // El mismo archivo importado otra vez: se devuelve el que ya está en la biblioteca
+  const hash = await sha256(`${src}|${await fs.size(src)}`);
+  const dup = await db.query<{ id: string }>("SELECT id FROM assets WHERE source='user' AND source_id=?", [hash.slice(0, 24)]);
+  if (dup[0]) { const a = await getAsset(dup[0].id); if (a && (await fs.exists(a.path))) return a; await db.execute("DELETE FROM assets WHERE id=?", [dup[0].id]); }
   const root = await libraryRoot();
   const id = uid("as_");
   const ext = extName(src) || (kind === "image" ? "jpg" : kind === "video" ? "mp4" : "mp3");
@@ -103,7 +107,6 @@ export async function importLocalFile(src: string, kind: AssetKind, meta: { titl
   const m = await probeMedia(path);
   const thumb = joinPath(root, ".miniaturas", `${id}.${kind === "sfx" || kind === "music" ? "png" : "jpg"}`);
   try { await makeThumb({ kind, path, duration: m.duration }, thumb); } catch { /* sin miniatura */ }
-  const hash = await sha256(`${src}|${await fs.size(src)}`);
   await db.execute(
     `INSERT INTO assets(id,kind,source,source_id,url,page_url,title,author,license,license_url,attribution,path,thumb,width,height,duration,bytes,sha,query,issues,created_at,usable)
      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,

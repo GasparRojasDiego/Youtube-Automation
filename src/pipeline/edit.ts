@@ -1,27 +1,29 @@
 // Edición v2: storyboard (Sonnet) → medios y casting (biblioteca + fuentes
 // libres + visión de Sonnet) → retoques (Opus) → animaciones (Opus + motor de
 // motion) → montaje por capas. Todo reanudable y visible en el Estudio en vivo.
-import { fs, db, fileUrl } from "../lib/ipc";
-import { getSettings } from "../lib/settings";
+import { fs, db, fileUrl, appPaths, secrets } from "../lib/ipc";
+import { getSettings, SECRET } from "../lib/settings";
 import { composeSkills, skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS } from "../lib/skills";
 import { listMusic, updateVideo } from "../lib/repo";
 import { UserError, log } from "../lib/events";
 import { activity, setLive } from "../lib/activity";
 import { joinPath, sha256, now, uid } from "../lib/util";
 import { claudeRun } from "../providers/claude";
-import { generateImage, type Provenance } from "../providers/images";
+import { generateImage, imageProvider, type Provenance } from "../providers/images";
 import { ffmpeg, probeDuration, pickEncoder, filterScriptModern } from "../providers/ffmpeg";
 import { searchLibrary, importCandidate, getAssets, markUsed, type Asset } from "../media/library";
-import { searchSources, rankCandidates, SOURCE_LABEL, type AssetKind } from "../media/sources";
+import { searchSources, rankCandidates, sourceReady, SOURCE_LABEL, type AssetKind } from "../media/sources";
+import { synthSfx, sfxKind } from "../media/sfx";
+import { elevenSoundEffect } from "../providers/tts";
 import { describeAssets } from "../media/vision";
-import { launchBrowser, closeBrowser, renderComposition, MotionError, type Browser } from "../motion/engine";
+import { launchBrowser, closeBrowser, renderComposition, MotionError, EngineError, type Browser } from "../motion/engine";
 import { tauriHost, requireBrowser, motionResources } from "../motion/host";
 import type { Composition } from "../motion/page";
 import { renderSourceCard, renderTitleCard, renderQuoteCard, renderTextCard } from "./cards";
 import { out, need, checkCancel, type Ctx } from "./stages";
 import * as P2 from "./prompts2";
 import { SYSTEM_BASE } from "./prompts";
-import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, type SegInfo, type PolishRaw } from "./timeline";
+import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, type SegInfo, type PolishRaw } from "./timeline";
 import { segmentV2Args, finalMixV2Args, withFilterScript, segmentV2Duration, type LayerShot, type LayerOverlay } from "./montage2";
 import { concatList } from "./montage";
 import { wordTimings } from "./align";
@@ -30,12 +32,31 @@ import { FONT_FILES } from "../motion/page";
 import { resourcePath } from "../lib/ipc";
 import type { ScriptOut, ResearchOut, VoiceOut, StoryboardOut, AssetsOut, PolishOut, MotionOut, MotionItem, Shot, SfxCue, MusicBed, RenderOut } from "./types";
 
-const MEDIA_VISUALS = new Set(["photo", "archival", "clip", "meme"]);
+const MEDIA_VISUALS = new Set(["photo", "archival", "clip", "meme", "ai_image"]);
+/** Sube si cambia la lógica del storyboard (rehace los storyboards guardados). */
+const STORYBOARD_VERSION = 3;
 const kindFor = (s: Shot): AssetKind => (s.visual === "clip" ? "video" : "image");
 
-async function motionBudget(ctx: Ctx) {
+/** ¿Se pueden generar imágenes con IA (ajuste activo y clave presente)? */
+export async function aiImagesReady(): Promise<boolean> {
+  return getSettings().media.allowGenerated && !!(await imageProvider());
+}
+
+/** Prompt de imagen: lo que pide la toma, el contexto narrado y el estilo del canal. */
+function imagePromptFor(sh: Shot, narration: string, style: string): string {
+  return [
+    sh.image_prompt_en || sh.query_en || keywordsQuery(narration),
+    narration ? `Context (what the narrator says at this moment): "${narration.slice(0, 400)}"` : "",
+    style ? `Style: ${style}` : "Style: cinematic, high detail, natural light, documentary look.",
+    "Widescreen 16:9 composition. No text, letters, captions, logos or watermarks. No recognisable real people.",
+  ].filter(Boolean).join("\n");
+}
+
+/** Animaciones por video: el ajuste, pero nunca menos de una por minuto de narración. */
+async function motionBudget(ctx: Ctx, totalSeconds = 0) {
   const m = getSettings().motion;
-  return m.enabled ? m.perVideo[ctx.video.mode] : 0;
+  if (!m.enabled) return 0;
+  return Math.max(m.perVideo[ctx.video.mode], Math.ceil(totalSeconds / 60) + 1);
 }
 
 // ======================= 5. Storyboard (Sonnet) =======================
@@ -48,8 +69,9 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
   const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const segs = segInfos(script, voice);
-  const budget = await motionBudget(ctx);
-  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual]));
+  const narrTotal = segs.reduce((a, s) => a + s.narration, 0);
+  const budget = await motionBudget(ctx, narrTotal);
+  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, STORYBOARD_VERSION]));
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
 
   await ctx.progress("Armando el storyboard…");
@@ -57,21 +79,21 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
     stage: "storyboard", activityStage: "storyboard", label: "Storyboard", system: SYSTEM_BASE, schema: P2.STORYBOARD_SCHEMA,
     prompt: P2.storyboardPrompt({
       skills: [await composeSkills(v.channel_id, "visuals"), await composeSkills(v.channel_id, "montage")].filter(Boolean).join("\n\n"),
-      visual, shotSeconds: montage.shotSeconds, motionBudget: budget, maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor,
+      visual, shotSeconds: montage.shotSeconds, motionBudget: budget, minutes: narrTotal / 60, aiImages: await aiImagesReady(), maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor,
       segments: segs.map((s) => ({ id: s.id, title: s.title, on_screen_sources: script.segments.find((x) => x.id === s.id)?.on_screen_sources ?? [],
         sentences: s.sentences.map((t, i) => ({ i, text: t, dur: Math.max(0.3, (s.spans[i]?.end ?? 0) - (s.spans[i]?.start ?? 0)) })) })),
       sources: research.sources.map((x) => ({ id: x.id, title: x.title, publisher: x.publisher })),
     }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
   });
-  const { shots: raw, beatSfx } = repairStoryboard(r.data.beats ?? [], segs, budget, new Set(research.sources.map((x) => x.id)));
+  const { shots: raw, beatSfx } = repairStoryboard(r.data.beats ?? [], segs, budget, new Set(research.sources.map((x) => x.id)), { aiImages: await aiImagesReady(), maxCards: P2.MAX_CARDS });
   const shots = layoutShots(raw, segs, montage.pauseBetweenSegments);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
   const sfx = beatSfxToCues(beatSfx, shots, offsets);
   const music = repairMusic(r.data.music ?? [], segs.map((s) => s.id));
   const emphasis = Object.fromEntries((r.data.emphasis ?? []).map((e) => [e.segment_id, e.words ?? []]));
   const count = (k: string) => shots.filter((s) => s.visual === k).length;
-  await activity(v.id, "storyboard", "decision", `Storyboard: ${shots.length} tomas · ${count("photo") + count("archival")} imágenes · ${count("clip")} clips · ${count("motion") + count("map")} animaciones · ${sfx.length} efectos`, r.data.notes_es ?? "");
+  await activity(v.id, "storyboard", "decision", `Storyboard: ${shots.length} tomas · ${count("photo") + count("archival")} imágenes · ${count("ai_image")} con IA · ${count("clip")} clips · ${count("motion") + count("map")} animaciones · ${sfx.length} efectos`, r.data.notes_es ?? "");
   return { shots, sfx, music, emphasis, notes_es: r.data.notes_es ?? "", scriptKey: key };
 }
 
@@ -89,7 +111,7 @@ export function assetProvenance(a: Asset): Provenance {
 async function huntShot(ctx: Ctx, sh: Shot, exclude: Set<string>): Promise<{ candidates: Asset[]; downloaded: Asset[] }> {
   const v = ctx.video; const m = getSettings().media;
   const kind = kindFor(sh);
-  const queries = [sh.query_en!, ...(sh.alt_queries_en ?? [])].filter(Boolean);
+  const queries = fallbackQueries(sh.query_en ?? "", sh.alt_queries_en ?? []);
   const found = new Map<string, Asset>();
   if (m.libraryFirst) {
     for (const q of queries.slice(0, 2)) for (const h of await searchLibrary(q, kind, 5, { excludeIds: [...exclude], minDur: kind === "video" ? 1 : undefined })) found.set(h.id, h);
@@ -120,28 +142,63 @@ async function huntShot(ctx: Ctx, sh: Shot, exclude: Set<string>): Promise<{ can
   return { candidates: [...found.values()].slice(0, 6), downloaded };
 }
 
-/** Busca (o reutiliza) un efecto de sonido por consulta. */
+/**
+ * Efectos de sonido: para cada uno, la biblioteca → Freesound → ElevenLabs
+ * (si está activado) → síntesis propia con ffmpeg. Nunca se omite un efecto.
+ */
 async function resolveSfx(ctx: Ctx, cues: SfxCue[]): Promise<SfxCue[]> {
-  const cache = new Map<string, Asset | null>();
+  const st = getSettings();
+  const v = ctx.video;
+  const cacheDir = joinPath((await appPaths()).data, "efectos");
+  await fs.mkdir(cacheDir);
+  const elKey = st.sfx.elevenlabs ? await secrets.get(SECRET.elevenlabsApiKey) : null;
+  const freesound = await sourceReady("freesound");
+  const found = new Map<string, { path: string; duration?: number; origin: NonNullable<SfxCue["origin"]>; asset_id?: string | null; offset: number }>();
   const outCues: SfxCue[] = [];
+  const count: Record<string, number> = {};
+  let elUsed = 0, variant = 0;
   for (const c of cues) {
     if (c.path && (await fs.exists(c.path))) { outCues.push(c); continue; }
+    checkCancel(ctx);
+    const kind = sfxKind(c.type, c.query_en);
     const q = (c.query_en || c.type).toLowerCase().trim();
-    if (!cache.has(q)) {
-      let a: Asset | null = (await searchLibrary(q, "sfx", 1))[0] ?? (await searchLibrary(c.type, "sfx", 1))[0] ?? null;
-      if (!a) {
-        const rep = await searchSources(q, "sfx", 3);
-        for (const cand of rankCandidates(rep.candidates, "sfx").slice(0, 2)) {
-          try { const imp = await importCandidate(cand); a = a ?? imp; await activity(ctx.video.id, "assets", "audio", `Efecto descargado: ${cand.title.slice(0, 80)}`, `${cand.license} · ${cand.pageUrl}`); }
-          catch { /* siguiente */ }
-        }
-      }
-      cache.set(q, a);
+    const lead = kind === "riser" ? -1.8 : kind === "whoosh" ? -0.35 : kind === "swoosh" ? -0.2 : 0; // el pico cae en el corte
+    let hit = found.get(q) ?? null;
+    if (!hit) {
+      const lib = (await searchLibrary(q, "sfx", 1))[0] ?? (await searchLibrary(kind, "sfx", 1))[0];
+      if (lib) hit = { path: lib.path, duration: lib.duration ?? undefined, origin: "library", asset_id: lib.id, offset: lead };
     }
-    const a = cache.get(q);
-    if (a) outCues.push({ ...c, asset_id: a.id, path: a.path, duration: a.duration ?? undefined });
-    else await activity(ctx.video.id, "assets", "warn", `Sin efecto de sonido para «${q}»; se omite.`);
+    if (!hit && freesound) {
+      const rep = await searchSources(q, "sfx", 3, ["freesound"]);
+      for (const cand of rankCandidates(rep.candidates, "sfx").slice(0, 2)) {
+        try {
+          const a = await importCandidate(cand);
+          hit = { path: a.path, duration: a.duration ?? cand.duration, origin: "freesound", asset_id: a.id, offset: lead };
+          await activity(v.id, "assets", "audio", `Efecto de Freesound: ${cand.title.slice(0, 80)}`, `${cand.license} · ${cand.pageUrl}`);
+          break;
+        } catch { /* siguiente */ }
+      }
+    }
+    if (!hit && elKey && elUsed < st.sfx.maxGenerated) {
+      const secs = kind === "riser" ? 2.2 : kind === "drone" || kind === "wind" || kind === "rain" ? 5 : kind === "boom" || kind === "bell" ? 2.5 : 1.2;
+      const file = joinPath(cacheDir, `el-${(await sha256(`${q}|${secs}`)).slice(0, 16)}.mp3`);
+      try {
+        if (!(await fs.exists(file))) { await elevenSoundEffect({ prompt: `${c.query_en || c.type}, ${kind}, clean, isolated sound effect, no music`, seconds: secs, outPath: file, videoId: v.id, channelId: v.channel_id }); elUsed++; }
+        hit = { path: file, duration: secs, origin: "elevenlabs", asset_id: null, offset: lead };
+        await activity(v.id, "assets", "audio", `Efecto creado con ElevenLabs: «${q}»`);
+      } catch (e) { await activity(v.id, "assets", "warn", `ElevenLabs no creó «${q}»; se sintetiza`, e instanceof UserError ? e.userMessage : String(e)); }
+    }
+    if (!hit) {
+      const vv = variant++ % 4;
+      const r = await synthSfx(kind, joinPath(cacheDir, `sint-${kind.replace(/ /g, "-")}-${vv}.wav`), vv);
+      hit = { path: r.path, duration: r.duration, origin: "synth", asset_id: null, offset: r.offset };
+    }
+    found.set(q, hit);
+    count[hit.origin] = (count[hit.origin] ?? 0) + 1;
+    outCues.push({ ...c, at: Math.max(0, Math.round((c.at + hit.offset) * 100) / 100), asset_id: hit.asset_id ?? null, path: hit.path, duration: hit.duration, origin: hit.origin });
   }
+  const names: Record<string, string> = { library: "biblioteca", freesound: "Freesound", elevenlabs: "ElevenLabs", synth: "síntesis propia" };
+  if (Object.keys(count).length) await activity(v.id, "assets", "audio", `Efectos de sonido: ${Object.entries(count).map(([k, n]) => `${n} de ${names[k] ?? k}`).join(" · ")}`);
   return outCues;
 }
 
@@ -206,34 +263,69 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
   const s = getSettings();
   const dir = joinPath(v.dir, "cards");
   await fs.mkdir(dir);
+  const visualP = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const shots: Shot[] = sb.shots.map((x) => ({ ...x }));
-  const same = (a: Shot, b: Shot) => a.visual === b.visual && a.query_en === b.query_en && a.card_text === b.card_text && a.source_id === b.source_id;
+  const same = (a: Shot, b: Shot) => a.visual === b.visual && a.query_en === b.query_en && a.card_text === b.card_text && a.source_id === b.source_id && (a.image_prompt_en ?? "") === (b.image_prompt_en ?? "");
   let downloaded = 0, reused = 0, fallbacks = 0;
   const allNew: Asset[] = [];
   const pool = new Map<string, Asset[]>();
   const chosen = new Set<string>();
+  const narr = (sh: Shot) => shotNarration(sh, segs.find((x) => x.id === sh.segment_id)!);
+  const aiReady = await aiImagesReady();
+  const aiCap = s.images.perVideo[v.mode];
+  let aiUsed = 0;
+
+  // Imagen con IA para una toma (respeta el tope por video)
+  const generate = async (sh: Shot, why: string): Promise<boolean> => {
+    if (!aiReady || aiUsed >= aiCap) return false;
+    try {
+      await ctx.progress(`Creando imagen con IA para ${sh.id}…`);
+      const r = await generateImage({ prompt: imagePromptFor(sh, narr(sh), visualP.imageStyle), outBase: joinPath(dir, `${sh.id}-ia-${Date.now().toString(36)}`), videoId: v.id, channelId: v.channel_id, label: `toma ${sh.id}` });
+      aiUsed++;
+      Object.assign(sh, { path: r.path, media: "image", provenance: r.provenance, asset_id: null, error: null, focus_x: 0.5, focus_y: 0.45 });
+      await activity(v.id, "assets", "asset", `${sh.id}: imagen con IA (${why})`, r.provenance.provider, r.path);
+      setLive(v.id, { frame: r.path, caption: `Imagen con IA: ${sh.id}` });
+      return true;
+    } catch (e) {
+      await activity(v.id, "assets", "warn", `${sh.id}: no se pudo crear la imagen con IA`, e instanceof UserError ? `${e.userMessage}\n${e.detail.slice(0, 400)}` : String(e));
+      return false;
+    }
+  };
 
   // 1) Reutilizar lo ya resuelto y buscar candidatos para lo demás
   const media = shots.filter((x) => MEDIA_VISUALS.has(x.visual));
-  for (const [i, sh] of media.entries()) {
+  for (const sh of media) {
+    const old = prev?.shots.find((p) => p.id === sh.id && same(p, sh) && p.path && (p.asset_id || p.provenance?.kind === "generated"));
+    if (old && (await fs.exists(old.path!))) {
+      Object.assign(sh, { asset_id: old.asset_id, path: old.path, media: old.media, focus_x: old.focus_x, focus_y: old.focus_y, clip_in: old.clip_in, provenance: old.provenance });
+      if (old.asset_id) chosen.add(old.asset_id);
+      if (old.provenance?.kind === "generated") aiUsed++;
+      reused++;
+    }
+  }
+  // 2) Tomas pensadas para IA: se crean primero (si falla, se busca material como una foto)
+  for (const sh of media.filter((x) => x.visual === "ai_image" && !x.path)) {
     checkCancel(ctx);
-    const old = prev?.shots.find((p) => p.id === sh.id && same(p, sh) && p.path && p.asset_id);
-    if (old && (await fs.exists(old.path!))) { Object.assign(sh, { asset_id: old.asset_id, path: old.path, media: old.media, focus_x: old.focus_x, focus_y: old.focus_y, clip_in: old.clip_in, provenance: old.provenance }); chosen.add(old.asset_id!); reused++; continue; }
-    await ctx.progress(`Buscando material ${i + 1}/${media.length}: ${sh.query_en}`);
+    if (!(await generate(sh, "pedida en el storyboard"))) sh.visual = "photo";
+  }
+  const toHunt = media.filter((x) => !x.path);
+  for (const [i, sh] of toHunt.entries()) {
+    checkCancel(ctx);
+    await ctx.progress(`Buscando material ${i + 1}/${toHunt.length}: ${sh.query_en}`);
     const r = await huntShot(ctx, sh, chosen);
     pool.set(sh.id, r.candidates);
     sh.candidates = r.candidates.map((a) => a.id);
     downloaded += r.downloaded.length;
     allNew.push(...r.downloaded);
   }
-  // 2) Visión: describir una sola vez lo descargado (en lotes)
+  // 3) Visión: describir una sola vez lo descargado (en lotes)
   const toDescribe = [...new Map([...allNew, ...[...pool.values()].flat()].filter((a) => !a.described_at).map((a) => [a.id, a])).values()];
   let described = 0;
   if (toDescribe.length) {
     await ctx.progress(`Describiendo ${toDescribe.length} archivo(s)…`);
     described = await describeAssets(toDescribe, { videoId: v.id, channelId: v.channel_id, stage: "assets", jobId: ctx.jobId });
   }
-  // 3) Casting (Sonnet, solo texto): elegir el mejor candidato de cada toma
+  // 4) Casting (Sonnet, solo texto): elegir el mejor candidato de cada toma
   const pending = media.filter((sh) => !sh.path && (pool.get(sh.id)?.length ?? 0) > 0);
   if (pending.length) {
     const fresh = await getAssets([...new Set(pending.flatMap((sh) => pool.get(sh.id)!.map((a) => a.id)))]);
@@ -244,7 +336,7 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
       const r = await claudeRun<{ picks: { shot_id: string; asset_id: string; focus_x: number; focus_y: number; clip_in: number; note_es: string }[] }>({
         stage: "storyboard", activityStage: "assets", label: "Casting de material", system: SYSTEM_BASE, schema: P2.CASTING_SCHEMA, quiet: true,
         prompt: P2.castingPrompt({ shots: chunk.map((sh) => ({
-          id: sh.id, narration: shotNarration(sh, segs.find((x) => x.id === sh.segment_id)!), visual: sh.visual, must_show_es: sh.must_show_es ?? "", avoid_es: sh.avoid_es ?? "", dur: sh.dur ?? 3,
+          id: sh.id, narration: narr(sh), visual: sh.visual, must_show_es: sh.must_show_es ?? "", avoid_es: sh.avoid_es ?? "", dur: sh.dur ?? 3,
           candidates: pool.get(sh.id)!.map((a) => fresh.get(a.id) ?? a).filter((a) => a.usable).map((a) => ({
             id: a.id, kind: a.kind, caption: a.tags.split(",")[0] ?? a.title, description: (a.description || a.title).slice(0, 420), quality: a.quality || 3,
             real_person: !!a.real_person, license: a.license, size: `${a.width ?? "?"}×${a.height ?? "?"}`, duration: a.duration ?? undefined, used_in_video: chosen.has(a.id),
@@ -263,37 +355,49 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
       }
     }
   }
-  // 4) Tarjetas, respaldos y marcadores de animación
+  // 5) Tomas sin material: imagen con IA → material de la biblioteca relacionado → imagen ya usada en el capítulo → (último recurso) tarjeta
+  for (const sh of media.filter((x) => !x.path)) {
+    checkCancel(ctx);
+    fallbacks++;
+    if (sh.visual !== "clip" && (await generate(sh, "sin material libre adecuado"))) continue;
+    const related = (await searchLibrary(keywordsQuery(narr(sh)) || sh.query_en || "", "image", 6, { excludeIds: [...chosen] })).filter((a) => a.usable !== 0 && !a.real_person)[0];
+    if (related) {
+      Object.assign(sh, { asset_id: related.id, path: related.path, media: "image", focus_x: 0.5, focus_y: 0.5, provenance: assetProvenance(related), visual: sh.visual === "clip" ? "photo" : sh.visual });
+      chosen.add(related.id);
+      await activity(v.id, "assets", "decision", `${sh.id}: material relacionado de la biblioteca`, related.title, related.thumb);
+      continue;
+    }
+    const sibling = shots.find((x) => x.segment_id === sh.segment_id && x.id !== sh.id && x.path && x.media === "image" && x.provenance?.kind !== "card");
+    if (sibling) {
+      Object.assign(sh, { asset_id: sibling.asset_id, path: sibling.path, media: "image", focus_x: 1 - (sibling.focus_x ?? 0.5), focus_y: sibling.focus_y ?? 0.5, provenance: sibling.provenance, motion: "pan_left" });
+      await activity(v.id, "assets", "decision", `${sh.id}: reutiliza la imagen de ${sibling.id} con otro encuadre`);
+      continue;
+    }
+    sh.error = `Sin material para «${sh.query_en}»; se usa una tarjeta.`;
+    await activity(v.id, "assets", "warn", `${sh.id}: ${sh.error}`);
+    sh.visual = "text_card";
+    // Dos tarjetas seguidas del mismo beat no repiten el texto: la segunda muestra la otra mitad de la frase
+    const words = narr(sh).split(/\s+/).filter(Boolean);
+    const prevCard = shots.find((x) => x.beat === sh.beat && x.id < sh.id && x.visual === "text_card" && x.card_text);
+    sh.card_text = prevCard && prevCard.card_text === shortPhrase(words.join(" ")) ? shortPhrase(words.slice(Math.ceil(words.length / 2)).join(" ")) : shortPhrase(words.join(" "));
+  }
+  // 6) Tarjetas y marcadores provisionales de animación
   for (const sh of shots) {
     checkCancel(ctx);
     if (sh.path && (await fs.exists(sh.path))) continue;
     const base = joinPath(dir, `${sh.id}-${Date.now().toString(36)}`);
-    sh.error = null;
-    if (MEDIA_VISUALS.has(sh.visual)) {
-      fallbacks++;
-      if (s.media.allowGenerated && s.images.provider !== "none" && (sh.visual === "photo" || sh.visual === "archival")) {
-        try {
-          const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
-          const r = await generateImage({ prompt: [sh.must_show_es ? `${sh.query_en}. ${sh.must_show_es}` : sh.query_en, visual.imageStyle].filter(Boolean).join("\n\nStyle: "), outBase: base, videoId: v.id, channelId: v.channel_id, label: `toma ${sh.id}` });
-          Object.assign(sh, { path: r.path, media: "image", provenance: r.provenance });
-          continue;
-        } catch (e) { await log("warn", "imágenes", `Toma ${sh.id}: ${e instanceof UserError ? e.userMessage : String(e)}`, "", v.id); }
-      }
-      sh.error = `Sin material libre adecuado para «${sh.query_en}»; se usa una tarjeta.`;
-      await activity(v.id, "assets", "warn", `${sh.id}: ${sh.error}`);
-      sh.visual = "text_card";
-      sh.card_text = shortPhrase(shotNarration(sh, segs.find((x) => x.id === sh.segment_id)!));
-    }
-    // Animaciones: tarjeta provisional hasta que el motor de motion la reemplace
+    sh.error = sh.error ?? null;
     const path = await renderCardFor(ctx, sh, segs, script, research, base);
     Object.assign(sh, { path, media: "image", provenance: { kind: "card", provider: "ATRIL" } as Provenance });
     if (sh.visual !== "motion" && sh.visual !== "map") await activity(v.id, "assets", "asset", `${sh.id}: tarjeta «${(sh.card_text ?? sh.visual).slice(0, 60)}»`, "", path);
   }
-  // 5) Sonido: efectos y camas musicales
-  await ctx.progress("Buscando efectos de sonido y música…");
+  // 7) Sonido: efectos y camas musicales
+  await ctx.progress("Efectos de sonido y música…");
   const sfx = await resolveSfx(ctx, sb.sfx);
   const music = await resolveMusic(ctx, sb.music);
   await markUsed(shots.map((x) => x.asset_id).filter(Boolean) as string[]);
+  const cards = shots.filter((x) => x.provenance?.kind === "card" && x.visual !== "motion" && x.visual !== "map").length;
+  await activity(v.id, "assets", "decision", `Medios: ${downloaded} descargados · ${aiUsed} con IA · ${cards} tarjeta(s) · ${sfx.length} efectos`);
   const key = await sha256(JSON.stringify([shots.map((x) => [x.id, x.path, x.focus_x, x.clip_in]), sfx.map((x) => [x.at, x.path]), music.map((x) => x.path)]));
   return { shots, sfx, music, downloaded, described, reused, fallbacks, key };
 }
@@ -314,7 +418,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const segs = segInfos(script, voice);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
   const total = segs.reduce((a, s) => a + segmentLength(s, montage.pauseBetweenSegments), 0);
-  const budget = await motionBudget(ctx);
+  const budget = await motionBudget(ctx, total);
   const assetMap = await getAssets(assets.shots.map((x) => x.asset_id).filter(Boolean) as string[]);
   const describe = (s: Shot) => {
     const a = s.asset_id ? assetMap.get(s.asset_id) : null;
@@ -338,6 +442,17 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
     applied.motion.push({ id: `m${applied.motion.length + 1}`, kind: "fullscreen", shot_ids: [sh.id], segment_id: sh.segment_id, start: sh.start ?? 0, duration: sh.dur ?? 4,
       brief_en: sh.motion_brief_en ?? "", text: sh.card_text ?? "", libs: sh.visual === "map" ? ["map"] : [], asset_ids: [] });
   }
+  applied.motion = ensureMotionCadence(applied.motion, applied.shots, offsets, total, budget, (sh) => shotNarration(sh, segs.find((x) => x.id === sh.segment_id)!));
+  // Cada secuencia de motion entra con un efecto (si no hay uno ya en ese instante)
+  let fxN = applied.sfx.length + 100;
+  for (const m of applied.motion) {
+    const at = Math.max(0, offsets[m.segment_id] + m.start - (m.kind === "fullscreen" ? 0.12 : 0));
+    if (applied.sfx.some((c) => Math.abs(c.at - at) < 0.6)) continue;
+    applied.sfx.push(m.kind === "fullscreen"
+      ? { id: `fx${++fxN}`, at, type: "whoosh", query_en: "cinematic whoosh transition", gain_db: -15 }
+      : { id: `fx${++fxN}`, at, type: "pop", query_en: "soft ui pop", gain_db: -20 });
+  }
+  applied.sfx.sort((a, b) => a.at - b.at);
   for (const sh of applied.shots) if (!sh.grade) sh.grade = applied.grade;
   for (const m of applied.motion) await activity(v.id, "polish", "motion", `Animación ${m.id} (${m.kind === "overlay" ? "capa" : "pantalla completa"}, ${m.duration.toFixed(1)} s)`, `${m.brief_en}${m.text ? `\nTexto: ${m.text}` : ""}`);
   const changed = (r.data.shots ?? []).length;
@@ -404,6 +519,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const toComp = (m: MotionItem, c: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration?: number }): Composition => ({
     id: m.id, duration: m.duration, transparent: m.kind === "overlay", css: c.css, html: c.html, js: c.js, libs: c.libs ?? m.libs,
     assets: Object.fromEntries(assetsFor(m).map((x) => [x.key, x.a!.path])),
+    palette: { bg: palette.background, fg: palette.foreground, accent: palette.accent, muted: palette.muted, fontTitle: palette.fontTitle, fontBody: palette.fontBody, fontMono: palette.fontMono },
   });
 
   const render = async (m: MotionItem, comp: Composition) => {
@@ -455,10 +571,11 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   };
 
   let failed = 0;
+  let engineFail: string | null = null;
   try {
     await activity(v.id, "motion", "stage", "Abriendo el motor de animaciones");
     browser = await launchBrowser(tauriHost, browserPath, work);
-    for (let i = 0; i < todo.length; i += Math.max(1, cfg.perCall)) {
+    outer: for (let i = 0; i < todo.length; i += Math.max(1, cfg.perCall)) {
       checkCancel(ctx);
       const batch = todo.slice(i, i + Math.max(1, cfg.perCall));
       await ctx.progress(`Opus diseña ${batch.length === 1 ? "la animación" : "las animaciones"} ${batch.map((x) => x.id).join(", ")}…`);
@@ -492,6 +609,8 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
             break;
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
+            // Un fallo del motor afecta a todas: no se gasta Opus intentando "corregir" el código
+            if (e instanceof EngineError) { engineFail = msg; m.error = msg; failed++; break outer; }
             if (e instanceof MotionError && m.attempts < 3) { const f = await fix(m, c, [msg]); if (f) { c = { ...c, ...f }; continue; } }
             m.error = msg; failed++;
             await activity(v.id, "motion", "warn", `La animación ${m.id} falló; se mantiene la toma original`, msg);
@@ -503,6 +622,11 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   } finally {
     if (browser) await closeBrowser(browser);
     try { await fs.remove(work); } catch { /* noop */ }
+  }
+  if (engineFail) {
+    for (const m of items) if (!m.file && !m.error) { m.error = engineFail; failed++; }
+    await activity(v.id, "motion", "warn", "El motor de animaciones falló; el video sigue sin las animaciones que faltan", engineFail);
+    await log("error", "animaciones", "El motor de animaciones falló. Revisa Diagnóstico → Motor de animaciones.", engineFail, v.id, true);
   }
   return { items, rendered: items.filter((m) => m.file).length, failed };
 }

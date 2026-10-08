@@ -135,3 +135,19 @@ export async function listGoogleVoices(languageCode = "en-US"): Promise<{ name: 
   });
   return (res.voices ?? []).sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/** Efecto de sonido creado con ElevenLabs (texto → audio). Requiere plan de pago para uso comercial. */
+export async function elevenSoundEffect(o: { prompt: string; seconds: number; outPath: string; videoId?: string | null; channelId?: string | null }): Promise<string> {
+  const key = await requireSecret(SECRET.elevenlabsApiKey, "ElevenLabs");
+  const seconds = Math.min(30, Math.max(0.5, Math.round(o.seconds * 10) / 10));
+  const usd = seconds * getSettings().sfx.priceUsdPerSecond;
+  await assertBudget(usd, "un efecto de sonido");
+  const res = await requestJson<any>("ElevenLabs (efectos)", {
+    method: "POST", url: "https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128",
+    headers: { ...jsonHeaders, "xi-api-key": key, Accept: "audio/mpeg" }, response: "base64", timeoutS: 180,
+    bodyText: JSON.stringify({ text: o.prompt, duration_seconds: seconds, prompt_influence: 0.45 }),
+  }, 1);
+  await fs.writeB64(o.outPath, res.body);
+  await addCost({ videoId: o.videoId, channelId: o.channelId, provider: "elevenlabs-sfx", item: "segundos de efecto", units: seconds, usd });
+  return o.outPath;
+}

@@ -1,10 +1,10 @@
 # ATRIL
 
-**Estudio de producción asistida para YouTube** · v2.1.0
+**Estudio de producción asistida para YouTube** · v2.2.0
 
-ATRIL produce un documental en inglés por día; tú revisas el guion y el video final. **Nada se publica sin tu aprobación.**
+ATRIL produce un video en inglés a partir de tu idea, sin pedirte nada por el camino; tú revisas el video final. **Nada se publica sin tu aprobación.**
 
-Etapas: investigación → guion → verificación → voz → storyboard → medios → retoques (Opus) → animaciones (Opus) → metadatos → montaje → publicación.
+Etapas: investigación → guion → revisión de datos (se corrige sola) → voz → storyboard → medios (libres + imágenes con IA) → retoques (Opus) → animaciones (Opus + kit de motion) → metadatos → montaje → revisión final → publicación.
 
 App de escritorio para Windows (Tauri 2 + React).
 
@@ -12,14 +12,14 @@ App de escritorio para Windows (Tauri 2 + React).
 
 En *Releases*:
 
-- `ATRIL_2.1.0_instalador_x64.exe`: recomendado.
-- `ATRIL_2.1.0_portable_x64.zip`: portátil (descomprime toda la carpeta).
-- `ATRIL_2.1.0_x64.msi`: alternativa.
+- `ATRIL_2.2.0_instalador_x64.exe`: recomendado.
+- `ATRIL_2.2.0_portable_x64.zip`: portátil (descomprime toda la carpeta).
+- `ATRIL_2.2.0_x64.msi`: alternativa.
 
 ## Principios
 
-- **Identidad en habilidades:** instrucciones del guion, instrucciones visuales y referentes los escribes tú.
-- **Rigor:** cada afirmación lleva su fuente y su cita; las marcas rojas bloquean la aprobación.
+- **Identidad en habilidades:** instrucciones del guion, instrucciones visuales y referentes los escribes tú (plantillas en `docs/habilidades/`).
+- **Calidad sin frenos:** lo dudoso se corrige solo; solo se detiene en la revisión final.
 - **Recuperable:** cada etapa guarda su resultado y se reanuda donde quedó.
 - **Sin fallos silenciosos:** todo error se explica y queda en Diagnóstico.
 - **Material libre:** solo licencias aptas para monetizar, con su origen registrado.

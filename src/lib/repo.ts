@@ -85,7 +85,7 @@ export async function deleteTopic(id: string) { await db.execute("DELETE FROM to
 export const STAGES = [
   { id: "research", label: "Investigación", short: "Investigar" },
   { id: "script", label: "Guion", short: "Guion" },
-  { id: "verify", label: "Verificación", short: "Verificar", gate: true },
+  { id: "verify", label: "Revisión de datos", short: "Datos" },
   { id: "voice", label: "Voz", short: "Voz" },
   { id: "storyboard", label: "Storyboard", short: "Storyboard" },
   { id: "assets", label: "Medios", short: "Medios" },

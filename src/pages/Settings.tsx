@@ -11,6 +11,7 @@ import { getSettings, saveSettings, SECRET, type AppSettings, type StageModelKey
 import { listChannels, createChannel, updateChannel, listMusic, addTrack, updateTrack, deleteTrack, type Channel, type Track } from "../lib/repo";
 import { PageHeader, Card, Field, Toggle, Tabs, AsyncButton, Chip } from "../ui/kit";
 import { requestJson } from "../providers/net";
+import { GEMINI_IMAGE_MODELS, OPENAI_IMAGE_MODELS } from "../providers/images";
 import { listGoogleVoices, synthesize } from "../providers/tts";
 import { connectYouTube, disconnectYouTube, myChannel } from "../providers/youtube";
 import { claudeVersion } from "../providers/claude";
@@ -115,11 +116,11 @@ function KeysTab() {
       <div className="text-xs text-muted-foreground mb-2">Se guardan cifradas en Windows.</div>
       <SecretRow k={SECRET.googleApiKey} label="Google Cloud" hint="Para la voz (Text-to-Speech)."
         test={async (v) => { const r = await requestJson<any>("Google TTS", { url: `https://texttospeech.googleapis.com/v1/voices?languageCode=en-US&key=${encodeURIComponent(v)}` }); return `${r.voices?.length ?? 0} voces disponibles`; }} />
-      <SecretRow k={SECRET.geminiApiKey} label="Gemini (opcional)" hint="Imágenes generadas y voz Gemini. De pago."
-        test={async (v) => { const r = await requestJson<any>("Gemini", { url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(v)}` }); return `${r.models?.length ?? 0} modelos accesibles`; }} />
-      <SecretRow k={SECRET.openaiApiKey} label="OpenAI (opcional)" hint="Imágenes generadas. De pago."
-        test={async (v) => { await requestJson<any>("OpenAI", { url: "https://api.openai.com/v1/models", headers: { Authorization: `Bearer ${v}` } }); return "Clave válida"; }} />
-      <SecretRow k={SECRET.elevenlabsApiKey} label="ElevenLabs (opcional)" hint="Otra voz. De pago."
+      <SecretRow k={SECRET.openaiApiKey} label="OpenAI" hint="Imágenes con IA (recomendado). De pago."
+        test={async (v) => { const r = await requestJson<any>("OpenAI", { url: "https://api.openai.com/v1/models", headers: { Authorization: `Bearer ${v}` } }); const ids: string[] = (r.data ?? []).map((x: any) => x.id); const m = OPENAI_IMAGE_MODELS.find((x) => ids.includes(x)); return m ? `Clave válida · ${m}` : "Clave válida (sin modelos de imagen: verifica tu organización)"; }} />
+      <SecretRow k={SECRET.geminiApiKey} label="Gemini" hint="Imágenes con IA (alternativa) y voz Gemini. De pago."
+        test={async (v) => { const r = await requestJson<any>("Gemini", { url: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", headers: { "x-goog-api-key": v } }); const ids: string[] = (r.models ?? []).map((x: any) => String(x.name).replace("models/", "")); const m = GEMINI_IMAGE_MODELS.find((x) => ids.includes(x)); return m ? `Clave válida · ${m}` : `${ids.length} modelos (ninguno de imagen)`; }} />
+      <SecretRow k={SECRET.elevenlabsApiKey} label="ElevenLabs (opcional)" hint="Otra voz y efectos de sonido creados. De pago."
         test={async (v) => { const r = await requestJson<any>("ElevenLabs", { url: "https://api.elevenlabs.io/v1/user", headers: { "xi-api-key": v } }); return `Plan: ${r.subscription?.tier ?? "?"}`; }} />
       <SecretRow k={SECRET.youtubeClientId} label="YouTube · ID de cliente" hint="Cliente OAuth tipo «App de escritorio»." />
       <SecretRow k={SECRET.youtubeClientSecret} label="YouTube · secreto" hint="Del mismo cliente." />
@@ -283,22 +284,36 @@ function ImagesTab() {
           <Field label="Candidatos por toma"><Num v={s.media.candidatesPerBeat} on={(v) => set("media.candidatesPerBeat", v)} min={1} max={6} /></Field>
           <Field label="Imágenes por llamada de visión"><Num v={s.media.visionBatch} on={(v) => set("media.visionBatch", v)} min={1} max={20} /></Field>
           <Field label="Clip máximo (s)"><Num v={s.media.maxClipSeconds} on={(v) => set("media.maxClipSeconds", v)} min={2} max={12} /></Field>
-          <Field label="Imágenes generadas (de pago)" hint="Solo si no hay material libre."><Toggle checked={s.media.allowGenerated} onChange={(v) => set("media.allowGenerated", v)} /></Field>
+          <Field label="Imágenes con IA" hint="Para escenas difíciles y cuando no hay material libre."><Toggle checked={s.media.allowGenerated} onChange={(v) => set("media.allowGenerated", v)} /></Field>
         </Grid>
       </Card>
-      <Card title="Imágenes generadas" icon={ImageIcon}>
+      <Card title="Imágenes con IA" icon={ImageIcon}>
         <Grid cols={3}>
-          <Field label="Proveedor">
+          <Field label="Proveedor" hint="Automático = el que tenga clave (OpenAI primero).">
             <select className="input" value={s.images.provider} onChange={(e) => set("images.provider", e.target.value)}>
-              <option value="none">Ninguno</option><option value="gemini">Gemini</option><option value="openai">OpenAI</option>
+              <option value="auto">Automático</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="none">Ninguno</option>
             </select>
           </Field>
+          <Field label="Máx. por video · estándar"><Num v={s.images.perVideo.standard} on={(v) => set("images.perVideo.standard", v)} min={0} max={60} /></Field>
+          <Field label="Máx. por video · premium"><Num v={s.images.perVideo.premium} on={(v) => set("images.perVideo.premium", v)} min={0} max={80} /></Field>
           <Field label="Gemini · modelo"><Txt v={s.images.gemini.model} on={(v) => set("images.gemini.model", v)} mono /></Field>
           <Field label="Gemini · USD por imagen"><Num v={s.images.gemini.priceUsd} step={0.001} on={(v) => set("images.gemini.priceUsd", v)} /></Field>
           <Field label="OpenAI · modelo"><Txt v={s.images.openai.model} on={(v) => set("images.openai.model", v)} mono /></Field>
-          <Field label="OpenAI · calidad"><Txt v={s.images.openai.quality} on={(v) => set("images.openai.quality", v)} mono /></Field>
+          <Field label="OpenAI · calidad">
+            <select className="input" value={s.images.openai.quality} onChange={(e) => set("images.openai.quality", e.target.value)}>
+              <option value="low">Baja</option><option value="medium">Media</option><option value="high">Alta</option>
+            </select>
+          </Field>
           <Field label="OpenAI · USD por imagen"><Num v={s.images.openai.priceUsd} step={0.001} on={(v) => set("images.openai.priceUsd", v)} /></Field>
           <Field label="Miniaturas a proponer"><Num v={s.images.thumbnailCandidates} on={(v) => set("images.thumbnailCandidates", v)} min={1} max={5} /></Field>
+        </Grid>
+      </Card>
+      <Card title="Efectos de sonido" icon={Music2}>
+        <div className="text-xs text-muted-foreground mb-3">Orden: tu biblioteca → Freesound → ElevenLabs → síntesis propia. Ningún efecto se omite.</div>
+        <Grid cols={3}>
+          <Field label="Crear con ElevenLabs" hint="Solo con plan de pago (uso comercial)."><Toggle checked={s.sfx.elevenlabs} onChange={(v) => set("sfx.elevenlabs", v)} /></Field>
+          <Field label="Máx. creados por video"><Num v={s.sfx.maxGenerated} on={(v) => set("sfx.maxGenerated", v)} min={0} max={80} /></Field>
+          <Field label="USD por segundo (estimado)"><Num v={s.sfx.priceUsdPerSecond} step={0.001} on={(v) => set("sfx.priceUsdPerSecond", v)} /></Field>
         </Grid>
       </Card>
     </div>
@@ -314,8 +329,8 @@ function MotionTab() {
       <div className="text-xs text-muted-foreground mb-3">Opus diseña las animaciones; Edge las graba.</div>
       <Grid cols={3}>
         <Field label="Activadas"><Toggle checked={s.motion.enabled} onChange={(v) => set("motion.enabled", v)} /></Field>
-        <Field label="Máx. por video · estándar"><Num v={s.motion.perVideo.standard} on={(v) => set("motion.perVideo.standard", v)} min={0} max={30} /></Field>
-        <Field label="Máx. por video · premium"><Num v={s.motion.perVideo.premium} on={(v) => set("motion.perVideo.premium", v)} min={0} max={40} /></Field>
+        <Field label="Por video · estándar" hint="Nunca menos de una por minuto."><Num v={s.motion.perVideo.standard} on={(v) => set("motion.perVideo.standard", v)} min={0} max={30} /></Field>
+        <Field label="Por video · premium"><Num v={s.motion.perVideo.premium} on={(v) => set("motion.perVideo.premium", v)} min={0} max={40} /></Field>
         <Field label="Revisión visual" hint="Sonnet revisa y Opus corrige."><Toggle checked={s.motion.critique} onChange={(v) => set("motion.critique", v)} /></Field>
         <Field label="Por llamada a Opus"><Num v={s.motion.perCall} on={(v) => set("motion.perCall", v)} min={1} max={4} /></Field>
         <Field label="Navegador" hint="Vacío = Edge."><Txt v={s.motion.browserPath} on={(v) => set("motion.browserPath", v)} mono placeholder="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" /></Field>
@@ -438,9 +453,15 @@ function ProductionTab() {
         <Field label="Minutos · premium (mín.)"><Num v={p.targetMinutes.premium[0]} on={(v) => set("production.targetMinutes.premium", [v, p.targetMinutes.premium[1]])} /></Field>
         <Field label="Minutos · premium (máx.)"><Num v={p.targetMinutes.premium[1]} on={(v) => set("production.targetMinutes.premium", [p.targetMinutes.premium[0], v])} /></Field>
         <Field label="Pasadas de guion · premium"><Num v={p.scriptPasses.premium} on={(v) => set("production.scriptPasses.premium", v)} min={1} max={4} /></Field>
-        <Field label="Revisión diaria (min)"><Num v={s.review.dailyMinutesGoal} on={(v) => set("review.dailyMinutesGoal", v)} /></Field>
       </Grid>
-      <div className="mt-4"><Toggle checked={p.autoRunToReview} onChange={(v) => set("production.autoRunToReview", v)} label="Reanudar videos al abrir la app" /></div>
+      <div className="mt-4 flex flex-wrap gap-6 items-center">
+        <Toggle checked={p.autoRunToReview} onChange={(v) => set("production.autoRunToReview", v)} label="Reanudar videos al abrir la app" />
+        <label className="flex items-center gap-2 text-sm">Revisión de datos
+          <select className="input h-8 py-0 w-56" value={p.verifyMode} onChange={(e) => set("production.verifyMode", e.target.value)}>
+            <option value="auto">Automática (corrige sola)</option><option value="off">Desactivada</option>
+          </select>
+        </label>
+      </div>
     </Card>
   );
 }

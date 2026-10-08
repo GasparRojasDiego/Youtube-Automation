@@ -13,6 +13,8 @@ import { libraryRoot } from "../media/library";
 import { joinPath } from "../lib/util";
 import { ffmpegVersion, pickEncoder } from "../providers/ffmpeg";
 import { requestJson } from "../providers/net";
+import { imageProvider, GEMINI_IMAGE_MODELS, OPENAI_IMAGE_MODELS } from "../providers/images";
+import { synthSfx } from "../media/sfx";
 import { myChannel } from "../providers/youtube";
 import { PageHeader, Card, AsyncButton, Chip } from "../ui/kit";
 import { fmtBytes, fmtDate } from "../lib/util";
@@ -29,11 +31,30 @@ const CHECKS: { id: string; label: string; run: () => Promise<Res> }[] = [
     const v = getSettings().tts.google.voice; const has = (r.voices ?? []).some((x: any) => x.name === v);
     return has ? { state: "ok", detail: `Voz «${v}» disponible` } : { state: "warn", detail: `La voz «${v}» ya no existe; elige otra en Ajustes → Voz` };
   } },
-  { id: "gemini", label: "Gemini (opcional)", run: async () => {
-    const k = await secrets.get(SECRET.geminiApiKey); if (!k) return { state: "warn", detail: "Sin clave" };
-    const m = getSettings().images.gemini.model;
-    await requestJson<any>("Gemini", { url: `https://generativelanguage.googleapis.com/v1beta/models/${m}?key=${encodeURIComponent(k)}` }, 0);
-    return { state: "ok", detail: `Modelo «${m}» disponible` };
+  { id: "images", label: "Imágenes con IA", run: async () => {
+    const p = await imageProvider();
+    if (!p) return { state: "warn", detail: "Sin clave de OpenAI ni Gemini: no habrá imágenes con IA (más tarjetas)." };
+    if (p === "gemini") {
+      const k = (await secrets.get(SECRET.geminiApiKey))!;
+      for (const m of [getSettings().images.gemini.model, ...GEMINI_IMAGE_MODELS]) {
+        try { await requestJson<any>("Gemini", { url: `https://generativelanguage.googleapis.com/v1beta/models/${m}`, headers: { "x-goog-api-key": k } }, 0); return { state: "ok", detail: `Gemini · modelo «${m}» disponible` }; } catch { /* siguiente */ }
+      }
+      return { state: "fail", detail: "Ningún modelo de imagen de Gemini responde con tu clave." };
+    }
+    const k = (await secrets.get(SECRET.openaiApiKey))!;
+    const r = await requestJson<any>("OpenAI", { url: "https://api.openai.com/v1/models", headers: { Authorization: `Bearer ${k}` } }, 0);
+    const ids: string[] = (r.data ?? []).map((x: any) => x.id);
+    const m = [getSettings().images.openai.model, ...OPENAI_IMAGE_MODELS].find((x) => ids.includes(x));
+    return m ? { state: "ok", detail: `OpenAI · modelo «${m}» disponible` } : { state: "warn", detail: "La clave funciona, pero tu cuenta no lista modelos de imagen (¿organización sin verificar?)." };
+  } },
+  { id: "sfx", label: "Efectos de sonido", run: async () => {
+    const parts: string[] = ["síntesis propia siempre disponible"];
+    if (await secrets.get(SECRET.freesoundApiKey)) parts.push("Freesound");
+    if (getSettings().sfx.elevenlabs && (await secrets.get(SECRET.elevenlabsApiKey))) parts.push("ElevenLabs");
+    const t = joinPath((await appPaths()).data, "diagnostico-sfx.wav");
+    await synthSfx("whoosh", t, 0);
+    await fs.remove(t).catch(() => null);
+    return { state: "ok", detail: parts.join(" · ") };
   } },
   { id: "plan", label: "Plan de Claude", run: async () => {
     const l = await refreshPlanUsage();
@@ -45,10 +66,11 @@ const CHECKS: { id: string; label: string; run: () => Promise<Res> }[] = [
     const work = joinPath((await appPaths()).data, "diagnostico-motion");
     const br = await launchBrowser(tauriHost, b, work);
     try {
-      const r = await renderComposition(br, { id: "diag", duration: 0.5, transparent: false, libs: ["map"], css: "h1{color:#fff;font:700 120px Oswald;margin:200px}",
-        html: "<h1 id='t'>ATRIL</h1>", js: "const tl=gsap.timeline();tl.from('#t',{opacity:0,y:40,duration:0.4});ATRIL.register(tl,0.5);" },
+      const r = await renderComposition(br, { id: "diag", duration: 0.5, transparent: false, libs: ["map"], css: "",
+        html: "", js: "const tl=gsap.timeline();const s=K.scene();K.paper(s);K.hud({tl:'ATRIL',tr:'TC'},s);const t=K.title(s,'ATRIL',{font:'Oswald',size:160});K.show(tl,s,0);K.reveal(tl,t,0,{fx:'rise'});ATRIL.register(tl,0.5);" },
         { ...(await motionResources()), workDir: joinPath(work, "c"), out: joinPath(work, "prueba.mp4") });
-      return r.errors.length ? { state: "warn", detail: r.errors.join(" · ") } : { state: "ok", detail: `${b.split(/[\\/]/).pop()} · ${r.frames} cuadros renderizados` };
+      const errs = [...r.errors, ...r.consoleErrors];
+      return errs.length ? { state: "fail", detail: errs.join(" · ").slice(0, 400) } : { state: "ok", detail: `${b.split(/[\\/]/).pop()} · ${r.frames} cuadros con el kit de animación` };
     } finally { await closeBrowser(br); await fs.remove(work).catch(() => null); }
   } },
   { id: "library", label: "Biblioteca", run: async () => {

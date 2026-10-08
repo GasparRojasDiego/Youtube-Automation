@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, type SegInfo } from "./timeline";
+import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, ensureMotionCadence, keywordsQuery, fallbackQueries, type SegInfo } from "./timeline";
 import { buildSrtAligned, creditLines, composeDescription, adaptDisclosure } from "./logic";
 import { normLicense, rankCandidates, type Candidate } from "../media/sources";
 import { ftsQuery } from "../media/library";
@@ -8,6 +8,21 @@ const segs: SegInfo[] = [
   { id: "seg1", title: "Intro", sentences: ["One.", "Two two.", "Three three three.", "Four."], spans: [{ start: 0.2, end: 1.5 }, { start: 1.8, end: 3.4 }, { start: 3.8, end: 6.0 }, { start: 6.3, end: 7.5 }], narration: 7.8 },
   { id: "seg2", title: "Body", sentences: ["Five.", "Six."], spans: [{ start: 0.1, end: 2 }, { start: 2.3, end: 4.6 }], narration: 4.8 },
 ];
+
+describe("cadencia de animaciones", () => {
+  it("añade una secuencia en cada minuto que no tiene", () => {
+    const long: SegInfo[] = [{ id: "a", title: "A", sentences: Array.from({ length: 40 }, (_, i) => `S${i}.`), spans: Array.from({ length: 40 }, (_, i) => ({ start: i * 4, end: i * 4 + 3.6 })), narration: 160 }];
+    const raw = Array.from({ length: 40 }, (_, i) => ({ segment_id: "a", from: i, to: i, shots: [{ visual: "photo", query_en: "q" }] }));
+    const laid = layoutShots(repairStoryboard(raw as any, long, 0, new Set()).shots, long, 0.6);
+    const off = segmentOffsets(long, 0.6);
+    const m = ensureMotionCadence([], laid, off, 160.6, 10, () => "narration");
+    expect(m.length).toBe(3);                                   // minutos 0, 1 y 2
+    for (const it of m) { expect(it.kind).toBe("fullscreen"); expect(it.duration).toBeGreaterThanOrEqual(5); expect(it.duration).toBeLessThanOrEqual(16); }
+    expect(new Set(m.flatMap((x) => x.shot_ids)).size).toBe(m.flatMap((x) => x.shot_ids).length); // sin tomas repetidas
+    expect(ensureMotionCadence(m, laid, off, 160.6, 10, () => "").length).toBe(3);   // ya cumple
+    expect(ensureMotionCadence([], laid, off, 160.6, 1, () => "").length).toBe(1);   // respeta el tope
+  });
+});
 
 describe("storyboard y línea de tiempo", () => {
   const raw = [
@@ -20,8 +35,27 @@ describe("storyboard y línea de tiempo", () => {
     // seg1: beat 0-0, beat 1-3 (hueco en 1 cubierto); seg2: 0-1
     expect(shots.filter((s) => s.segment_id === "seg1").map((s) => [s.from, s.to])).toEqual([[0, 0], [1, 3], [1, 3]]);
     expect(shots.find((s) => s.visual === "motion")).toBeUndefined();        // presupuesto 0
-    expect(shots.filter((s) => s.visual === "text_card").length).toBeGreaterThanOrEqual(2); // sin consulta / fuente inválida
+    expect(shots.filter((s) => s.visual === "text_card").length).toBe(1);    // fuente inválida → tarjeta (dentro del tope)
+    expect(shots.every((s) => !["photo", "archival", "clip"].includes(s.visual) || !!s.query_en)).toBe(true); // sin consulta → se deduce de la narración
     expect(beatSfx.length).toBe(1);
+  });
+  it("limita las tarjetas y convierte las demás en animación o imagen", () => {
+    const many = [0, 1, 2, 3].map((i) => ({ segment_id: "seg1", from: i, to: i, shots: [{ visual: "text_card", card_text: `T${i}` }, { visual: "quote_card", card_text: `Q${i}` }] }));
+    const { shots } = repairStoryboard(many as any, segs, 1, new Set(), { maxCards: 4 });
+    const seg1 = shots.filter((s) => s.segment_id === "seg1");
+    expect(seg1.filter((s) => s.visual.endsWith("_card")).length).toBe(4);
+    expect(seg1.filter((s) => s.visual === "motion").length).toBe(1);
+    expect(seg1.filter((s) => s.visual === "photo").length).toBe(3);
+    expect(seg1.filter((s) => s.visual === "photo").every((s) => !!s.query_en)).toBe(true);
+  });
+  it("imágenes con IA solo si hay proveedor", () => {
+    const r = [{ segment_id: "seg1", from: 0, to: 3, shots: [{ visual: "ai_image", query_en: "coolant jug engine", image_prompt_en: "close-up of coolant" }] }];
+    expect(repairStoryboard(r as any, segs, 0, new Set(), { aiImages: true }).shots[0].visual).toBe("ai_image");
+    expect(repairStoryboard(r as any, segs, 0, new Set(), { aiImages: false }).shots[0].visual).toBe("photo");
+  });
+  it("consultas de respaldo cada vez más genéricas", () => {
+    expect(fallbackQueries("antifreeze coolant jug car engine", ["coolant bottle"])).toEqual(["antifreeze coolant jug car engine", "coolant bottle", "car engine", "antifreeze coolant", "engine"]);
+    expect(keywordsQuery("The engine overheated because the coolant was gone.")).toBe("overheated coolant engine");
   });
   it("asigna tiempos exactos y continuos por segmento", () => {
     const { shots, beatSfx } = repairStoryboard(raw as any, segs, 2, new Set(["S9"]));

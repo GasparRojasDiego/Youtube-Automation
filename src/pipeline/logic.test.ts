@@ -26,7 +26,7 @@ const script: ScriptOut = {
 describe("guion", () => {
   it("detecta afirmaciones factuales sin respaldo", () => {
     const issues = L.checkScript(script, research);
-    expect(issues.some((i) => i.claim_id === "C2" && i.severity === "block")).toBe(true);
+    expect(issues.some((i) => i.claim_id === "C2" && i.severity === "warn")).toBe(true);
     expect(issues.some((i) => i.claim_id === "C3")).toBe(false);
   });
   it("combina verificación del modelo con comprobaciones mecánicas", () => {
@@ -34,9 +34,11 @@ describe("guion", () => {
       claims: [{ claim_id: "C1", verdict: "supported", severity: "ok", issues: [], note_es: "", suggested_fix_en: "", gloss_es: "", quote_gloss_es: "" }] },
       script, L.checkScript(script, research));
     expect(v.claims).toHaveLength(3);
-    expect(v.claims.find((c) => c.claim_id === "C2")!.severity).toBe("block");
+    expect(v.claims.find((c) => c.claim_id === "C2")!.severity).toBe("warn");
+    expect(L.openBlocks(v)).toBe(0);
+    v.claims.find((c) => c.claim_id === "C1")!.severity = "block";
     expect(L.openBlocks(v)).toBe(1);
-    v.claims.find((c) => c.claim_id === "C2")!.resolution = "accepted";
+    v.claims.find((c) => c.claim_id === "C1")!.resolution = "accepted";
     expect(L.openBlocks(v)).toBe(0);
   });
 });

@@ -69,7 +69,8 @@ export interface PublishOut { youtube_id: string; url: string; privacy: string; 
 /** Voz v2: además de la duración, los tiempos de cada oración (relativos al audio del segmento). */
 export interface VoiceSegmentV2 extends VoiceSegment { sentences?: Span[] }
 
-export type VisualType = "photo" | "archival" | "clip" | "meme" | "motion" | "map" | "source_card" | "quote_card" | "title_card" | "text_card";
+export type VisualType = "photo" | "archival" | "clip" | "meme" | "ai_image" | "motion" | "map" | "source_card" | "quote_card" | "title_card" | "text_card";
+export const CARD_VISUALS: VisualType[] = ["source_card", "quote_card", "title_card", "text_card"];
 export type Transition = "cut" | "fade" | "dissolve" | "fadeblack" | "fadewhite" | "smoothleft" | "smoothright" | "smoothup" | "slideleft" | "slideright"
   | "wipeleft" | "wiperight" | "circleopen" | "zoomin" | "hblur" | "fadegrays" | "coverleft" | "revealleft" | "radial";
 export const TRANSITIONS: Transition[] = ["cut", "fade", "dissolve", "fadeblack", "fadewhite", "smoothleft", "smoothright", "smoothup", "slideleft", "slideright", "wipeleft", "wiperight", "circleopen", "zoomin", "hblur", "fadegrays", "coverleft", "revealleft", "radial"];
@@ -77,14 +78,14 @@ export type Grade = "neutral" | "cold" | "warm" | "noir" | "sepia" | "desaturate
 export const GRADES: Grade[] = ["neutral", "cold", "warm", "noir", "sepia", "desaturated", "punchy"];
 export type ShotMotion = Motion | "punch_in" | "drift";
 
-export interface SfxCue { id: string; at: number; type: string; query_en: string; gain_db: number; asset_id?: string | null; path?: string | null; duration?: number }
+export interface SfxCue { id: string; at: number; type: string; query_en: string; gain_db: number; asset_id?: string | null; path?: string | null; duration?: number; origin?: "library" | "freesound" | "openverse" | "elevenlabs" | "synth" }
 
 /** Una toma del storyboard (una imagen, clip, tarjeta o animación). */
 export interface Shot {
   id: string; segment_id: string; beat: number;
   from: number; to: number;            // oraciones del segmento que cubre la toma (rango del beat)
   visual: VisualType;
-  query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string;
+  query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string; image_prompt_en?: string;
   card_text?: string; source_id?: string; motion_brief_en?: string;
   // casting (assets)
   asset_id?: string | null; focus_x?: number; focus_y?: number; clip_in?: number; clip_audio_db?: number | null;

@@ -23,15 +23,35 @@ export function segInfos(script: ScriptOut, voice: { segments: { segment_id: str
   });
 }
 
-interface RawShot { visual: string; query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string; card_text?: string; source_id?: string; motion_brief_en?: string }
+interface RawShot { visual: string; query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string; card_text?: string; source_id?: string; motion_brief_en?: string; image_prompt_en?: string }
 interface RawBeat { segment_id: string; from: number; to: number; shots: RawShot[]; sfx?: { at: "start" | "end"; type: string; query_en: string }[] }
 
-const VISUAL_TYPES: VisualType[] = ["photo", "archival", "clip", "meme", "motion", "map", "source_card", "quote_card", "title_card", "text_card"];
+const VISUAL_TYPES: VisualType[] = ["photo", "archival", "clip", "meme", "ai_image", "motion", "map", "source_card", "quote_card", "title_card", "text_card"];
+const CARDS = new Set<string>(["source_card", "quote_card", "title_card", "text_card"]);
+const STOP = new Set("the a an and or but of to in on at for with from by as is are was were be been being it its this that these those there their they them he she his her we our you your i my me not no so than then into over under about after before more most very just also can could would should will what which who whom when where why how all any some such only own same other one two three first last new old because while though still even ever never really did does done had has have get got make made".split(" "));
 
-/** Cubre todas las oraciones en orden; corrige índices, huecos y solapes; limita las animaciones. */
-export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: number, sourceIds: Set<string>): { shots: Shot[]; beatSfx: { shotId: string; at: "start" | "end"; type: string; query_en: string }[] } {
+/** Consulta de búsqueda a partir de una frase: las palabras con más contenido. */
+export function keywordsQuery(sentence = "", max = 3): string {
+  const w = (sentence.toLowerCase().match(/[a-z][a-z'-]{2,}/g) ?? []).filter((x) => !STOP.has(x));
+  return [...new Set(w)].sort((a, b) => b.length - a.length).slice(0, max).join(" ");
+}
+
+/** Consultas de respaldo cada vez más genéricas (para que siempre aparezca material). */
+export function fallbackQueries(q = "", alts: string[] = []): string[] {
+  const words = q.toLowerCase().split(/\s+/).filter((x) => x && !STOP.has(x));
+  const out = [q, ...alts];
+  if (words.length > 2) out.push(words.slice(-2).join(" "), words.slice(0, 2).join(" "));
+  if (words.length > 1) out.push(words[words.length - 1]);
+  return [...new Set(out.map((x) => x.trim()).filter(Boolean))];
+}
+
+export interface RepairOpts { aiImages?: boolean; maxCards?: number }
+
+/** Cubre todas las oraciones en orden; corrige índices, huecos y solapes; limita animaciones y tarjetas. */
+export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: number, sourceIds: Set<string>, opts: RepairOpts = {}): { shots: Shot[]; beatSfx: { shotId: string; at: "start" | "end"; type: string; query_en: string }[] } {
   const shots: Shot[] = []; const beatSfx: { shotId: string; at: "start" | "end"; type: string; query_en: string }[] = [];
-  let n = 0, beatN = 0, motionUsed = 0;
+  let n = 0, beatN = 0, motionUsed = 0, cardsUsed = 0;
+  const maxCards = opts.maxCards ?? 4;
   for (const seg of segs) {
     const last = seg.sentences.length - 1;
     if (last < 0) continue;
@@ -48,21 +68,35 @@ export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: 
     }
     if (next <= last) {
       if (beats.length) beats[beats.length - 1].to = last;
-      else beats.push({ segment_id: seg.id, from: 0, to: last, shots: [{ visual: "title_card", card_text: seg.title }] });
+      else beats.push({ segment_id: seg.id, from: 0, to: last, shots: [{ visual: "photo", query_en: keywordsQuery(seg.sentences.join(" ")) }] });
     }
     for (const b of beats) {
       beatN++;
-      const list = (b.shots?.length ? b.shots : [{ visual: "text_card" }]).slice(0, 3);
+      const list = (b.shots?.length ? b.shots : [{ visual: "photo" }]).slice(0, 3);
+      const beatText = seg.sentences.slice(b.from, b.to + 1).join(" ");
       list.forEach((r, k) => {
         let visual = (VISUAL_TYPES.includes(r.visual as VisualType) ? r.visual : "photo") as VisualType;
-        if ((visual === "motion" || visual === "map")) { if (motionUsed >= motionBudget || !r.motion_brief_en?.trim()) visual = r.query_en?.trim() ? "photo" : "text_card"; else motionUsed++; }
-        if (["photo", "archival", "clip", "meme"].includes(visual) && !r.query_en?.trim()) visual = "text_card";
+        let query = r.query_en?.trim() || "";
+        let brief = r.motion_brief_en?.trim() || "";
         if (visual === "source_card" && !sourceIds.has(r.source_id ?? "")) visual = "text_card";
+        // Tarjetas: solo unas pocas; las demás pasan a animación (si cabe) o a imagen
+        if (CARDS.has(visual)) {
+          if (cardsUsed < maxCards) cardsUsed++;
+          else if (motionUsed < motionBudget) { visual = "motion"; brief = `Kinetic typography sequence for: "${r.card_text?.trim() || shortPhrase(beatText, 14)}"`; }
+          else visual = "photo";
+        }
+        if (visual === "motion" || visual === "map") {
+          if (motionUsed >= motionBudget) visual = "photo";
+          else { motionUsed++; if (!brief) brief = `Motion-design sequence illustrating: "${shortPhrase(beatText, 24)}"`; }
+        }
+        if (visual === "ai_image" && !opts.aiImages) visual = "photo";
+        if (["photo", "archival", "clip", "meme", "ai_image"].includes(visual) && !query) query = keywordsQuery(beatText) || keywordsQuery(seg.title) || "abstract background";
         const sh: Shot = {
           id: `s${String(++n).padStart(3, "0")}`, segment_id: seg.id, beat: beatN, from: b.from, to: b.to, visual,
-          query_en: r.query_en?.trim() || undefined, alt_queries_en: (r.alt_queries_en ?? []).filter(Boolean).slice(0, 3),
+          query_en: query || undefined, alt_queries_en: (r.alt_queries_en ?? []).filter(Boolean).slice(0, 3),
           must_show_es: r.must_show_es ?? "", avoid_es: r.avoid_es ?? "", card_text: r.card_text?.trim() || undefined,
-          source_id: r.source_id || undefined, motion_brief_en: r.motion_brief_en || undefined,
+          source_id: r.source_id || undefined, motion_brief_en: brief || undefined,
+          image_prompt_en: visual === "ai_image" ? (r.image_prompt_en?.trim() || query) : r.image_prompt_en?.trim() || undefined,
         };
         if ((visual === "title_card" || visual === "quote_card" || visual === "text_card") && !sh.card_text) sh.card_text = visual === "title_card" ? seg.title : shortPhrase(seg.sentences[b.from]);
         shots.push(sh);
@@ -235,6 +269,43 @@ export function applyPolish(p: PolishRaw, shots: Shot[], sfx: SfxCue[], offsets:
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/**
+ * Garantiza al menos una secuencia de motion a pantalla completa por cada
+ * ventana de `every` segundos: si una ventana no tiene, convierte una racha de
+ * tomas consecutivas (6–15 s, preferentemente tarjetas) en una secuencia.
+ */
+export function ensureMotionCadence(motion: MotionItem[], shots: Shot[], offsets: Record<string, number>, total: number, budget: number, narration: (s: Shot) => string, every = 60): MotionItem[] {
+  const out = [...motion];
+  const used = new Set(out.filter((m) => m.kind === "fullscreen").flatMap((m) => m.shot_ids));
+  let n = out.reduce((a, m) => Math.max(a, Number(m.id.replace(/\D/g, "")) || 0), 0);
+  const g0 = (s: Shot) => (offsets[s.segment_id] ?? 0) + (s.start ?? 0);
+  for (let w = 0; w + 20 < total && out.length < budget; w += every) {
+    const has = out.some((m) => m.kind === "fullscreen" && (offsets[m.segment_id] ?? 0) + m.start < w + every && (offsets[m.segment_id] ?? 0) + m.start + m.duration > w);
+    if (has) continue;
+    let best: { ids: string[]; score: number; start: number; dur: number; seg: string } | null = null;
+    const inWin = shots.filter((s) => g0(s) >= w && g0(s) < w + every && !used.has(s.id));
+    for (const first of inWin) {
+      const segShots = shots.filter((s) => s.segment_id === first.segment_id);
+      const run: Shot[] = [];
+      let dur = 0;
+      for (let i = segShots.indexOf(first); i < segShots.length && dur < 15; i++) {
+        const sh = segShots[i];
+        if (used.has(sh.id) || (dur > 0 && dur + (sh.dur ?? 0) > 15.5)) break;
+        run.push(sh); dur += sh.dur ?? 0;
+      }
+      if (dur < 5) continue;
+      const score = run.filter((x) => CARDS.has(x.visual)).length * 4 + run.filter((x) => x.visual === "motion" || x.visual === "map").length * 6 - Math.abs(dur - 10) * 0.3 - run.filter((x) => x.media === "video").length;
+      if (!best || score > best.score) best = { ids: run.map((x) => x.id), score, start: first.start ?? 0, dur, seg: first.segment_id };
+    }
+    if (!best) continue;
+    best.ids.forEach((id) => used.add(id));
+    const text = best.ids.map((id) => narration(shots.find((s) => s.id === id)!)).join(" ");
+    out.push({ id: `m${++n}`, kind: "fullscreen", shot_ids: best.ids, segment_id: best.seg, start: best.start, duration: Math.min(20, best.dur),
+      brief_en: `Premium motion-design sequence (2-4 scenes) that visualises this narration with kinetic typography, numbers, diagrams or generative visuals, using only words and figures from it: "${text.slice(0, 500)}"`, text: "", libs: [], asset_ids: [] });
+  }
+  return out;
+}
 
 /** Agrupa segmentos en camas musicales válidas (todas cubiertas, en orden). */
 export function repairMusic(raw: { segment_ids: string[]; mood_en: string }[], segIds: string[]): MusicBed[] {

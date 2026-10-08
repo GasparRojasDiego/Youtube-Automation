@@ -67,6 +67,21 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
             <ul className="list-disc pl-5 space-y-0.5 text-xs">{polish.verify_es.map((x, i) => <li key={i}>{x}</li>)}</ul>
           </div>
         ) : null}
+        {(() => {
+          const items = motion?.items ?? [];
+          const ok = items.filter((m) => m.file).length;
+          const ai = shots.filter((x) => x.provenance?.kind === "generated").length;
+          const cards = shots.filter((x) => x.provenance?.kind === "card" && !motionShots.has(x.id)).length;
+          return (
+            <div className="flex flex-wrap gap-1.5">
+              <Chip tone={ok < items.length ? "amber" : "green"}>Animaciones: {ok}/{items.length}</Chip>
+              <Chip tone="primary">Imágenes con IA: {ai}</Chip>
+              <Chip tone={cards > 4 ? "amber" : "muted"}>Tarjetas: {cards}</Chip>
+              <Chip tone={polish?.sfx.length ? "green" : "amber"}>Efectos: {polish?.sfx.length ?? 0}</Chip>
+              {pkg.synthetic_media && <Chip tone="amber">Marcar «contenido alterado» en YouTube</Chip>}
+            </div>
+          );
+        })()}
         {tab === "video" && (
           <Card>
             <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} poster={render.poster ? fileUrl(render.poster, render.renderedAt) : undefined} />

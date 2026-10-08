@@ -8,7 +8,7 @@ import { UserError, log } from "../lib/events";
 import { joinPath, sha256, now, extName, splitSentences } from "../lib/util";
 import { claudeRun } from "../providers/claude";
 import { synthesize, chunkText, ttsProviderName, type VoiceOverride } from "../providers/tts";
-import { generateImage } from "../providers/images";
+import { generateImage, imageProvider } from "../providers/images";
 import { ffmpeg, probeDuration } from "../providers/ffmpeg";
 import { uploadVideo, setThumbnail } from "../providers/youtube";
 import { onUploadProgress, onUploadSession } from "../lib/ipc";
@@ -223,7 +223,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
       checkCancel(ctx);
       await ctx.progress(`Miniatura ${i + 1}/${pkg.thumbnails.length}`);
       let bg: string | null = t.background_asset_id ? assetMap.get(t.background_asset_id)?.path ?? null : null;
-      if (!bg && s.media.allowGenerated && s.images.provider !== "none" && t.image_prompt_en) {
+      if (!bg && s.media.allowGenerated && (await imageProvider()) && t.image_prompt_en) {
         try { bg = (await generateImage({ prompt: t.image_prompt_en, outBase: joinPath(tdir, `bg${i}`), videoId: v.id, channelId: v.channel_id, label: "fondo de miniatura" })).path; }
         catch (e) { await log("warn", "miniatura", `Fondo ${i + 1}: ${e instanceof UserError ? e.userMessage : String(e)} Se usa una imagen del video.`, "", v.id); }
       }

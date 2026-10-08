@@ -14,6 +14,7 @@ export const tauriHost: MotionHost = {
   writeB64: async (p, b) => { await fs.writeB64(p, b); },
   mkdir: (p) => fs.mkdir(p),
   remove: (p) => fs.remove(p),
+  copy: (a, b) => fs.copy(a, b),
   ffmpeg: async (args, cwd) => { await ffmpeg(args, { cwd, timeoutS: 1800 }); },
   join: (...p) => joinPath(...p),
   sleep: async (ms) => { await sleep(ms); },
