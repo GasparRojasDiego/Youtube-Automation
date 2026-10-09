@@ -562,7 +562,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     await activity(v.id, "motion", "motion", `Opus corrige la animación ${m.id}`, problems.join("\n"));
     const r = await claudeRun<{ compositions: { id: string; css: string; html: string; js: string; libs: ("map" | "d3")[] }[] }>({
       stage: "motion", activityStage: "motion", label: `Corrección de animación ${m.id}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
-      prompt: P2.motionFixPrompt({ item: { id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "" }, code, problems }),
+      prompt: P2.motionFixPrompt({ item: { id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "" }, code, problems, skills }),
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
     });
     return r.data.compositions?.[0] ?? null;
@@ -574,7 +574,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     setLive(v.id, { frame: sheet, caption: `Revisión visual de la animación ${m.id}` });
     const r = await claudeRun<{ ok: boolean; problems_en: string[]; severity: string }>({
       stage: "critique", activityStage: "motion", label: `Revisión visual ${m.id}`, system: "You are a strict broadcast design reviewer.", schema: P2.CRITIQUE_SCHEMA, quiet: true,
-      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "" }), images: [{ label: "Frames:", path: sheet }],
+      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "", skills }), images: [{ label: "Frames:", path: sheet }],
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
     });
     const ok = r.data.ok || r.data.severity !== "major";

@@ -128,7 +128,7 @@ You can:
 3. Colour grade: one overall grade plus per-shot exceptions (sepia/noir for archival, cold for clinical scenes).
 4. Sound design: add or remove SFX at exact global times (they must sync with cuts or words), with gains between -30 and -6 dB. Less is more.
 5. Unmute a clip's own audio (clip_audio_db) only when its sound adds meaning; narration always stays on top.
-6. Motion graphics (max ${o.motionBudget} in total, at least one every ~60 s of video): "fullscreen" sequences replace shots — premium motion design with 2–5 scenes (kinetic typography, counters, timers, morphing diagrams, floating labels, data panels, maps, 3D point fields, glitch/flash/wipe transitions); "overlay" animations play over a shot with a transparent background (callouts, arrows, highlights, lower thirds, labels, counters). Replace every remaining static text card (title_card/quote_card/text_card/source_card) with a fullscreen motion sequence when the budget allows. A fullscreen sequence lasts exactly the summed duration of the shots it replaces: keep any scene timings in the brief inside that duration. Overlay text must be short. Brand palette: ${JSON.stringify(o.palette)}.
+6. Motion graphics (max ${o.motionBudget} in total, at least one every ~60 s of video): "fullscreen" sequences replace shots — premium motion design with 2–5 scenes (kinetic typography, counters, timers, morphing diagrams, floating labels, data panels, maps, 3D point fields, glitch/flash/wipe transitions); "overlay" animations play over a shot with a transparent background (callouts, arrows, highlights, lower thirds, labels, counters). Replace every remaining static text card (title_card/quote_card/text_card/source_card) with a fullscreen motion sequence when the budget allows. A fullscreen sequence lasts exactly the summed duration of the shots it replaces: keep any scene timings in the brief inside that duration. Overlay text must be short. Brand palette: ${JSON.stringify(o.palette)} (if a channel skill restricts colours or style, the skill wins: never write a colour or style it forbids into a brief).
 ${o.captions ? "Burned-in captions occupy the bottom 22% of the frame: keep overlays out of that area.\n" : ""}
 Every text you place on screen must come from the narration or the verified facts, never stronger than the narration.
 
@@ -201,8 +201,8 @@ Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a
 Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}`).join("\n\n")}`;
 }
 
-export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[] }) {
-  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the full corrected composition (same id) through the structured output only — no explanations. Keep what works.
+export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[]; skills?: string }) {
+  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the full corrected composition (same id) through the structured output only — no explanations. Keep what works. If a listed problem asks for something that breaks a channel rule below, keep the rule and ignore that problem.${o.skills ? wrapSkills(o.skills) : ""}
 
 Brief: ${o.item.brief}
 Text: ${o.item.text || "(none)"}
@@ -229,10 +229,15 @@ export const CRITIQUE_SCHEMA = obj({
   severity: en(["none", "minor", "major"]),
 });
 
-export function critiquePrompt(o: { kind: string; brief: string; text: string }) {
+export function critiquePrompt(o: { kind: string; brief: string; text: string; skills?: string }) {
   return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a documentary.
 Brief: ${o.brief}
 Expected text (verbatim): ${o.text || "(none)"}
-Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.`;
+Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.skills ? `
+
+CHANNEL RULES (they override the brief): following them is correct even where the brief says otherwise (e.g. a colour the brief asks for but a rule forbids) — never report that as a defect. Breaking one of them is a defect.
+<channel_rules>
+${o.skills.slice(0, 6000)}
+</channel_rules>` : ""}`;
 }
 
