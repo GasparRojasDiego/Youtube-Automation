@@ -186,6 +186,7 @@ STYLE — visual impact first (mandatory):
 - Easing with intent: entrances 0.4–0.8 s expo.out/power3.out, exits faster (expo.in), staggers 0.03–0.08 s, back.out only for accents; hold labels long enough to read (≈3 words/s).
 - Overlays stay light: one callout, arrow, highlight, label, stamp or counter over the footage.
 - Hierarchy and fit: headline 90–240 px, secondary 40–60 px, labels 24–34 px (never smaller than 22 px). No overflow, no overlap, no clipping.
+- Balance (fullscreen): use the whole frame above the caption band — the visual centre of mass sits around y≈470 and content spans roughly y 120–840; never cram a scene into the top third or leave the lower half empty. Only the bottom 240 px stay free of key text.
 - Accuracy: texts, numbers, dates and names exactly as given; a counter ends on the exact value.
 - Integrity: never real logos, real brand colours or a faithful copy of a real product's interface; use generic UI (K.ui), neutral wordmarks and icons.
 

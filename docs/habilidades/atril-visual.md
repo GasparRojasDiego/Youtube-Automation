@@ -122,7 +122,7 @@ Cada animación declara sus efectos con el segundo exacto del movimiento; ATRIL 
 - Mapas: agua ink, tierra inkRaised con bordes en ash al 50–70 % (que se vean: contraste de al menos 3:1 con el fondo), la región clave en sodium, alfileres en bone; la cámara entra a la ciudad.
 - Cada cifra o afirmación sobre alguien real lleva su línea de fuente dentro de la pieza (Courier Prime 24–28 px, en una esquina).
 - Movimiento: entradas de 0,4–0,8 s con expo.out o power3.out; golpes y transiciones rápidas de 0,2–0,5 s; salidas más rápidas (expo.in); rebote (back.out) solo en el acento principal; escalonados de 0,03–0,08 s. Acercarse = intimidad o revelación; alejarse = contexto o aislamiento; lateral = recorrido o tiempo; subir = poder o "siguiente".
-- Zonas: nada importante en los 240 px inferiores (subtítulos) ni a menos de 96 px de los lados y 64 px de arriba.
+- Zonas: nada importante en los 240 px inferiores (subtítulos) ni a menos de 96 px de los lados y 64 px de arriba. El resto del cuadro se usa entero: el centro visual queda hacia y≈470 y el contenido ocupa de y 120 a 840; una escena amontonada en el tercio superior con la mitad inferior vacía es un defecto.
 - Íconos: usa los provistos (K.icon) para personas, dinero, edificios, tiempo, teléfonos o policías; si falta uno, dibuja una figura simple, nunca una persona realista.
 
 ### Secuencias de referencia (ilustrativas: combina y varía; no copies una entera)
