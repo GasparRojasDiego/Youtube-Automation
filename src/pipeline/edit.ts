@@ -149,7 +149,7 @@ async function huntShot(ctx: Ctx, sh: Shot, exclude: Set<string>): Promise<{ can
  * Efectos de sonido: para cada uno, la biblioteca → Freesound → ElevenLabs
  * (si está activado) → síntesis propia con ffmpeg. Nunca se omite un efecto.
  */
-async function resolveSfx(ctx: Ctx, cues: SfxCue[]): Promise<SfxCue[]> {
+async function resolveSfx(ctx: Ctx, cues: SfxCue[], stage = "assets"): Promise<SfxCue[]> {
   const st = getSettings();
   const v = ctx.video;
   const cacheDir = joinPath((await appPaths()).data, "efectos");
@@ -177,7 +177,7 @@ async function resolveSfx(ctx: Ctx, cues: SfxCue[]): Promise<SfxCue[]> {
         try {
           const a = await importCandidate(cand);
           hit = { path: a.path, duration: a.duration ?? cand.duration, origin: "freesound", asset_id: a.id, offset: lead };
-          await activity(v.id, "assets", "audio", `Efecto de Freesound: ${cand.title.slice(0, 80)}`, `${cand.license} · ${cand.pageUrl}`);
+          await activity(v.id, stage, "audio", `Efecto de Freesound: ${cand.title.slice(0, 80)}`, `${cand.license} · ${cand.pageUrl}`);
           break;
         } catch { /* siguiente */ }
       }
@@ -188,8 +188,8 @@ async function resolveSfx(ctx: Ctx, cues: SfxCue[]): Promise<SfxCue[]> {
       try {
         if (!(await fs.exists(file))) { await elevenSoundEffect({ prompt: `${c.query_en || c.type}, ${kind}, clean, isolated sound effect, no music`, seconds: secs, outPath: file, videoId: v.id, channelId: v.channel_id }); elUsed++; }
         hit = { path: file, duration: secs, origin: "elevenlabs", asset_id: null, offset: lead };
-        await activity(v.id, "assets", "audio", `Efecto creado con ElevenLabs: «${q}»`);
-      } catch (e) { await activity(v.id, "assets", "warn", `ElevenLabs no creó «${q}»; se sintetiza`, e instanceof UserError ? e.userMessage : String(e)); }
+        await activity(v.id, stage, "audio", `Efecto creado con ElevenLabs: «${q}»`);
+      } catch (e) { await activity(v.id, stage, "warn", `ElevenLabs no creó «${q}»; se sintetiza`, e instanceof UserError ? e.userMessage : String(e)); }
     }
     if (!hit) {
       const vv = variant++ % 4;
@@ -201,7 +201,7 @@ async function resolveSfx(ctx: Ctx, cues: SfxCue[]): Promise<SfxCue[]> {
     outCues.push({ ...c, at: Math.max(0, Math.round((c.at + hit.offset) * 100) / 100), asset_id: hit.asset_id ?? null, path: hit.path, duration: hit.duration, origin: hit.origin });
   }
   const names: Record<string, string> = { library: "biblioteca", freesound: "Freesound", elevenlabs: "ElevenLabs", synth: "síntesis propia" };
-  if (Object.keys(count).length) await activity(v.id, "assets", "audio", `Efectos de sonido: ${Object.entries(count).map(([k, n]) => `${n} de ${names[k] ?? k}`).join(" · ")}`);
+  if (Object.keys(count).length) await activity(v.id, stage, "audio", `Efectos de sonido: ${Object.entries(count).map(([k, n]) => `${n} de ${names[k] ?? k}`).join(" · ")}`);
   return outCues;
 }
 
@@ -492,7 +492,7 @@ async function resolveMotionSfx(ctx: Ctx, items: MotionItem[]) {
   if (!pending.length) return;
   // Se desplazan 10 s para que el adelanto de un whoosh (su pico cae en el golpe) pueda quedar antes del inicio de la animación
   const all = pending.flatMap((m) => (m.sfx ?? []).map((c) => ({ ...c, id: `${m.id}|${c.id}`, at: c.at + 10 })));
-  const done = await resolveSfx(ctx, all);
+  const done = await resolveSfx(ctx, all, "motion");
   for (const m of pending) m.sfx = done.filter((c) => c.id.startsWith(`${m.id}|`)).map((c) => ({ ...c, id: c.id.slice(m.id.length + 1), at: Math.round((c.at - 10) * 100) / 100 }));
 }
 

@@ -156,13 +156,14 @@ describe("subtítulos, créditos y licencias", () => {
 
 describe("efectos de sonido de las animaciones", () => {
   const m = { id: "m1", kind: "fullscreen" as const, shot_ids: ["s1"], start: 0, duration: 6, segment_id: "seg1", brief_en: "" };
-  it("ordena, recorta a la duración, separa ≥0,25 s y gradúa el volumen", () => {
+  it("ordena, descarta lo que cae fuera, separa ≥0,25 s y gradúa el volumen", () => {
     const cues = motionCues(m, [
       { at: 2.0, type: "click", query_en: "ui click" }, { at: 0.4, type: "whoosh", query_en: "fast whoosh" },
       { at: 2.1, type: "pop", query_en: "soft pop" }, { at: 9, type: "impact", query_en: "deep impact" }, { at: Number.NaN, type: "pop", query_en: "" },
     ]);
-    expect(cues.map((c) => [c.at, c.type])).toEqual([[0.4, "whoosh"], [2, "click"], [5.95, "impact"]]);
-    expect(cues.map((c) => c.gain_db)).toEqual([-18, -21, -16]);
+    expect(cues.map((c) => [c.at, c.type])).toEqual([[0.4, "whoosh"], [2, "click"]]);
+    expect(cues.map((c) => c.gain_db)).toEqual([-18, -21]);
+    expect(motionCues(m, [{ at: -1, type: "impact", query_en: "deep impact" }]).map((c) => [c.at, c.gain_db])).toEqual([[0, -16]]);
     expect(cues[0].id).toBe("m1-fx1");
   });
   it("una capa superpuesta lleva como máximo 3", () => {

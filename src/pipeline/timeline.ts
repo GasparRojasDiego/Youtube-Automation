@@ -343,7 +343,7 @@ export type MotionSfxRaw = { at: number; type: string; query_en: string };
 export function motionCues(m: MotionItem, raw: MotionSfxRaw[] | undefined): SfxCue[] {
   const loud = /impact|boom|hit|thud|sub drop/i, mid = /whoosh|swoosh|riser|glitch/i;
   const cues: SfxCue[] = [];
-  const list = (raw ?? []).filter((c) => c && Number.isFinite(c.at) && c.type?.trim()).map((c) => ({ ...c, at: Math.max(0, Math.min(m.duration - 0.05, c.at)) })).sort((a, b) => a.at - b.at);
+  const list = (raw ?? []).filter((c) => c && Number.isFinite(c.at) && c.at < m.duration && c.type?.trim()).map((c) => ({ ...c, at: Math.max(0, c.at) })).sort((a, b) => a.at - b.at);
   for (const c of list) {
     if (cues.length >= (m.kind === "overlay" ? 3 : 16)) break;
     if (cues.length && c.at - cues[cues.length - 1].at < 0.25) continue;
