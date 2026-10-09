@@ -1,15 +1,13 @@
-# ATRIL 2.4.0
+# ATRIL 2.5.0
 
-Animaciones con más impacto visual y menos texto, y habilidades que llegan solo a la etapa que las usa.
+Animaciones más dinámicas, con profundidad, cursor, rupturas y un sonido en cada movimiento.
 
 ## Descargar
-- **`ATRIL_2.4.0_instalador_x64.exe`**: recomendado (conserva tus datos). Si ya tienes la 2.3, usa el botón «Actualizar» sobre Ajustes.
-- `ATRIL_2.4.0_portable_x64.zip` y `ATRIL_2.4.0_x64.msi`: alternativas.
+- **`ATRIL_2.5.0_instalador_x64.exe`**: recomendado (conserva tus datos). Si ya tienes la 2.4, usa el botón «Actualizar» sobre Ajustes.
+- `ATRIL_2.5.0_portable_x64.zip` y `ATRIL_2.5.0_x64.msi`: alternativas.
 
 ## Cambios
-- **Animaciones: visual primero.** Las instrucciones internas ya no dicen que «la tipografía es la estrella»: cada escena necesita un protagonista visual (figuras, íconos, diagramas, mapas, cámara), con un máximo de 6 palabras a la vez. La revisión automática marca como defecto grave una animación dominada por texto o estática.
-- **Kit de animación ampliado.** Piezas nuevas probadas con render real: cámara que entra a cualquier punto, ecos que se abren, inclinación 3D, cortina circular desde un borde, flechas con color que corre, núcleo que suelta figuras que se transforman, patrones, láminas alternadas, red de nodos (quién paga a quién), barra de censura, corte en franjas, foco, apagón, parpadeo, golpe de sello, temblor, órbita, cinta de texto y transiciones «latigazo» y «cortina».
-- **Secciones por etapa en las habilidades.** Un título como «## Efectos [animaciones]» manda esa sección solo a esa etapa; debajo del editor ves cuánto recibe cada una. Menos texto inútil en cada llamada a Claude.
-- **Fuentes nuevas:** Archivo y Courier Prime (licencia OFL), para animaciones, tarjetas y miniaturas. La miniatura acepta ahora el grosor de letra (`weight`).
-- **Habilidades de Atril listas para pegar** en `docs/habilidades`: guion, referentes y visual (con un catálogo de 121 efectos).
-- Correcciones: «Rehacer» en Storyboard, Retoques y Animaciones ahora vuelve a trabajar si cambiaste tus habilidades (antes devolvía el resultado anterior); el resaltador y la barra de censura se colocaban mal cuando la escena entraba con transición; el revisor de animaciones respeta las habilidades visuales y no exige a las capas superpuestas lo que es para pantalla completa.
+- **Sonido sincronizado en las animaciones.** Cada animación indica en qué segundo exacto hay un clic, una aparición, un movimiento rápido o un golpe, y ATRIL pone ahí su efecto (biblioteca → Freesound → ElevenLabs → síntesis propia), bajo para no tapar la voz. No se duplican con los efectos de Retoques, y los de Freesound aparecen en los créditos de la descripción.
+- **Piezas nuevas del kit de animación** (probadas con render real): pantallas en perspectiva sobre cualquier cuadrilátero que giran y se mueven, capas en profundidad, una app genérica que «despierta» paso a paso, cursor que recorre y pulsa, desenfoque que sigue al cursor, ruptura que expulsa palabras, tarjetas o imágenes con «tiempo detenido», corte diagonal de una palabra, pincel que revela una imagen, palabra que cambia de estilo cada vez más rápido, escritura con cámara y letras que caen, rodillo de números, galería que aparece y estalla, velo con manchas, onda de audio, carrusel de imágenes curvas, vidrio líquido, mosaico diagonal y destellos que se apagan.
+- **Habilidad «Atril · Visual» 2.1** en `docs/habilidades`: principios de dinamismo, reglas de sonido, 9 secuencias de referencia (tus 8 ejemplos más el anterior) y un catálogo de 172 efectos.
+- Las instrucciones internas de animación prohíben copiar logos o interfaces reales: se usan interfaces y marcas genéricas.
