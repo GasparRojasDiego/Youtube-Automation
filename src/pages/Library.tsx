@@ -1,4 +1,4 @@
-// Biblioteca de medios: todo lo descargado (imágenes, clips, efectos, música)
+// Biblioteca de medios: todo lo descargado (imágenes, clips, efectos, música, íconos)
 // con su descripción hecha por Claude, licencia y procedencia, para reutilizar.
 import { useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -9,15 +9,17 @@ import { fileUrl } from "../lib/ipc";
 import { listAssets, libraryStats, libraryRoot, updateAsset, deleteAsset, importLocalFile, importCandidate, getAsset, type Asset } from "../media/library";
 import { searchSources, rankCandidates, SOURCE_LABEL, type AssetKind, type Candidate } from "../media/sources";
 import { describeAssets, describePending } from "../media/vision";
+import { searchIcons, importIcon, createIcon, type IconHit } from "../media/icons";
 import { PageHeader, Card, Chip, Empty, Modal, AsyncButton, Tabs, Stat } from "../ui/kit";
 import { navigate } from "../ui/nav";
 import { toast, logError } from "../lib/events";
 import { fmtBytes, fmtDate } from "../lib/util";
 
 type KindTab = "all" | AssetKind;
-const KIND_LABEL: Record<AssetKind, string> = { image: "Imagen", video: "Clip", sfx: "Efecto", music: "Música" };
+const KIND_LABEL: Record<AssetKind, string> = { image: "Imagen", video: "Clip", sfx: "Efecto", music: "Música", icon: "Ícono" };
 
 function Thumb({ a, className = "" }: { a: Asset; className?: string }) {
+  if (a.kind === "icon") return <div className={`grid place-items-center bg-gradient-to-b from-primary/10 to-transparent ${className}`}><img src={fileUrl(a.path)} className="w-1/3 h-1/3 object-contain dark:invert opacity-90" loading="lazy" /></div>;
   if (a.thumb) return <img src={fileUrl(a.thumb)} className={`object-cover ${className}`} loading="lazy" />;
   return <div className={`flex items-center justify-center bg-muted ${className}`}><Music2 size={20} className="text-muted-foreground" /></div>;
 }
@@ -41,7 +43,7 @@ export function LibraryPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Biblioteca"
+      <PageHeader kicker="Identidad" title="Biblioteca"
         actions={<>
           <button className="btn-ghost" onClick={async () => void openPath(await libraryRoot())}><FolderOpen size={15} /> Carpeta</button>
           <button className="btn-ghost" onClick={() => setWeb(true)}><Globe size={15} /> Buscar en internet</button>
@@ -61,15 +63,16 @@ export function LibraryPage() {
             <Eye size={15} /> Describir ({undescribed})
           </AsyncButton>
         </>} />
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-6 gap-3">
         <Card><Stat label="Imágenes" value={stats.image?.n ?? 0} /></Card>
         <Card><Stat label="Clips" value={stats.video?.n ?? 0} /></Card>
         <Card><Stat label="Efectos" value={stats.sfx?.n ?? 0} /></Card>
         <Card><Stat label="Música" value={stats.music?.n ?? 0} sub={<button className="hover:underline" onClick={() => navigate({ page: "ajustes", tab: "music" })}>+ propias</button>} /></Card>
+        <Card><Stat label="Íconos" value={stats.icon?.n ?? 0} /></Card>
         <Card><Stat label="Espacio" value={fmtBytes(bytes)} sub={undescribed ? `${undescribed} sin describir` : undefined} /></Card>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-        <Tabs value={kind} onChange={setKind} tabs={[{ id: "all", label: "Todo" }, { id: "image", label: "Imágenes" }, { id: "video", label: "Clips" }, { id: "sfx", label: "Efectos" }, { id: "music", label: "Música" }]} />
+        <Tabs value={kind} onChange={setKind} tabs={[{ id: "all", label: "Todo" }, { id: "image", label: "Imágenes" }, { id: "video", label: "Clips" }, { id: "sfx", label: "Efectos" }, { id: "music", label: "Música" }, { id: "icon", label: "Íconos" }]} />
         <form className="flex-1 flex gap-2 min-w-[280px]" onSubmit={(e) => { e.preventDefault(); setQuery(q); }}>
           <input className="input" placeholder="Buscar por lo que muestra" value={q} onChange={(e) => setQ(e.target.value)} />
           <button className="btn-brand"><Search size={15} /></button>
@@ -79,7 +82,7 @@ export function LibraryPage() {
       {list.length === 0 ? <Card><Empty icon={LibraryIcon} title={query ? "Sin resultados" : "Vacía"}>{query ? "" : "Se llena sola al producir videos."}</Empty></Card> : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
           {list.map((a) => (
-            <button key={a.id} onClick={() => setSel(a)} className="card overflow-hidden text-left hover:border-primary/60 transition-colors">
+            <button key={a.id} onClick={() => setSel(a)} className="card card-hover overflow-hidden text-left">
               <div className="relative"><Thumb a={a} className="w-full aspect-video" />
                 <span className="absolute top-1 left-1 chip bg-black/60 text-white border-transparent">{KIND_LABEL[a.kind]}{a.kind !== "image" && a.duration ? ` · ${Math.max(1, Math.round(a.duration))} s` : ""}</span>
                 {a.favorite ? <Star size={14} className="absolute top-1.5 right-1.5 text-amber-400 fill-amber-400" /> : null}
@@ -88,7 +91,7 @@ export function LibraryPage() {
               <div className="p-2">
                 <div className="text-xs font-medium line-clamp-2 min-h-[2.2em]">{a.described_at ? (a.tags.split(",")[0] || a.title) : a.title}</div>
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground">{(SOURCE_LABEL as Record<string, string>)[a.source] ?? (a.source === "user" ? "Propio" : a.source)}</span>
+                  <span className="text-[10px] text-muted-foreground">{(SOURCE_LABEL as Record<string, string>)[a.source] ?? (a.source === "user" ? "Propio" : a.source === "iconify" ? "Iconify" : a.source === "generated" ? "Creado con IA" : a.source)}</span>
                   {!a.described_at && (a.kind === "image" || a.kind === "video") && <span className="text-[10px] text-amber-500">· sin describir</span>}
                   {a.real_person ? <UserRound size={10} className="text-amber-500" /> : null}
                   {a.used_count > 0 && <span className="text-[10px] text-muted-foreground">· usado {a.used_count}×</span>}
@@ -119,7 +122,8 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
       </>}>
       <div className="grid grid-cols-[1.3fr_1fr] gap-5">
         <div>
-          {a.kind === "image" ? <img src={fileUrl(a.path)} className="w-full rounded border border-border" /> :
+          {a.kind === "icon" ? <div className="rounded-lg border border-border bg-secondary/40 grid place-items-center aspect-square"><img src={fileUrl(a.path)} className="w-1/2 h-1/2 object-contain dark:invert" /></div> :
+          a.kind === "image" ? <img src={fileUrl(a.path)} className="w-full rounded border border-border" /> :
             a.kind === "video" ? <video src={fileUrl(a.path)} controls className="w-full rounded border border-border" /> :
               <div className="space-y-2"><Thumb a={a} className="w-full h-24 rounded" /><audio src={fileUrl(a.path)} controls className="w-full" /></div>}
           <div className="flex gap-2 mt-2">
@@ -150,23 +154,43 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
 
 function WebSearchModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState(""); const [kind, setKind] = useState<AssetKind>("image");
-  const [res, setRes] = useState<Candidate[]>([]); const [errors, setErrors] = useState<string[]>([]);
+  const [res, setRes] = useState<Candidate[]>([]); const [icons, setIcons] = useState<IconHit[] | null>(null); const [errors, setErrors] = useState<string[]>([]);
   const [added, setAdded] = useState<Record<string, boolean>>({});
   return (
     <Modal open={open} onClose={onClose} title="Buscar en internet" wide>
       <form className="flex gap-2 mb-3" onSubmit={async (e) => {
         e.preventDefault(); if (!q.trim()) return;
+        if (kind === "icon") { setRes([]); setIcons(await searchIcons(q.trim(), 48)); setErrors([]); return; }
+        setIcons(null);
         const r = await searchSources(q.trim(), kind, 8);
         setRes(rankCandidates(r.candidates, kind)); setErrors([...r.errors.map((x) => `${SOURCE_LABEL[x.source]}: ${x.message}`), ...r.skipped.map((x) => `${SOURCE_LABEL[x]}: cuota casi agotada`)]);
       }}>
         <select className="input w-36" value={kind} onChange={(e) => setKind(e.target.value as AssetKind)}>
-          <option value="image">Imágenes</option><option value="video">Clips</option><option value="sfx">Efectos</option><option value="music">Música</option>
+          <option value="image">Imágenes</option><option value="video">Clips</option><option value="sfx">Efectos</option><option value="music">Música</option><option value="icon">Íconos</option>
         </select>
-        <input className="input" placeholder="Mejor en inglés: «foggy forest»" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder={kind === "icon" ? "En inglés: «police», «money», «arrow up»" : "Mejor en inglés: «foggy forest»"} value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn-primary"><Search size={15} /> Buscar</button>
       </form>
-      <div className="text-[11px] text-muted-foreground mb-2">Solo licencias aptas para monetizar.</div>
+      <div className="text-[11px] text-muted-foreground mb-2">{kind === "icon" ? "Íconos de colecciones con licencia abierta (MIT, Apache, CC0, CC BY…)." : "Solo licencias aptas para monetizar."}</div>
       {errors.length > 0 && <div className="text-xs text-amber-500 mb-2">{errors.join(" · ")}</div>}
+      {icons && (
+        icons.length === 0 ? (
+          <div className="text-sm text-muted-foreground flex items-center gap-3">Sin resultados con licencia abierta.
+            <AsyncButton className="btn-brand btn-sm" onClick={async () => { await createIcon(q.trim()); toast("success", "Ícono creado", "Ya está en la biblioteca."); }}><Plus size={13} /> Crear con IA</AsyncButton>
+          </div>
+        ) : (
+          <div className="grid grid-cols-8 gap-2 max-h-[60vh] overflow-y-auto">
+            {icons.map((h) => (
+              <button key={h.id} disabled={added[h.id]} title={`${h.name} · ${h.set} · ${h.license}`}
+                onClick={async () => { try { await importIcon(h, q.trim()); setAdded((x) => ({ ...x, [h.id]: true })); } catch (e) { await logError(e, null, "Ícono"); } }}
+                className={`card card-hover aspect-square grid place-items-center relative ${added[h.id] ? "ring-2 ring-primary" : ""}`}>
+                <img src={`https://api.iconify.design/${h.prefix}/${h.name}.svg`} className="w-9 h-9 dark:invert" loading="lazy" />
+                {added[h.id] && <CheckCircle2 size={14} className="absolute top-1 right-1 text-primary" />}
+              </button>
+            ))}
+          </div>
+        )
+      )}
       <div className="grid grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto">
         {res.map((c) => {
           const k = `${c.source}:${c.sourceId}`;

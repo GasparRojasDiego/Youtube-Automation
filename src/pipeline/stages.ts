@@ -100,6 +100,7 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
   await saveArtifact(v.id, "script", script, revision ? "corrección" : "inicial");
   const best = script.title_options?.[0]?.title;
   if (best) await updateVideo(v.id, { title: best });
+  if (script.skills_check_es?.length) await activity(v.id, "script", "decision", `Habilidades aplicadas al guion (${script.skills_check_es.length})`, script.skills_check_es.join("\n"));
   return script;
 }
 
@@ -197,7 +198,8 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   const thumbP = await skillParams(v.channel_id, "miniatura", THUMBNAIL_DEFAULTS);
   const s = getSettings();
   const assetIds = [...new Set(polish.shots.map((x) => x.asset_id).filter(Boolean) as string[])];
-  const assetMap = await getAssets([...assetIds, ...polish.sfx.map((x) => x.asset_id ?? "").filter(Boolean), ...polish.music.map((x) => x.asset_id ?? "").filter(Boolean)]);
+  const iconIds = [...new Set((motion?.items ?? []).filter((m) => m.file).flatMap((m) => m.icon_ids ?? []))];
+  const assetMap = await getAssets([...assetIds, ...iconIds, ...polish.sfx.map((x) => x.asset_id ?? "").filter(Boolean), ...polish.music.map((x) => x.asset_id ?? "").filter(Boolean)]);
   // Mejores imágenes del video para fondos de miniatura (sin personas reales identificables)
   const bgOptions = assetIds.map((id) => assetMap.get(id)!).filter((a) => a && a.kind === "image" && !a.real_person && a.quality >= 3)
     .sort((a, b) => b.quality - a.quality).slice(0, 12);
@@ -208,7 +210,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
     await ctx.progress("Títulos, descripción y miniaturas…");
     const r = await claudeRun<Omit<PackageOut, "chosen_title" | "description" | "chosen_thumbnail" | "chapters" | "srt">>({
       stage: "package", label: "Miniatura y metadatos", system: P.SYSTEM_BASE, schema: P.PACKAGE_SCHEMA,
-      prompt: P.packagePrompt({ skills: [await composeSkills(v.channel_id, "thumbnail"), await composeSkills(v.channel_id, "metadata")].filter(Boolean).join("\n\n"),
+      prompt: P.packagePrompt({ skills: await composeSkills(v.channel_id, ["thumbnail", "metadata"]),
         script: { titles: script.title_options, segments: script.segments.map((x) => ({ title: x.title, text: x.text_en })) },
         verify: { overall: verify.overall_es, titles: verify.title_checks }, params: thumbP, count: s.images.thumbnailCandidates, photorealistic: visual.photorealistic,
         images: bgOptions.map((a) => ({ id: a.id, description: (a.tags.split(",")[0] || a.title).slice(0, 140) })) }),
@@ -243,7 +245,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   pkg.srt = L.buildSrtAligned(segs, offsets);
   // Créditos: atribución obligatoria (CC BY / BY-SA) completa; el resto, resumido
   pkg.description = L.composeDescription({ body: pkg.description_body_en, chapters: pkg.chapters, sources: L.usedSources(script, research),
-    credits: L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || polish.sfx.some((x) => x.asset_id === a.id) || polish.music.some((x) => x.asset_id === a.id)),
+    credits: L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || iconIds.includes(a.id) || polish.sfx.some((x) => x.asset_id === a.id) || polish.music.some((x) => x.asset_id === a.id)),
       polish.music.filter((b) => b.path && !b.asset_id).map((b) => b.title ?? ""), (await listMusic()).filter((m) => polish.music.some((b) => b.path === m.path)).map((m) => m.attribution).filter(Boolean)),
     disclosure: L.adaptDisclosure(s.publishing.aiDisclosure, { generatedImages: generatedUsedNow, aiVoice: voice.provider !== "own" }) });
   pkg.tags = L.sanitizeTags(pkg.tags);

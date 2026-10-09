@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type Page = "hoy" | "produccion" | "video" | "estudio" | "habilidades" | "biblioteca" | "consumo" | "ajustes" | "diagnostico";
+export type Page = "hoy" | "produccion" | "video" | "estudio" | "tiktok" | "habilidades" | "biblioteca" | "consumo" | "ajustes" | "diagnostico";
 export interface Route { page: Page; id?: string; tab?: string }
 
 let route: Route = { page: "hoy" };

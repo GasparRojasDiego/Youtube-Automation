@@ -89,7 +89,7 @@ export const onUploadProgress = (cb: (p: { id: string; sent: number; total: numb
 export const onUploadSession = (cb: (p: { id: string; session: string }) => void) =>
   listen<{ id: string; session: string }>("upload-session", (e) => cb(e.payload));
 
-export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string }
+export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string; downloads: string }
 let pathsCache: AppPaths | null = null;
 export async function appPaths(): Promise<AppPaths> {
   if (!pathsCache) pathsCache = await invoke<AppPaths>("app_paths");

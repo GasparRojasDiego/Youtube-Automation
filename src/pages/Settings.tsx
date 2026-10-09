@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, MonitorPlay, Wallet, Factory, Tv, Trash2, Plus, Check, Play, Shuffle, Eye, Palette, Sparkles, Library, FolderOpen } from "lucide-react";
+import { KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, MonitorPlay, Wallet, Factory, Tv, Trash2, Plus, Check, Play, Shuffle, Eye, Palette, Sparkles, Library, FolderOpen, Moon, Sun } from "lucide-react";
 import { registerOpenverse } from "../media/sources";
 import { libraryRoot } from "../media/library";
 import { findBrowser } from "../motion/host";
@@ -50,7 +50,7 @@ export function SettingsPage({ tab: initial }: { tab?: string }) {
   useEffect(() => { if (initial) setTab(initial as Tab); }, [initial]);
   return (
     <div>
-      <PageHeader title="Ajustes" />
+      <PageHeader kicker="Sistema" title="Ajustes" />
       <div className="mb-5"><Tabs tabs={TABS} value={tab} onChange={setTab} /></div>
       {tab === "channel" && <ChannelTab />}
       {tab === "keys" && <KeysTab />}
@@ -468,12 +468,21 @@ function ProductionTab() {
 
 function LookTab() {
   const { s, set } = useSetting();
+  const opt = (id: "dark" | "light", label: string, Icon: typeof Moon) => (
+    <button onClick={() => set("theme", id)}
+      className={`group relative flex-1 rounded-xl border p-4 text-left transition-all duration-200 ease-frame ${s.theme === id ? "border-primary/60 bg-primary/10 ring-4 ring-primary/10" : "border-border hover:border-primary/30"}`}>
+      <div className={`h-20 rounded-lg mb-3 border ${id === "dark" ? "bg-[#0d0e12] border-white/10" : "bg-[#f3efe6] border-black/10"} relative overflow-hidden`}>
+        <div className={`absolute left-2 top-2 bottom-2 w-10 rounded-md ${id === "dark" ? "bg-white/5" : "bg-black/5"}`} />
+        <div className="absolute left-14 top-3 h-2 w-16 rounded bg-[#7591FF]" />
+        <div className={`absolute left-14 top-7 right-3 h-8 rounded-md ${id === "dark" ? "bg-white/5" : "bg-white"}`} />
+      </div>
+      <div className="flex items-center gap-2 text-sm font-medium"><Icon size={15} className="text-primary" /> {label}</div>
+    </button>
+  );
   return (
     <Card title="Apariencia" icon={Palette}>
-      <div className="flex gap-2">
-        <button className={s.theme === "dark" ? "btn-primary" : "btn-secondary"} onClick={() => set("theme", "dark")}>Oscuro</button>
-        <button className={s.theme === "light" ? "btn-primary" : "btn-secondary"} onClick={() => set("theme", "light")}>Claro</button>
-      </div>
+      <div className="flex gap-3 max-w-xl">{opt("dark", "Oscuro", Moon)}{opt("light", "Claro", Sun)}</div>
+      <div className="mt-5"><Toggle checked={s.ui.ambient} onChange={(v) => set("ui.ambient", v)} label="Fondo animado (constelación y líneas)" /></div>
     </Card>
   );
 }

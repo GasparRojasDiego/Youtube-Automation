@@ -12,6 +12,7 @@ import { claudeRun } from "../providers/claude";
 import { generateImage, imageProvider, type Provenance } from "../providers/images";
 import { ffmpeg, probeDuration, pickEncoder, filterScriptModern } from "../providers/ffmpeg";
 import { searchLibrary, importCandidate, getAssets, markUsed, type Asset } from "../media/library";
+import { resolveIcon } from "../media/icons";
 import { searchSources, rankCandidates, sourceReady, SOURCE_LABEL, type AssetKind } from "../media/sources";
 import { synthSfx, sfxKind } from "../media/sfx";
 import { elevenSoundEffect } from "../providers/tts";
@@ -23,7 +24,7 @@ import { renderSourceCard, renderTitleCard, renderQuoteCard, renderTextCard } fr
 import { out, need, checkCancel, type Ctx } from "./stages";
 import * as P2 from "./prompts2";
 import { SYSTEM_BASE } from "./prompts";
-import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, type SegInfo, type PolishRaw } from "./timeline";
+import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, iconKey, type SegInfo, type PolishRaw } from "./timeline";
 import { segmentV2Args, finalMixV2Args, withFilterScript, segmentV2Duration, type LayerShot, type LayerOverlay } from "./montage2";
 import { concatList } from "./montage";
 import { wordTimings } from "./align";
@@ -75,10 +76,10 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
 
   await ctx.progress("Armando el storyboard…");
-  const r = await claudeRun<{ beats: any[]; music: any[]; emphasis: { segment_id: string; words: string[] }[]; notes_es: string }>({
+  const r = await claudeRun<{ beats: any[]; music: any[]; emphasis: { segment_id: string; words: string[] }[]; notes_es: string; skills_check_es?: string[] }>({
     stage: "storyboard", activityStage: "storyboard", label: "Storyboard", system: SYSTEM_BASE, schema: P2.STORYBOARD_SCHEMA,
     prompt: P2.storyboardPrompt({
-      skills: [await composeSkills(v.channel_id, "visuals"), await composeSkills(v.channel_id, "montage")].filter(Boolean).join("\n\n"),
+      skills: await composeSkills(v.channel_id, ["visuals", "montage"]),
       visual, shotSeconds: montage.shotSeconds, motionBudget: budget, minutes: narrTotal / 60, aiImages: await aiImagesReady(), maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor,
       segments: segs.map((s) => ({ id: s.id, title: s.title, on_screen_sources: script.segments.find((x) => x.id === s.id)?.on_screen_sources ?? [],
         sentences: s.sentences.map((t, i) => ({ i, text: t, dur: Math.max(0.3, (s.spans[i]?.end ?? 0) - (s.spans[i]?.start ?? 0)) })) })),
@@ -94,6 +95,7 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const emphasis = Object.fromEntries((r.data.emphasis ?? []).map((e) => [e.segment_id, e.words ?? []]));
   const count = (k: string) => shots.filter((s) => s.visual === k).length;
   await activity(v.id, "storyboard", "decision", `Storyboard: ${shots.length} tomas · ${count("photo") + count("archival")} imágenes · ${count("ai_image")} con IA · ${count("clip")} clips · ${count("motion") + count("map")} animaciones · ${sfx.length} efectos`, r.data.notes_es ?? "");
+  if (r.data.skills_check_es?.length) await activity(v.id, "storyboard", "decision", `Habilidades visuales aplicadas (${r.data.skills_check_es.length})`, r.data.skills_check_es.join("\n"));
   return { shots, sfx, music, emphasis, notes_es: r.data.notes_es ?? "", scriptKey: key };
 }
 
@@ -431,7 +433,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   await activity(v.id, "polish", "think", "Opus revisa el corte");
   const r = await claudeRun<PolishRaw>({
     stage: "polish", activityStage: "polish", label: "Retoques de edición", system: SYSTEM_BASE, schema: P2.POLISH_SCHEMA,
-    prompt: P2.polishPrompt({ skills: [await composeSkills(v.channel_id, "montage"), await composeSkills(v.channel_id, "edit")].filter(Boolean).join("\n\n"),
+    prompt: P2.polishPrompt({ skills: await composeSkills(v.channel_id, ["montage", "edit"]),
       motionBudget: budget, edl, captions: captions.enabled, palette: { background: visual.background, foreground: visual.foreground, accent: visual.accent, muted: visual.muted, fontTitle: visual.fontTitle, fontBody: visual.fontBody } }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
   });
@@ -456,7 +458,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   for (const sh of applied.shots) if (!sh.grade) sh.grade = applied.grade;
   for (const m of applied.motion) await activity(v.id, "polish", "motion", `Animación ${m.id} (${m.kind === "overlay" ? "capa" : "pantalla completa"}, ${m.duration.toFixed(1)} s)`, `${m.brief_en}${m.text ? `\nTexto: ${m.text}` : ""}`);
   const changed = (r.data.shots ?? []).length;
-  await activity(v.id, "polish", "decision", `Retoques: ${changed} tomas · ${(r.data.sfx_add ?? []).length} efectos · ${applied.motion.length} animaciones`, r.data.notes_es ?? "");
+  await activity(v.id, "polish", "decision", `Retoques: ${changed} tomas · ${(r.data.sfx_add ?? []).length} efectos · ${applied.motion.length} animaciones`, [r.data.notes_es ?? "", ...(r.data.skills_check_es ?? []).map((x) => `• ${x}`)].filter(Boolean).join("\n"));
   const verify = (r.data.verify_es ?? []).map((x) => x.trim()).filter(Boolean);
   if (verify.length) {
     await activity(v.id, "polish", "warn", `Comprobar ${verify.length} dato(s) antes de publicar`, verify.join("\n"));
@@ -493,11 +495,11 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const segs = segInfos(script, voice);
   const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const palette = { background: visual.background, foreground: visual.foreground, muted: visual.muted, accent: visual.accent, fontTitle: visual.fontTitle, fontBody: visual.fontBody, fontMono: visual.fontMono };
-  const skills = [await composeSkills(v.channel_id, "motion"), await composeSkills(v.channel_id, "visuals")].filter(Boolean).join("\n\n");
+  const skills = await composeSkills(v.channel_id, ["motion", "visuals"]);
   const dir = joinPath(v.dir, "motion");
   await fs.mkdir(dir);
   const assetMap = await getAssets([...new Set(items.flatMap((m) => m.asset_ids ?? []))]);
-  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, palette]));
+  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette]));
   // Reutilizar lo ya renderizado
   for (const m of items) {
     const old = prev?.items.find((p) => p.hash === m.hash && p.file);
@@ -508,6 +510,15 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 
   const browserPath = await requireBrowser();
   const res = await motionResources();
+  // Íconos pedidos por las animaciones: biblioteca → Iconify → creados por Claude
+  const iconSvg = new Map<string, string>(); const iconAsset = new Map<string, string>();
+  for (const name of [...new Set(todo.flatMap((m) => m.icons ?? []))]) {
+    checkCancel(ctx);
+    const a = await resolveIcon(name, v.id).catch(() => null);
+    if (a) { try { iconSvg.set(iconKey(name), await fs.readText(a.path)); iconAsset.set(iconKey(name), a.id); await activity(v.id, "motion", "asset", `Ícono «${name}»`, `${a.source === "generated" ? "Creado con IA" : a.attribution}`, a.path); } catch { /* ilegible */ } }
+  }
+  for (const m of todo) m.icon_ids = (m.icons ?? []).map((n) => iconAsset.get(iconKey(n))).filter(Boolean) as string[];
+  const iconsFor = (m: MotionItem) => Object.fromEntries((m.icons ?? []).map((n) => [iconKey(n), iconSvg.get(iconKey(n))]).filter((x) => !!x[1])) as Record<string, string>;
   const work = joinPath(v.dir, "motion", "trabajo");
   let browser: Browser | null = null;
   const contextOf = (m: MotionItem) => {
@@ -520,6 +531,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     id: m.id, duration: m.duration, transparent: m.kind === "overlay", css: c.css, html: c.html, js: c.js, libs: c.libs ?? m.libs,
     assets: Object.fromEntries(assetsFor(m).map((x) => [x.key, x.a!.path])),
     palette: { bg: palette.background, fg: palette.foreground, accent: palette.accent, muted: palette.muted, fontTitle: palette.fontTitle, fontBody: palette.fontBody, fontMono: palette.fontMono },
+    icons: iconsFor(m),
   });
 
   const render = async (m: MotionItem, comp: Composition) => {
@@ -540,7 +552,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     const r = await claudeRun<{ compositions: { id: string; title: string; duration: number; css: string; html: string; js: string; libs: ("map" | "d3")[] }[] }>({
       stage: "motion", activityStage: "motion", label: `Animaciones ${batch.map((x) => x.id).join(", ")}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
       prompt: P2.motionPrompt({ skills, palette, items: batch.map((m) => ({ id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "", libs: m.libs ?? [], context: contextOf(m),
-        assets: assetsFor(m).map((x) => ({ key: x.key, description: (x.a!.tags.split(",")[0] || x.a!.title).slice(0, 120) })) })) }),
+        assets: assetsFor(m).map((x) => ({ key: x.key, description: (x.a!.tags.split(",")[0] || x.a!.title).slice(0, 120) })), icons: Object.keys(iconsFor(m)) })) }),
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
     });
     return r.data.compositions ?? [];

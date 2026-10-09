@@ -8,7 +8,7 @@ import { addReview } from "../../lib/repo";
 import type { VerifyOut, ScriptOut, ResearchOut, ClaimCheck, Severity } from "../../pipeline/types";
 import { saveVerification, approveScript, applyScriptFixes } from "../../pipeline/runner";
 import * as L from "../../pipeline/logic";
-import { Card, Chip, ReviewTimer, AsyncButton } from "../../ui/kit";
+import { Card, Chip, AsyncButton } from "../../ui/kit";
 import { toast } from "../../lib/events";
 
 const ISSUE: Record<string, string> = {
@@ -69,7 +69,7 @@ export function VerifyReview({ video, row, script, research }: { video: Video; r
             {v.originality.verdict !== "ok" && <div className="text-xs text-amber-700 dark:text-amber-500">{v.originality.note_es}</div>}
           </div>
           <div className="text-right shrink-0 space-y-2">
-            {editable && <ReviewTimer onTick={(s) => (secs.current = s)} />}
+            
             <div><button className="btn-brand btn-sm" onClick={nextIssue}><Eye size={13} /> Siguiente pendiente</button></div>
           </div>
         </div>

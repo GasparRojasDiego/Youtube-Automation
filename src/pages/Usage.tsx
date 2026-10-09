@@ -71,7 +71,7 @@ export function UsagePage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Consumo"
+      <PageHeader kicker="Control" title="Consumo"
         actions={<RefreshUsageButton />} />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: "claude", label: "Claude", icon: Bot }, { id: "otros", label: "Voz y medios", icon: Mic }, { id: "costos", label: "Dinero", icon: Gauge }]} />
 

@@ -1,6 +1,6 @@
 // Esquema SQLite y migraciones. Cada migración se aplica una sola vez.
 import { db } from "./ipc";
-import { skillKindOf, KIND_SCOPES } from "./skills";
+import { skillKindOf, KIND_SCOPES, saveSkill } from "./skills";
 
 const MIGRATIONS: string[] = [
   // 1 — esquema inicial
@@ -124,6 +124,10 @@ const MIGRATIONS: string[] = [
   DROP TABLE IF EXISTS creator_videos;
   ALTER TABLE creators ADD COLUMN enabled INTEGER DEFAULT 1;
   `,
+  // 4 — habilidades en dos partes (los referentes pasan a una habilidad textual); íconos en la biblioteca
+  `
+  CREATE INDEX IF NOT EXISTS idx_assets_source ON assets(source, source_id);
+  `,
 ];
 
 export async function migrate(): Promise<void> {
@@ -134,6 +138,19 @@ export async function migrate(): Promise<void> {
     await db.script(`BEGIN; ${MIGRATIONS[v]} INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version','${v + 1}'); COMMIT;`);
     v++;
     if (v === 3) await afterV3();
+    if (v === 4) await afterV4();
+  }
+}
+
+/** 2.3: los puntos fuertes de los referentes activos se guardan como una habilidad textual. */
+async function afterV4() {
+  const refs = await db.query<{ channel_id: string | null; name: string; notes: string }>("SELECT channel_id, name, notes FROM creators WHERE COALESCE(enabled,1)=1 AND TRIM(COALESCE(notes,''))<>''");
+  if (!refs.length) return;
+  const byChannel = new Map<string | null, typeof refs>();
+  for (const r of refs) { if (!byChannel.has(r.channel_id)) byChannel.set(r.channel_id, []); byChannel.get(r.channel_id)!.push(r); }
+  for (const [ch, list] of byChannel) {
+    const content = `# Puntos fuertes a replicar\n\nDe canales de referencia: imita las técnicas, nunca su voz ni su contenido.\n\n${list.map((r) => `## ${r.name}\n${r.notes.trim()}`).join("\n\n")}\n`;
+    await saveSkill({ name: "Referentes: puntos fuertes", scopes: KIND_SCOPES.script, content, enabled: true, channel_id: ch }, "desde Referentes");
   }
 }
 

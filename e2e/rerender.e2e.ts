@@ -12,7 +12,7 @@ describe.skipIf(!nfs.existsSync(path.join(WORK, "atril.db")))("montaje v2 sobre 
   it("vuelve a montar con imagen y voz sincronizadas", async () => {
     const ipc = await import("./node-ipc");
     ipc.openDb(path.join(WORK, "atril.db"));
-    ipc.setPaths({ data: path.join(WORK, "data"), exe_dir: WORK, resources: path.resolve(__dirname, "../src-tauri"), home: WORK, documents: path.join(WORK, "docs") });
+    ipc.setPaths({ data: path.join(WORK, "data"), exe_dir: WORK, resources: path.resolve(__dirname, "../src-tauri"), home: WORK, documents: path.join(WORK, "docs"), downloads: path.join(WORK, "descargas") });
     const { loadSettings } = await import("../src/lib/settings");
     const repo = await import("../src/lib/repo");
     await loadSettings();

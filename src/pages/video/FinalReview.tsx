@@ -11,7 +11,7 @@ import { skillParams, THUMBNAIL_DEFAULTS, VISUAL_DEFAULTS } from "../../lib/skil
 import type { PackageOut, RenderOut, ScriptOut, VoiceOut, PolishOut, MotionOut, Shot } from "../../pipeline/types";
 import { approveFinal, rejectVideo, redoVoiceSegment } from "../../pipeline/runner";
 import { renderThumbnail } from "../../pipeline/cards";
-import { Card, Chip, Field, Toggle, ReviewTimer, AsyncButton, Modal, Tabs } from "../../ui/kit";
+import { Card, Chip, Field, Toggle, AsyncButton, Modal, Tabs } from "../../ui/kit";
 import { ExportButton } from "./Panels";
 import { ShotThumb, ShotEditorV2, MusicBeds, MotionPanel } from "./EditPanels";
 import { fmtDuration, zonedTimeToUtc, ymdInZone, joinPath } from "../../lib/util";
@@ -87,7 +87,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
             <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} poster={render.poster ? fileUrl(render.poster, render.renderedAt) : undefined} />
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
               <span>{fmtDuration(render.duration)} · capítulos: {pkg.chapters.length} · <button className="text-primary hover:underline" onClick={() => void openPath(render.file)}>Abrir en el reproductor del sistema</button></span>
-              {editable && <ReviewTimer onTick={(s) => (secs.current = s)} />}
+              
             </div>
           </Card>
         )}

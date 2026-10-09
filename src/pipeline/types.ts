@@ -22,6 +22,7 @@ export interface ScriptOut {
   title_options: { title: string; promise_es: string }[];
   segments: Segment[];
   originality_note_es: string;
+  skills_check_es?: string[];
   version?: number;
 }
 
@@ -117,7 +118,7 @@ export interface MotionItem {
   shot_ids: string[];        // tomas que reemplaza (fullscreen) o sobre las que aparece (overlay)
   start: number; duration: number; // tiempo dentro del segmento (s)
   segment_id: string;
-  brief_en: string; text?: string; data_es?: string; libs?: ("map" | "d3")[];
+  brief_en: string; text?: string; data_es?: string; libs?: ("map" | "d3")[]; icons?: string[]; icon_ids?: string[];
   asset_ids?: string[];
   // resultado
   file?: string | null; error?: string | null; attempts?: number; critique_es?: string; hash?: string;

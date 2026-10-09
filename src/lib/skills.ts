@@ -148,23 +148,13 @@ export const stripParamBlocks = (content: string) => stripComments(content).repl
 const matchesScope = (s: Skill, scope: Scope) => s.scopes.includes("all") || s.scopes.includes(scope);
 
 /** Puntos fuertes de los referentes activos (texto compacto). */
-export async function referentStrengths(channelId: string | null): Promise<string> {
-  const rows = await db.query<{ name: string; notes: string }>(
-    "SELECT name, notes FROM creators WHERE (channel_id IS ? OR channel_id IS NULL) AND COALESCE(enabled,1)=1 AND TRIM(COALESCE(notes,''))<>'' ORDER BY name", [channelId]);
-  return rows.map((r) => `## ${r.name}\n${r.notes.trim()}`).join("\n\n");
-}
-
-/** Etapas que reciben el recordatorio de referentes (una vez por llamada). */
-const REFERENT_SCOPES: Scope[] = ["topics", "script", "visuals", "edit", "thumbnail"];
 
 /** Texto de las habilidades activas para una etapa, listo para inyectar en un prompt. */
-export async function composeSkills(channelId: string | null, scope: Scope): Promise<string> {
-  const skills = (await listSkills(channelId)).filter((s) => s.enabled && matchesScope(s, scope));
+export async function composeSkills(channelId: string | null, scope: Scope | Scope[]): Promise<string> {
+  const scopes = Array.isArray(scope) ? scope : [scope];
+  // Una habilidad que aplica a varias etapas de la misma llamada se incluye una sola vez
+  const skills = (await listSkills(channelId)).filter((s) => s.enabled && scopes.some((sc) => matchesScope(s, sc)));
   const parts = skills.map((s) => `<skill name="${s.name}">\n${stripParamBlocks(s.content)}\n</skill>`);
-  if (REFERENT_SCOPES.includes(scope)) {
-    const refs = await referentStrengths(channelId);
-    if (refs) parts.push(`<reference_strengths note="Strong points of reference channels: replicate the techniques, never their voice or content.">\n${refs}\n</reference_strengths>`);
-  }
   return parts.join("\n\n");
 }
 

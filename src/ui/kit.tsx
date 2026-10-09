@@ -1,17 +1,20 @@
 // Componentes base con la identidad visual de VT Asvent.
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X, Loader2, Check, AlertTriangle, CircleDashed, Clock, Eye, Ban, type LucideIcon } from "lucide-react";
 import type { StageStatus } from "../lib/repo";
+import { Scramble, EchoWord } from "./Constellation";
 
-export function PageHeader({ kicker, title, subtitle, actions }: { kicker?: string; title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ kicker, title, subtitle, actions, echo }: { kicker?: string; title: string; subtitle?: ReactNode; actions?: ReactNode; echo?: string | false }) {
   return (
-    <div className="flex items-end justify-between gap-4 mb-6">
-      <div className="min-w-0">
-        {kicker && <div className="kicker mb-1">{kicker}</div>}
-        <h1 className="text-2xl font-bold text-primary truncate">{title}</h1>
-        {subtitle && <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>}
+    <div className="relative flex items-end justify-between gap-4 mb-7 pt-2">
+      {echo !== false && <EchoWord word={echo || title} className="-top-3 opacity-90 [mask-image:linear-gradient(90deg,transparent,#000_15%,#000_70%,transparent)]" />}
+      <div className="relative min-w-0">
+        {kicker && <div className="kicker mb-1.5">{kicker}</div>}
+        <h1 className="text-[28px] leading-tight font-bold tracking-tight truncate"><Scramble text={title} /></h1>
+        {subtitle && <div className="text-sm text-muted-foreground mt-1.5">{subtitle}</div>}
       </div>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+      {actions && <div className="relative flex items-center gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }
@@ -20,15 +23,15 @@ export function Card({ title, icon: Icon, actions, children, className = "", pad
   return (
     <section className={`card ${className}`}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 px-4 pt-4">
+        <header className="flex items-center justify-between gap-3 px-5 pt-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            {Icon && <span className="icon-box w-8 h-8"><Icon size={16} /></span>}
-            {title && <h2 className="font-semibold text-sm truncate">{title}</h2>}
+            {Icon && <span className="icon-box w-8 h-8"><Icon size={15} /></span>}
+            {title && <h2 className="font-semibold text-[13.5px] tracking-tight truncate">{title}</h2>}
           </div>
           {actions && <div className="flex items-center gap-1.5">{actions}</div>}
         </header>
       )}
-      <div className={pad ? "p-4" : ""}>{children}</div>
+      <div className={pad ? "p-5" : ""}>{children}</div>
     </section>
   );
 }
@@ -46,8 +49,8 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
   return (
     <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="inline-flex items-center gap-2 text-sm">
-      <span className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${checked ? "bg-primary" : "bg-secondary border border-border"}`}>
-        <span className={`absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ease-frame ${checked ? "translate-x-4" : "translate-x-0.5"}`} />
+      <span className={`relative w-9 h-5 rounded-full border transition-colors duration-200 ${checked ? "bg-primary border-primary shadow-[0_0_12px_-2px_hsl(var(--primary)/.7)]" : "bg-secondary border-border"}`}>
+        <span className={`absolute left-0 top-[1px] w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ease-frame ${checked ? "translate-x-[17px]" : "translate-x-[1px]"}`} />
       </span>
       {label && <span>{label}</span>}
     </button>
@@ -61,9 +64,12 @@ export function Spinner({ size = 16, className = "" }: { size?: number; classNam
 export function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-12 px-6">
-      <span className="icon-box w-12 h-12 mb-3"><Icon size={22} /></span>
-      <div className="font-semibold">{title}</div>
-      {children && <div className="text-sm text-muted-foreground mt-1 max-w-md">{children}</div>}
+      <span className="relative mb-4">
+        <span className="absolute inset-0 rounded-2xl bg-primary/20 blur-xl" />
+        <span className="icon-box relative w-12 h-12 rounded-2xl"><Icon size={22} /></span>
+      </span>
+      <div className="font-semibold tracking-tight">{title}</div>
+      {children && <div className="text-sm text-muted-foreground mt-1.5 max-w-md leading-relaxed">{children}</div>}
     </div>
   );
 }
@@ -71,7 +77,7 @@ export function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title
 export function Progress({ value, className = "" }: { value: number; className?: string }) {
   return (
     <div className={`h-1.5 rounded-full bg-secondary overflow-hidden ${className}`}>
-      <div className="h-full bg-primary transition-all duration-300 ease-frame" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      <div className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary shadow-[0_0_10px_hsl(var(--primary)/.6)] transition-[width] duration-500 ease-frame" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
   );
 }
@@ -101,17 +107,6 @@ export function Chip({ children, tone = "muted" }: { children: ReactNode; tone?:
   return <span className={`chip ${cls}`}>{children}</span>;
 }
 
-/** Eco de palabra (§8.5): palabra gigante que deriva detrás del título. */
-export function EchoWord({ word }: { word: string }) {
-  const row = (Array(8).fill(word.toUpperCase()).join("  ·  ") + "  ·  ").repeat(2);
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-2 overflow-hidden select-none">
-      <div className="whitespace-nowrap text-3xl font-bold text-foreground/[0.045] animate-drift w-max">{row}</div>
-      <div className="whitespace-nowrap text-4xl font-bold text-foreground/[0.03] animate-drift-rev w-max">{row}</div>
-    </div>
-  );
-}
-
 export function Modal({ open, onClose, title, echo, children, wide = false, footer }: { open: boolean; onClose: () => void; title: string; echo?: string; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
   useEffect(() => {
     if (!open) return;
@@ -119,18 +114,20 @@ export function Modal({ open, onClose, title, echo, children, wide = false, foot
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
   }, [open, onClose]);
   if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-6 animate-fade-up" onMouseDown={onClose}>
-      <div className={`relative card w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] flex flex-col shadow-2xl`} onMouseDown={(e) => e.stopPropagation()}>
-        {echo && <EchoWord word={echo} />}
-        <div className="relative px-6 pt-5 pb-3 text-center">
-          <h3 className="text-xl font-bold text-primary">{title}</h3>
-          <button className="btn-ghost btn-sm absolute right-3 top-3" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
+  // Portal: los modales no dependen del contenedor (tarjetas con desenfoque crean otro contexto)
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm p-6 animate-fade-up" onMouseDown={onClose}>
+      <div className={`relative card bg-card w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-pop-in`} onMouseDown={(e) => e.stopPropagation()}>
+        {echo && <EchoWord word={echo} className="top-1 opacity-70" />}
+        <div className="relative px-6 pt-5 pb-3">
+          <h3 className="text-lg font-bold tracking-tight">{title}</h3>
+          <button className="btn-ghost btn-sm absolute right-3 top-3.5" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
         </div>
         <div className="relative px-6 pb-5 overflow-y-auto">{children}</div>
-        {footer && <div className="relative px-6 py-3 border-t border-border flex justify-end gap-2">{footer}</div>}
+        {footer && <div className="relative px-6 py-3 border-t border-border/80 bg-secondary/30 flex justify-end gap-2">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -147,15 +144,16 @@ export function AsyncButton({ onClick, children, className = "btn-brand", disabl
   );
 }
 
+/** Control segmentado: el activo se eleva sobre un riel. */
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string; icon?: LucideIcon }[]; value: T; onChange: (t: T) => void }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-secondary/60 border border-border/70">
       {tabs.map((t) => {
-        const I = t.icon;
+        const I = t.icon; const on = value === t.id;
         return (
           <button key={t.id} onClick={() => onChange(t.id)}
-            className={`btn btn-sm ${value === t.id ? "border border-primary text-primary font-semibold bg-primary/10" : "bg-secondary hover:bg-accent"}`}>
-            {I && <I size={14} />}{t.label}
+            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 ease-frame ${on ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground"}`}>
+            {I && <I size={14} className={on ? "text-primary" : ""} />}{t.label}
           </button>
         );
       })}
@@ -190,8 +188,8 @@ export function Stat({ label, value, sub, tone }: { label: string; value: ReactN
   return (
     <div>
       <div className="label">{label}</div>
-      <div className={`text-2xl font-bold tabular ${c}`}>{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
+      <div className={`text-[26px] leading-tight font-bold tracking-tight tabular mt-1 ${c}`}>{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
 }

@@ -61,8 +61,10 @@ const BROKEN: Composition = { id: "x", duration: 1, transparent: false, css: "",
 
 const KIT: Composition = {
   id: "k1", duration: 1.5, transparent: false, css: "", html: "", palette: { accent: "#C6F432", fontTitle: "Inter" },
+  icons: { police: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>' },
   js: `const tl = gsap.timeline(); const s = K.scene(); K.paper(s); K.hud({ tl: 'ATRIL', tr: 'TC' }, s);
 const t = K.title(s, 'Deadline', { font: 'DM Serif Display', italic: true, size: 200 }); const n = K.bigNumber(s, { text: '0', label: 'TEST', y: 800, size: 120 });
+const ic = K.icon(s, 'police', { x: 300, y: 300, size: 140, color: '#C6F432' }); K.drawIcon(tl, ic, 0.1);
 K.show(tl, s, 0); K.reveal(tl, t, 0.1, { fx: 'blur' }); K.counter(tl, n.num, 0.2, { to: 353, suffix: '+', dur: 0.8 }); K.glitch(tl, s, 1.1, { dur: 0.3 });
 ATRIL.register(tl, 1.5);`,
 };

@@ -18,7 +18,12 @@ Rules:
 - The narrator never claims credentials and never impersonates a real person.
 - Answer only through the required structured output.`;
 
-export const wrapSkills = (skills: string) => skills ? `\n\n<channel_skills>\n${skills}\n</channel_skills>` : "\n\n(No channel skills are active for this stage: use an engaging, clear, well-paced YouTube storytelling register.)";
+export const wrapSkills = (skills: string) => skills
+  ? `\n\n<channel_skills priority="highest">\nThe operator wrote these rules for this channel. They are MANDATORY. Follow every rule literally and give them priority over any default style, length, tone or format suggested elsewhere in this prompt (only the output schema and the rule against inventing facts take precedence). Before answering, check your output against each rule one by one and fix anything that does not comply.\n\n${skills}\n</channel_skills>`
+  : "\n\n(No channel skills are active for this stage: use an engaging, clear, well-paced YouTube storytelling register.)";
+
+/** Campo de autocomprobación: obliga a repasar cada regla de las habilidades. */
+export const SKILLS_CHECK = arr(str("«Regla» → cómo la cumpliste (en español, breve)"), "One line per channel-skill rule that applies to this output; empty if no skills");
 
 // ---------- Banco de temas ----------
 export const TOPICS_SCHEMA = obj({
@@ -92,6 +97,7 @@ export const SCRIPT_SCHEMA = obj({
     on_screen_sources: arr(str("Source ids to show on screen in this segment")),
   })),
   originality_note_es: str("Qué análisis propio aporta el video más allá de resumir las fuentes"),
+  skills_check_es: SKILLS_CHECK,
 });
 
 const SCRIPT_RULES = (minW: number, maxW: number) => `Requirements:
@@ -175,6 +181,7 @@ export const PACKAGE_SCHEMA = obj({
   })),
   synthetic_media: bool("true if the video contains realistic AI-generated scenes that viewers could mistake for real footage"),
   synthetic_reason_es: str(),
+  skills_check_es: SKILLS_CHECK,
 });
 
 export function packagePrompt(o: { skills: string; script: unknown; verify: unknown; params: unknown; count: number; photorealistic: boolean; images?: { id: string; description: string }[] }) {
@@ -187,26 +194,6 @@ Rules: titles and thumbnails must not promise anything the video does not demons
 ${o.images?.length ? `IMAGES USED IN THE VIDEO (choose a strong, uncluttered one per thumbnail with background_asset_id):\n${o.images.map((x) => `- ${x.id}: ${x.description}`).join("\n")}\n\n` : ""}SCRIPT: ${JSON.stringify(o.script)}
 
 VERIFICATION SUMMARY: ${JSON.stringify(o.verify)}`;
-}
-
-// ---------- Referentes ----------
-export const NOTEBOOK_RUBRIC = `Analiza todos los videos de este cuaderno. Lista, con un ejemplo breve cada uno, los puntos fuertes que otro canal podría replicar:
-1. Títulos y miniaturas.
-2. Ganchos (primeros 30 s).
-3. Estructura y ritmo.
-4. Uso de fuentes.
-5. Edición: cortes, animaciones, sonido.
-6. Cierres.`;
-
-export const REFERENT_SCHEMA = obj({
-  strengths_es: arr(str("Punto fuerte concreto y replicable, en una frase corta"), "5-10 puntos"),
-});
-
-export function referentPrompt(o: { name: string; notes: string }) {
-  return `From these notes about the YouTube channel "${o.name}", extract its strongest, replicable techniques (hooks, structure, rhythm, titles, thumbnails, editing, use of sources). Each point must be concrete and short. Skip its personal voice and anything not worth copying.
-
-NOTES:
-${o.notes}`;
 }
 
 // ---------- Refinar una habilidad (ciclo propone → corrige → incorpora) ----------

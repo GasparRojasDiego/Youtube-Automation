@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import { Clapperboard, Plus, ExternalLink, Lightbulb } from "lucide-react";
+import { Clapperboard, ExternalLink, Lightbulb, Film } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useBus } from "../lib/bus";
-import { db } from "../lib/ipc";
-import { activeChannel, createVideo, getStages, type StageRow, type Video, listVideos } from "../lib/repo";
-import { runVideo } from "../pipeline/runner";
+import { db, fileUrl } from "../lib/ipc";
+import { activeChannel, getStages, type StageRow, type Video, listVideos } from "../lib/repo";
 import { navigate } from "../ui/nav";
-import { PageHeader, Card, Empty, Chip, Modal, Field, Tabs } from "../ui/kit";
+import { PageHeader, Card, Empty, Chip, Tabs } from "../ui/kit";
 import { TopicsPanel } from "./Topics";
-import { awaiting } from "../ui/Stepper";
-import { fmtDate, fmtUsd } from "../lib/util";
+import { awaiting, Stepper } from "../ui/Stepper";
+import { fmtDate, fmtUsd, fmtDuration } from "../lib/util";
+import type { RenderOut } from "../pipeline/types";
 
 type Filter = "all" | "active" | "published" | "rejected";
 
@@ -17,19 +17,15 @@ export function Production({ tab: initial }: { tab?: string }) {
   const [tab, setTab] = useState<"videos" | "temas">(initial === "temas" ? "temas" : "videos");
   useEffect(() => { if (initial === "temas" || initial === "videos") setTab(initial); }, [initial]);
   const tick = useBus("videos", "stages", "costs", "channels", "settings");
-  const [rows, setRows] = useState<{ v: Video; stages: StageRow[]; cost: number; review: number }[]>([]);
+  const [rows, setRows] = useState<{ v: Video; stages: StageRow[]; cost: number }[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
-  const [adhoc, setAdhoc] = useState(false);
-  const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     void (async () => {
       const ch = await activeChannel(); if (!ch) return;
       const vids = await listVideos(ch.id, 300);
       const costs = await db.query<{ video_id: string; s: number }>("SELECT video_id, SUM(usd) s FROM costs WHERE video_id IS NOT NULL GROUP BY video_id");
-      const reviews = await db.query<{ video_id: string; s: number }>("SELECT video_id, SUM(seconds) s FROM reviews GROUP BY video_id");
-      setRows(await Promise.all(vids.map(async (v) => ({ v, stages: await getStages(v.id), cost: costs.find((c) => c.video_id === v.id)?.s ?? 0, review: reviews.find((r) => r.video_id === v.id)?.s ?? 0 }))));
+      setRows(await Promise.all(vids.map(async (v) => ({ v, stages: await getStages(v.id), cost: costs.find((c) => c.video_id === v.id)?.s ?? 0 }))));
     })();
   }, [tick]);
 
@@ -37,56 +33,42 @@ export function Production({ tab: initial }: { tab?: string }) {
 
   return (
     <div>
-      <PageHeader title="Videos" actions={tab === "videos" && <button className="btn-brand" onClick={() => setAdhoc(true)}><Plus size={15} /> Video sin tema guardado</button>} />
-      <div className="mb-4"><Tabs value={tab} onChange={setTab} tabs={[{ id: "videos", label: "Videos", icon: Clapperboard }, { id: "temas", label: "Temas", icon: Lightbulb }]} /></div>
+      <PageHeader kicker="Producción" title="Videos" actions={<Tabs value={tab} onChange={setTab} tabs={[{ id: "videos", label: "Videos", icon: Clapperboard }, { id: "temas", label: "Temas", icon: Lightbulb }]} />} />
       {tab === "temas" ? <TopicsPanel /> : (<>
-      <div className="flex gap-1.5 mb-4">
-        {(["all", "active", "published", "rejected"] as Filter[]).map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`btn btn-sm rounded-full ${filter === f ? "bg-primary text-white" : "bg-secondary"}`}>
-            {{ all: "Todos", active: "En curso", published: "Publicados", rejected: "Rechazados" }[f]}
-          </button>
-        ))}
-      </div>
-      <Card pad={false}>
-        {shown.length === 0 ? <Empty icon={Clapperboard} title="Sin videos" /> : (
-          <table className="w-full text-sm">
-            <thead><tr className="text-left label border-b border-border">
-              <th className="px-4 py-2.5 font-medium">Video</th><th className="px-2 font-medium">Estado</th><th className="px-2 font-medium">Creado</th>
-              <th className="px-2 font-medium text-right">Costo</th><th className="px-2 font-medium text-right">Revisión</th><th className="px-4" />
-            </tr></thead>
-            <tbody>
-              {shown.map(({ v, stages, cost, review }) => {
-                const a = awaiting(v, stages);
-                return (
-                  <tr key={v.id} className="border-b border-border/60 hover:bg-accent/40 cursor-pointer" onClick={() => navigate({ page: "video", id: v.id })}>
-                    <td className="px-4 py-3"><div className="font-medium truncate max-w-[440px]">{v.title}</div>
-                      <div className="flex gap-1 mt-1">{v.mode === "premium" && <Chip tone="primary">Premium</Chip>}{v.voice_mode === "own" && <Chip tone="primary">Mi voz</Chip>}</div></td>
-                    <td className="px-2"><Chip tone={a.tone === "muted" ? "muted" : a.tone}>{a.text.length > 48 ? a.text.slice(0, 47) + "…" : a.text}</Chip></td>
-                    <td className="px-2 text-muted-foreground text-xs">{fmtDate(v.created_at)}</td>
-                    <td className="px-2 text-right tabular">{fmtUsd(cost)}</td>
-                    <td className="px-2 text-right tabular text-muted-foreground">{Math.round(review / 60)} min</td>
-                    <td className="px-4 text-right">{v.youtube_id && <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); void openUrl(`https://youtu.be/${v.youtube_id}`); }}><ExternalLink size={14} /></button>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </Card>
-      </>)}
-      <Modal open={adhoc} onClose={() => setAdhoc(false)} title="Nuevo video"
-        footer={<><button className="btn-ghost" onClick={() => setAdhoc(false)}>Cancelar</button>
-          <button className="btn-primary" disabled={!title.trim()} onClick={async () => {
-            const ch = await activeChannel(); if (!ch) return;
-            const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title: title.trim(), angle: "", notes, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
-            await db.execute("UPDATE videos SET topic_id=NULL WHERE id=?", [v.id]);
-            setAdhoc(false); setTitle(""); setNotes(""); runVideo(v.id); navigate({ page: "video", id: v.id });
-          }}>Crear</button></>}>
-        <div className="space-y-3">
-          <Field label="Tema"><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej.: Harvard's 2022 report on its ties to slavery" /></Field>
-          <Field label="Notas (opcional)"><textarea className="input min-h-24" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+        <div className="mb-4">
+          <Tabs value={filter} onChange={setFilter} tabs={[{ id: "all", label: `Todos · ${rows.length}` }, { id: "active", label: "En curso" }, { id: "published", label: "Publicados" }, { id: "rejected", label: "Rechazados" }]} />
         </div>
-      </Modal>
+        {shown.length === 0 ? <Card><Empty icon={Clapperboard} title="Sin videos">Crea uno desde «Hoy».</Empty></Card> : (
+          <div className="space-y-2.5">
+            {shown.map(({ v, stages, cost }) => {
+              const a = awaiting(v, stages);
+              const render = stages.find((s) => s.stage === "render" && s.output)?.output as RenderOut | undefined;
+              return (
+                <div key={v.id} onClick={() => navigate({ page: "video", id: v.id })} className="card card-hover cursor-pointer p-3 flex items-center gap-4">
+                  <div className="w-36 aspect-video shrink-0 rounded-lg overflow-hidden bg-secondary ring-1 ring-border grid place-items-center">
+                    {render?.poster ? <img src={fileUrl(render.poster, render.renderedAt)} className="w-full h-full object-cover" /> : <Film size={20} className="text-muted-foreground/60" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium tracking-tight truncate">{v.title}</div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <Chip tone={a.tone === "muted" ? "muted" : a.tone}>{a.text.length > 48 ? a.text.slice(0, 47) + "…" : a.text}</Chip>
+                      {v.mode === "premium" && <Chip tone="primary">Premium</Chip>}
+                      {v.voice_mode === "own" && <Chip tone="primary">Mi voz</Chip>}
+                      {render && <Chip>{fmtDuration(render.duration)}</Chip>}
+                    </div>
+                    {["active", "approved"].includes(v.status) && <div className="mt-2.5"><Stepper stages={stages} /></div>}
+                  </div>
+                  <div className="text-right shrink-0 space-y-1">
+                    <div className="font-mono text-xs tabular">{fmtUsd(cost)}</div>
+                    <div className="text-[11px] text-muted-foreground">{fmtDate(v.created_at)}</div>
+                    {v.youtube_id && <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); void openUrl(`https://youtu.be/${v.youtube_id}`); }}><ExternalLink size={14} /></button>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>)}
     </div>
   );
 }

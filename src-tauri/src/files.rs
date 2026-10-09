@@ -127,6 +127,7 @@ pub struct AppPaths {
     resources: String,
     home: String,
     documents: String,
+    downloads: String,
 }
 
 #[tauri::command]
@@ -139,11 +140,50 @@ pub fn app_paths(app: tauri::AppHandle) -> Result<AppPaths, String> {
     let resources = app.path().resource_dir().unwrap_or_default();
     let home = app.path().home_dir().unwrap_or_default();
     let documents = app.path().document_dir().unwrap_or_else(|_| home.join("Documents"));
+    let downloads = app.path().download_dir().unwrap_or_else(|_| home.join("Downloads"));
     Ok(AppPaths {
         data: data.to_string_lossy().to_string(),
         exe_dir: exe_dir.to_string_lossy().to_string(),
         resources: resources.to_string_lossy().to_string(),
         home: home.to_string_lossy().to_string(),
         documents: documents.to_string_lossy().to_string(),
+        downloads: downloads.to_string_lossy().to_string(),
     })
+}
+
+/// Instala una actualización: espera a que ATRIL se cierre, ejecuta el
+/// instalador en modo silencioso y vuelve a abrir la app (solo Windows).
+#[tauri::command]
+pub fn update_install(app: tauri::AppHandle, installer: String) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let pid = std::process::id();
+        // ping como pausa: «timeout» falla en procesos sin consola
+        let script = format!(
+            "@echo off\r\n:wait\r\ntasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n\"{installer}\" /S\r\nping -n 2 127.0.0.1 >nul\r\nstart \"\" \"{exe}\"\r\ndel \"%~f0\"\r\n",
+            pid = pid,
+            installer = installer,
+            exe = exe.to_string_lossy()
+        );
+        let path = std::env::temp_dir().join("atril-actualizar.cmd");
+        std::fs::write(&path, script).map_err(|e| format!("No se pudo preparar la actualización: {e}"))?;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        std::process::Command::new("cmd")
+            .arg("/C")
+            .arg(&path)
+            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("No se pudo iniciar el instalador: {e}"))?;
+        app.exit(0);
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, installer);
+        Err("La actualización automática solo funciona en Windows.".into())
+    }
 }

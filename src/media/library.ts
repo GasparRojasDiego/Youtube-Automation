@@ -10,14 +10,14 @@ import { ffmpeg, probeMedia } from "../providers/ffmpeg";
 import { resolveNasa, attributionText, type Candidate, type AssetKind, type SourceId } from "./sources";
 
 export interface Asset {
-  id: string; kind: AssetKind; source: SourceId | "user" | "atril"; source_id: string;
+  id: string; kind: AssetKind; source: SourceId | "user" | "atril" | "iconify" | "generated"; source_id: string;
   url: string | null; page_url: string | null; title: string; author: string; license: string; license_url: string; attribution: string;
   path: string; thumb: string | null; width: number | null; height: number | null; duration: number | null; bytes: number | null;
   sha: string | null; query: string; description: string; tags: string; mood: string; quality: number; real_person: number;
   usable: number; issues: string; described_at: number | null; created_at: number; used_count: number; last_used: number | null; favorite: number;
 }
 
-const FOLDER: Record<AssetKind, string> = { image: "Imagenes", video: "Clips", sfx: "Efectos", music: "Musica" };
+const FOLDER: Record<AssetKind, string> = { image: "Imagenes", video: "Clips", sfx: "Efectos", music: "Musica", icon: "Iconos" };
 
 export async function libraryRoot(): Promise<string> {
   const custom = getSettings().media.libraryDir;

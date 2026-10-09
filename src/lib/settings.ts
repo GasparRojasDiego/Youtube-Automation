@@ -8,6 +8,7 @@ export type StageModelKey = "topics" | "research" | "script" | "verify" | "packa
 export interface AppSettings {
   settingsVersion: number;
   theme: "dark" | "light";
+  ui: { ambient: boolean };          // fondo animado (constelación y líneas)
   activeChannelId: string | null;
   onboarded: boolean;
   claude: {
@@ -71,6 +72,7 @@ export const SETTINGS_VERSION = 22;
 export const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: SETTINGS_VERSION,
   theme: "dark",
+  ui: { ambient: true },
   activeChannelId: null,
   onboarded: false,
   claude: {

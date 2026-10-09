@@ -198,7 +198,7 @@ export function StudioPage() {
   })(); }, [tick]);
   return (
     <div className="space-y-4">
-      <PageHeader title="Estudio en vivo" subtitle={video ? <button className="hover:underline" onClick={() => navigate({ page: "video", id: video.id })}>{video.title}</button> : "Ningún video en producción"} />
+      <PageHeader kicker="Producción" title="Estudio en vivo" subtitle={video ? <button className="hover:underline" onClick={() => navigate({ page: "video", id: video.id })}>{video.title}</button> : "Ningún video en producción"} />
       {video ? (<>
         <Card pad><Stepper stages={stages} onSelect={() => navigate({ page: "video", id: video.id })} /></Card>
         <LiveStudio video={video} />

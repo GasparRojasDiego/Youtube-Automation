@@ -1,6 +1,6 @@
 // Instrucciones de la edición v2: storyboard y casting (Sonnet), retoques y
 // animaciones (Opus), revisión visual de animaciones (Sonnet).
-import { obj, str, num, bool, arr, en, wrapSkills } from "./prompts";
+import { obj, str, num, bool, arr, en, wrapSkills, SKILLS_CHECK } from "./prompts";
 import { TRANSITIONS, GRADES } from "./types";
 import { FONT_FAMILIES } from "../motion/page";
 
@@ -17,7 +17,7 @@ export const STORYBOARD_SCHEMA = obj({
       visual: en(VISUALS),
       query_en: str("photo/archival/clip/meme/ai_image: concrete stock search query (2-5 words, visual nouns). Always fill it, even for ai_image (used as fallback)"),
       alt_queries_en: arr(str(), "2-3 alternative queries from specific to very generic (the last one 1-2 words, e.g. 'car engine', 'garage')"),
-      image_prompt_en: str("ai_image: detailed image prompt (subject, setting, era, lighting, lens, composition, mood). Empty otherwise"),
+      image_prompt_en: str("ai_image, photo and archival: detailed image prompt (subject, setting, era, lighting, lens, composition, mood) that applies the image style of the visual skills; used to create the image if no free one fits. Empty for other types"),
       must_show_es: str("Qué debe verse para que la toma funcione (breve)"),
       avoid_es: str("Qué evitar (p. ej. personas reconocibles, logotipos); vacío si nada"),
       card_text: str("title/quote/text cards: exact short text (from the narration). Empty otherwise"),
@@ -29,6 +29,7 @@ export const STORYBOARD_SCHEMA = obj({
   music: arr(obj({ segment_ids: arr(str()), mood_en: str("Search query for a soft instrumental background bed, e.g. 'dark ambient piano slow'") }), "One bed per chapter group (2-5 total)"),
   emphasis: arr(obj({ segment_id: str(), words: arr(str()) }), "Key words to highlight in captions"),
   notes_es: str("Decisiones de edición importantes, en 2-4 frases"),
+  skills_check_es: SKILLS_CHECK,
 });
 
 export function storyboardPrompt(o: {
@@ -111,8 +112,10 @@ export const POLISH_SCHEMA = obj({
     text: str("Exact on-screen text (taken from the narration; no new claims)"),
     libs: arr(en(["map", "d3"])),
     asset_ids: arr(str(), "Library images to use inside the animation (ids from the shot list)"),
+    icons_en: arr(str("Simple icon concept in English, 1-3 words, e.g. 'police officer', 'money', 'arrow up', 'clock', 'smartphone', 'person raising hand'"), "0-6 icons that would make this animation clearer"),
   })),
   notes_es: str("Qué mejoraste y por qué (3-6 frases)"),
+  skills_check_es: SKILLS_CHECK,
   verify_es: arr(str(), "Datos de la narración que te parezcan dudosos y conviene volver a comprobar antes de publicar (vacío si ninguno)"),
 });
 
@@ -142,6 +145,7 @@ CONTRACT (mandatory):
 - Math.random is seeded; call it only during setup. K.rand(a,b) is a seeded helper.
 - Globals: gsap + SplitText, DrawSVGPlugin, MorphSVGPlugin, MotionPathPlugin, CustomEase, ScrambleTextPlugin, TextPlugin, Physics2DPlugin (registered). libs "d3": d3 v7 + topojson. libs "map": also ATRIL_WORLD (world-atlas countries-50m; objects.countries with properties.name, objects.land); use d3.geoMercator/geoNaturalEarth1/geoOrthographic + fitExtent and real [lon, lat].
 - Images: ATRIL.asset("key") → URL of a provided library image (or K.image(parent, key, {...})).
+- Icons: K.icon(parent, "key", {x, y, size, color, bg}) inserts a provided vector icon (keys listed per item; they inherit color) and K.drawIcon(tl, el, at) traces its strokes. Use them for people, objects, money, arrows, time, places… instead of drawing them by hand.
 - Fonts (exact names): ${FONT_FAMILIES.map((f) => `"${f}"`).join(", ")}. Max two families + the mono per piece. ATRIL.fit(el, maxW, maxH) shrinks variable text to fit.
 - No network, no external URLs, no audio/video elements.
 - Transparent overlays: never paint a full-frame background; stay inside safe margins (96 px sides, 64 px top) and out of the caption zone (bottom 240 px).
@@ -179,10 +183,11 @@ export const MOTION_SCHEMA = obj({
   compositions: arr(obj({
     id: str(), title: str(), duration: num(), css: str(), html: str(), js: str(),
     libs: arr(en(["map", "d3"])),
+    skills_check: str("One short line: which visual-skill rules this composition applies (empty if none)"),
   })),
 });
 
-export function motionPrompt(o: { skills: string; palette: unknown; items: { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string }[] }[] }) {
+export function motionPrompt(o: { skills: string; palette: unknown; items: { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string }[]; icons: string[] }[] }) {
   return `Create these ${o.items.length} animation(s). Return one composition per item with the same id. Fullscreen items are multi-scene motion-design sequences; overlays are short, clean graphics over footage.${wrapSkills(o.skills)}
 
 Brand palette and fonts: ${JSON.stringify(o.palette)}
@@ -192,7 +197,8 @@ Brief: ${it.brief}
 On-screen text (verbatim): ${it.text || "(none)"}
 Narration at that moment: "${it.context}"
 Libraries: ${it.libs.join(", ") || "none"}
-Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a.description}`).join("; ") : "none"}`).join("\n\n")}`;
+Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a.description}`).join("; ") : "none"}
+Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}`).join("\n\n")}`;
 }
 
 export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[] }) {

@@ -1,5 +1,204 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ATRIL — VT Asvent</title><link rel="icon" href="/logo.svg"><style>:root{--bg:#ECE8DF;--fg:#221F1C;--card:#F5F2EB;--p:#496BF3;--m:#696159}@media(prefers-color-scheme:dark){:root{--bg:#1B1B1D;--fg:#FAFAFA;--card:#252527;--p:#7591FF;--m:#A1A1AA}}body{margin:0;font-family:Poppins,"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.65}main{max-width:760px;margin:0 auto;padding:48px 20px}a{color:var(--p)}h1{color:var(--p)}.k{font-size:.72rem;letter-spacing:.3em;text-transform:uppercase;color:var(--p);font-weight:600}.c{background:var(--card);border-radius:22px;padding:24px;margin:20px 0}nav a{margin-right:16px}footer{color:var(--m);font-size:.85rem;margin-top:40px}</style></head><body><main>
-<img src="/logo.svg" width="72" alt="ATRIL"><div class="k">VT Asvent</div><h1>ATRIL</h1>
-<p>ATRIL is a personal desktop application (Windows) that helps its owner prepare, fact-check, review and upload videos to their own YouTube channel. Every video requires the owner's explicit approval before it is published.</p>
-<div class="c"><b>How ATRIL uses Google data</b><p>With the channel owner's consent, ATRIL uploads videos and thumbnails the owner approved. All data stays on the owner's computer.</p></div>
-<nav><a href="/">Inicio</a><a href="/privacy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a></nav><footer>© 2026 VT Asvent · Contacto: gr.diegofz17@gmail.com</footer></main></body></html>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATRIL — De la idea al video</title>
+<meta name="description" content="ATRIL es una app de escritorio para Windows que convierte una idea en un video de YouTube terminado: guion, voz, imágenes, animaciones y montaje. Solo revisas el final.">
+<link rel="icon" href="logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3efe6;--fg:#1a1c22;--card:#fbf9f4;--line:#e0dacd;--p:#5b78ef;--pf:#fff;--m:#5f6370;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0d0e12;--fg:#eef0f7;--card:#14161b;--line:#23262e;--p:#7591ff;--pf:#0d0f18;--m:#9a9fae;color-scheme:dark}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font-family:Poppins,"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.k{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--p)}
+nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:color-mix(in srgb,var(--bg) 70%,transparent);border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+nav .wrap{display:flex;align-items:center;gap:24px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.32em;font-size:15px}
+.brand img{width:28px;height:28px;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--p) 50%,transparent))}
+nav .links{margin-left:auto;display:flex;gap:22px;font-size:14px;color:var(--m)}
+nav .links a:hover{color:var(--fg)}
+.btn{display:inline-flex;align-items:center;gap:10px;height:48px;padding:0 22px;border-radius:12px;font-weight:600;font-size:15px;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,filter .2s;cursor:pointer;border:0}
+.btn:active{transform:scale(.97)}
+.btn-p{color:var(--pf);background:linear-gradient(180deg,var(--p),color-mix(in srgb,var(--p) 84%,#000));box-shadow:0 0 0 1px color-mix(in srgb,var(--p) 60%,transparent),0 14px 34px -14px var(--p)}
+.btn-p:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.btn-g{color:var(--fg);background:color-mix(in srgb,var(--card) 70%,transparent);border:1px solid var(--line)}
+.btn-g:hover{border-color:color-mix(in srgb,var(--p) 50%,var(--line))}
+.hero{position:relative;overflow:hidden;padding:110px 0 120px;isolation:isolate}
+.hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:160px;background:linear-gradient(transparent,var(--bg));z-index:-1;pointer-events:none}
+.hero canvas,.hero svg.flow{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+.hero svg.flow{-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+.glow{position:absolute;width:680px;height:680px;border-radius:50%;filter:blur(80px);z-index:-2;background:color-mix(in srgb,var(--p) 18%,transparent)}
+.echo{position:absolute;left:0;right:0;top:46%;white-space:nowrap;font-weight:800;font-size:150px;line-height:1;color:transparent;-webkit-text-stroke:1px color-mix(in srgb,var(--p) 18%,transparent);z-index:-1;animation:drift 70s linear infinite;user-select:none}
+@keyframes drift{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes flow{from{transform:translateX(0)}to{transform:translateX(calc(-1*var(--s)))}}
+.flow g{animation:flow linear infinite}
+h1{font-size:clamp(44px,7vw,84px);line-height:1.02;letter-spacing:-.035em;margin:18px 0 0;font-weight:800}
+h1 .acc{background:linear-gradient(90deg,var(--p),color-mix(in srgb,var(--p) 55%,var(--fg)));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:19px;color:var(--m);max-width:620px;margin:22px 0 0}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px;align-items:center}
+.meta{font-size:13px;color:var(--m);margin-top:14px}
+section{padding:90px 0}
+h2{font-size:clamp(30px,4vw,44px);letter-spacing:-.03em;line-height:1.1;margin:12px 0 0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px}
+.card{position:relative;background:color-mix(in srgb,var(--card) 85%,transparent);border:1px solid var(--line);border-radius:18px;padding:26px;transition:transform .3s cubic-bezier(.2,.8,.2,1),border-color .3s}
+.card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--p) 45%,var(--line))}
+.card .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:var(--p);border:1px solid color-mix(in srgb,var(--p) 30%,transparent);background:linear-gradient(180deg,color-mix(in srgb,var(--p) 18%,transparent),transparent)}
+.card h3{font-size:17px;margin:16px 0 6px;letter-spacing:-.01em}
+.card p{margin:0;color:var(--m);font-size:14.5px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:40px;counter-reset:s}
+.step{border-top:1px solid var(--line);padding-top:22px}
+.step b{font-family:"JetBrains Mono",monospace;color:var(--p);font-size:13px;letter-spacing:.1em}
+.step h3{margin:10px 0 6px;font-size:19px}.step p{margin:0;color:var(--m);font-size:14.5px}
+.install{display:grid;grid-template-columns:1.2fr 1fr;gap:24px;align-items:start;margin-top:40px}
+ol.clean{margin:0;padding-left:20px;color:var(--m)}ol.clean li{margin:8px 0}ol.clean b{color:var(--fg)}
+.note{font-size:13px;color:var(--m);border-left:2px solid var(--p);padding-left:12px;margin-top:16px}
+.google{font-size:14px;color:var(--m)}
+footer{border-top:1px solid var(--line);padding:34px 0 50px;color:var(--m);font-size:13.5px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:center}
+footer .links{margin-left:auto;display:flex;gap:18px}
+footer a:hover{color:var(--fg)}
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
+.reveal.on{opacity:1;transform:none}
+@media (max-width:860px){.grid,.steps,.install{grid-template-columns:1fr}nav .links{display:none}.echo{font-size:90px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="brand" href="#"><img src="logo.svg" alt="">ATRIL</a>
+  <div class="links"><a href="#funciones">Funciones</a><a href="#como">Cómo funciona</a><a href="#descargar">Descargar</a><a href="privacy.html">Privacidad</a></div>
+  <a class="btn btn-p" href="#descargar" style="height:38px;padding:0 16px;font-size:14px">Descargar</a>
+</div></nav>
+
+<header class="hero">
+  <div class="glow" style="top:-260px;left:-200px"></div>
+  <div class="glow" style="bottom:-320px;right:-220px;opacity:.7"></div>
+  <canvas id="stars"></canvas>
+  <svg class="flow" id="flow" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+  <div class="echo" aria-hidden="true">IDEA · GUION · VOZ · MOTION · VIDEO · IDEA · GUION · VOZ · MOTION · VIDEO · IDEA · GUION · VOZ · MOTION · VIDEO · IDEA · GUION · VOZ · MOTION · VIDEO ·</div>
+  <div class="wrap">
+    <div class="k">VT Asvent · Para Windows</div>
+    <h1><span id="t1">De la idea</span><br><span class="acc" id="t2">al video.</span></h1>
+    <p class="lead">Escribes de qué trata. ATRIL investiga, escribe el guion, narra, busca y crea imágenes, anima y monta. Tú solo revisas el final antes de publicar.</p>
+    <div class="cta">
+      <a class="btn btn-p" id="dl" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        <span id="dlt">Descargar ATRIL</span>
+      </a>
+      <a class="btn btn-g" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest" id="notes">Notas de versión</a>
+    </div>
+    <div class="meta mono" id="meta">Windows 10/11 · 64 bits · Se actualiza con un clic</div>
+  </div>
+</header>
+
+<section id="funciones"><div class="wrap">
+  <div class="k reveal">Funciones</div>
+  <h2 class="reveal">Un estudio completo, en una sola app.</h2>
+  <div class="grid">
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg></div><h3>Guion con Claude</h3><p>Investigación, gancho, estructura y ritmo según tus habilidades. Lo dudoso se corrige solo.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/></svg></div><h3>Imágenes libres y con IA</h3><p>Material con licencia apta para monetizar y, cuando no existe, imágenes creadas con IA.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></div><h3>Motion design</h3><p>Secuencias animadas al estilo de un reel profesional: tipografía, contadores, diagramas y transiciones.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg></div><h3>Voz, música y efectos</h3><p>Narración natural, música de fondo y efectos de sonido sincronizados en cada transición.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></div><h3>Listo para TikTok</h3><p>Divide cada video en partes de 1:30, en vertical, con los hashtags sugeridos.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div><h3>Tú decides qué se publica</h3><p>Nada sale a YouTube sin tu aprobación en la revisión final.</p></div>
+  </div>
+</div></section>
+
+<section id="como" style="padding-top:20px"><div class="wrap">
+  <div class="k reveal">Cómo funciona</div>
+  <h2 class="reveal">Tres pasos.</h2>
+  <div class="steps">
+    <div class="step reveal"><b>01</b><h3>Escribe la idea</h3><p>«¿Qué pasaría si 200 soldados modernos aparecieran en la antigua Roma?»</p></div>
+    <div class="step reveal"><b>02</b><h3>ATRIL produce</h3><p>Guion, voz, imágenes, animaciones, efectos y montaje. Lo ves en vivo, paso a paso.</p></div>
+    <div class="step reveal"><b>03</b><h3>Revisa y publica</h3><p>Apruebas el video final y se sube a tu canal. O lo exportas para TikTok.</p></div>
+  </div>
+</div></section>
+
+<section id="descargar"><div class="wrap">
+  <div class="k reveal">Descargar</div>
+  <h2 class="reveal">Instálalo en un minuto.</h2>
+  <div class="install">
+    <div class="card reveal">
+      <ol class="clean">
+        <li>Descarga el <b>instalador</b> con el botón de abajo.</li>
+        <li>Ábrelo. Si Windows muestra «Windows protegió su PC», pulsa <b>Más información → Ejecutar de todas formas</b> (la app aún no tiene firma de pago).</li>
+        <li>Abre ATRIL y sigue los pasos de bienvenida.</li>
+        <li>Las próximas versiones se instalan desde la app con <b>un clic</b>.</li>
+      </ol>
+      <div class="cta" style="margin-top:22px"><a class="btn btn-p" id="dl2" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">Descargar instalador</a><a class="btn btn-g" id="zip" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">Versión portátil (.zip)</a></div>
+    </div>
+    <div class="reveal">
+      <div class="card"><b>Requisitos</b>
+        <ol class="clean" style="list-style:none;padding:0">
+          <li>Windows 10 u 11 de 64 bits · 8 GB de RAM · 20 GB libres</li>
+          <li><b>Claude Code</b> con tu cuenta (plan Pro o Max)</li>
+          <li>Microsoft Edge (viene con Windows) para las animaciones</li>
+          <li>Opcional: claves de Google (voz), OpenAI o Gemini (imágenes), Pixabay y Freesound (gratis)</li>
+        </ol>
+      </div>
+      <p class="note">Tus claves se guardan cifradas en el Administrador de credenciales de Windows. ATRIL no tiene servidor: todo queda en tu equipo.</p>
+    </div>
+  </div>
+</div></section>
+
+<section style="padding-top:10px"><div class="wrap google reveal">
+  <div class="card"><b style="color:var(--fg)">How ATRIL uses Google data</b>
+    <p style="margin:.6em 0 0">ATRIL is a personal desktop application (Windows) that helps its owner prepare, fact-check, review and upload videos to their own YouTube channel. With the channel owner's consent, ATRIL uploads only the videos and thumbnails the owner approved. All data stays on the owner's computer; ATRIL has no server and does not share YouTube data with third parties. See the <a href="privacy.html" style="color:var(--p)">Privacy Policy</a> and <a href="terms.html" style="color:var(--p)">Terms of Service</a>.</p>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span>© 2026 VT Asvent · ATRIL</span>
+  <span class="mono" id="ver"></span>
+  <div class="links"><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a><a href="mailto:gr.diegofz17@gmail.com">Contacto</a></div>
+</div></footer>
+
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var css = getComputedStyle(document.documentElement);
+  function primary(){ return css.getPropertyValue('--p').trim() || '#7591ff'; }
+  function hexA(h,a){ var n=parseInt(h.replace('#',''),16); return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')'; }
+  // Constelación
+  var c=document.getElementById('stars'), x=c.getContext('2d'), W=0,H=0,P=[],mx=0,my=0,tx=0,ty=0;
+  function size(){ var d=Math.min(2,devicePixelRatio||1); W=c.clientWidth; H=c.clientHeight; c.width=W*d; c.height=H*d; x.setTransform(d,0,0,d,0,0);
+    var n=Math.min(90,Math.floor(W*H/16000)); P=[]; for(var i=0;i<n;i++)P.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35,r:.8+Math.random()*1.4,d:.3+Math.random()*.7}); }
+  addEventListener('mousemove',function(e){ tx=(e.clientX/innerWidth-.5)*30; ty=(e.clientY/innerHeight-.5)*30; });
+  function draw(){ var col=primary(); mx+=(tx-mx)*.06; my+=(ty-my)*.06; x.clearRect(0,0,W,H);
+    for(var i=0;i<P.length;i++){var p=P[i]; if(!reduce){p.x+=p.vx;p.y+=p.vy; if(p.x<0||p.x>W)p.vx*=-1; if(p.y<0||p.y>H)p.vy*=-1;}}
+    x.lineWidth=.6;
+    for(var i=0;i<P.length;i++)for(var j=i+1;j<P.length;j++){var a=P[i],b=P[j],ax=a.x+mx*a.d,ay=a.y+my*a.d,bx=b.x+mx*b.d,by=b.y+my*b.d,d=Math.hypot(ax-bx,ay-by); if(d<140){x.strokeStyle=hexA(col,(1-d/140)*.3); x.beginPath(); x.moveTo(ax,ay); x.lineTo(bx,by); x.stroke();}}
+    x.fillStyle=hexA(col,.65); for(var i=0;i<P.length;i++){var p=P[i]; x.beginPath(); x.arc(p.x+mx*p.d,p.y+my*p.d,p.r,0,6.283); x.fill();}
+    requestAnimationFrame(draw); }
+  size(); addEventListener('resize',size); draw();
+  // Líneas curvas que fluyen
+  var svg=document.getElementById('flow'), NS='http://www.w3.org/2000/svg', html='';
+  for(var i=0;i<7;i++){ var y=900*(.18+i/6*.68), amp=18+(i*37)%50, per=520+(i*131)%380, ph=(i*97)%300, sh=per*Math.max(1,Math.round(800/per)), d='M '+(-per+ph)+' '+y;
+    for(var k=-1;k<Math.ceil((1600+sh+per)/per)+1;k++){ var x0=k*per+ph; d+=' C '+(x0+per*.25)+' '+(y-amp)+', '+(x0+per*.25)+' '+(y-amp)+', '+(x0+per*.5)+' '+y+' S '+(x0+per*.75)+' '+(y+amp)+', '+(x0+per)+' '+y; }
+    html+='<g style="--s:'+sh+'px;animation-duration:'+(46+(i*17)%40)+'s;animation-direction:'+(i%2?'reverse':'normal')+'"><path d="'+d+'" fill="none" stroke="'+primary()+'" stroke-opacity="'+(0.08+((i*13)%9)/100)+'" stroke-width="'+(i%3?0.8:1.2)+'" vector-effect="non-scaling-stroke"/></g>'; }
+  svg.innerHTML=html;
+  // Texto que se descifra
+  var G='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  function scramble(el,delay){ var t=el.textContent, t0=0; if(reduce)return; function f(ts){ if(!t0)t0=ts+delay; var k=Math.max(0,Math.min(1,(ts-t0)/700)), r=Math.floor(k*t.length), s=''; for(var i=0;i<t.length;i++) s+= i<r||t[i]===' '||t[i]==='.' ? t[i] : G[(Math.floor(ts/40)+i*7)%G.length]; el.textContent=s; if(k<1)requestAnimationFrame(f); } requestAnimationFrame(f); }
+  scramble(document.getElementById('t1'),0); scramble(document.getElementById('t2'),250);
+  // Aparición al hacer scroll
+  var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('on'); io.unobserve(e.target);} }); },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(function(el,i){ el.style.transitionDelay=(i%3)*80+'ms'; io.observe(el); });
+  // Última versión publicada
+  fetch('https://api.github.com/repos/GasparRojasDiego/Youtube-Automation/releases/latest').then(function(r){return r.json();}).then(function(rel){
+    var v=(rel.tag_name||'').replace(/^v/,''); var a=(rel.assets||[]).find(function(x){return /_instalador_x64\.exe$/i.test(x.name);}); var z=(rel.assets||[]).find(function(x){return /_portable_x64\.zip$/i.test(x.name);});
+    if(a){ var mb=Math.round(a.size/1048576); ['dl','dl2'].forEach(function(id){ document.getElementById(id).href=a.browser_download_url; }); document.getElementById('dlt').textContent='Descargar ATRIL '+v; document.getElementById('meta').textContent='Versión '+v+' · Windows 10/11 · 64 bits · '+mb+' MB · Se actualiza con un clic'; }
+    if(z) document.getElementById('zip').href=z.browser_download_url;
+    if(rel.html_url) document.getElementById('notes').href=rel.html_url;
+    if(v) document.getElementById('ver').textContent='v'+v;
+  }).catch(function(){});
+})();
+</script>
+</body>
+</html>

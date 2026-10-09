@@ -112,7 +112,7 @@ export function buildSrtAligned(segs: { id: string; sentences: string[]; spans: 
 }
 
 // ---------- Créditos ----------
-const SRC_NAME: Record<string, string> = { pexels: "Pexels", pixabay: "Pixabay", wikimedia: "Wikimedia Commons", openverse: "Openverse", nasa: "NASA", met: "The Met Open Access", freesound: "Freesound" };
+const SRC_NAME: Record<string, string> = { iconify: "Iconify", pexels: "Pexels", pixabay: "Pixabay", wikimedia: "Wikimedia Commons", openverse: "Openverse", nasa: "NASA", met: "The Met Open Access", freesound: "Freesound" };
 
 /**
  * Líneas de créditos: las licencias que exigen atribución (CC BY, CC BY-SA)
@@ -120,12 +120,12 @@ const SRC_NAME: Record<string, string> = { pexels: "Pexels", pixabay: "Pixabay",
  */
 export function creditLines(assets: { kind: string; source: string; title: string; author: string; license: string; page_url: string | null }[], ownTrackTitles: string[] = [], ownAttributions: string[] = []): string[] {
   const lines: string[] = [];
-  const label = (k: string) => (k === "video" ? "Footage" : k === "sfx" ? "Sound" : k === "music" ? "Music" : "Image");
+  const label = (k: string) => (k === "video" ? "Footage" : k === "sfx" ? "Sound" : k === "music" ? "Music" : k === "icon" ? "Icon" : "Image");
   const req = assets.filter((a) => /^CC BY/i.test(a.license));
   for (const a of req) lines.push(`${label(a.kind)}: "${a.title.slice(0, 80)}" by ${a.author.slice(0, 60) || "Unknown"} — ${a.license} — ${a.page_url ?? SRC_NAME[a.source] ?? a.source}`);
-  const rest = assets.filter((a) => !/^CC BY/i.test(a.license) && a.source !== "user" && a.source !== "atril");
+  const rest = assets.filter((a) => !/^CC BY/i.test(a.license) && a.source !== "user" && a.source !== "atril" && a.source !== "generated");
   const bySrc = new Map<string, number>();
-  for (const a of rest) { const k = `${SRC_NAME[a.source] ?? a.source}${a.kind === "sfx" ? " (sound effects)" : a.kind === "music" ? " (music)" : ""}`; bySrc.set(k, (bySrc.get(k) ?? 0) + 1); }
+  for (const a of rest) { const k = `${SRC_NAME[a.source] ?? a.source}${a.kind === "sfx" ? " (sound effects)" : a.kind === "music" ? " (music)" : a.kind === "icon" ? " (icons)" : ""}`; bySrc.set(k, (bySrc.get(k) ?? 0) + 1); }
   if (bySrc.size) lines.push(`Additional public-domain and royalty-free media: ${[...bySrc.entries()].map(([k, n]) => `${k} (${n})`).join(", ")}.`);
   for (const a of ownAttributions) if (a.trim()) lines.push(`Music: ${a.trim()}`);
   void ownTrackTitles;

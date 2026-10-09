@@ -156,6 +156,7 @@ pub fn run() {
             files::fs_size,
             files::disk_free,
             files::app_paths,
+            files::update_install,
             net::http_request,
             net::http_download,
             net::youtube_upload,

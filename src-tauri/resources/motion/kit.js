@@ -533,6 +533,20 @@
     tl.fromTo(b, { x: 0 }, { x: W * 1.45, duration: o.dur || 1.4, ease: o.ease || 'power2.inOut' }, at);
     return b;
   };
+  /** Ícono vectorial de la biblioteca (toma el color de `color` o del texto). */
+  K.icon = function (parent, key, o) {
+    o = o || {}; var svg = (A.icons || {})[key];
+    if (!svg) { A.errors.push('Ícono inexistente: ' + key + ' (disponibles: ' + Object.keys(A.icons || {}).join(', ') + ')'); svg = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/></svg>'; }
+    var size = o.size || 160;
+    var e = K.el('div', { cls: 'k-abs', css: { width: size + 'px', height: size + 'px', color: o.color || 'currentColor', fontSize: size + 'px', lineHeight: 0 }, html: svg }, parent);
+    var s = e.querySelector('svg'); if (s) { s.setAttribute('width', '100%'); s.setAttribute('height', '100%'); }
+    e.style.left = ((o.x != null ? o.x : W / 2) - size / 2) + 'px'; e.style.top = ((o.y != null ? o.y : H / 2) - size / 2) + 'px';
+    if (o.bg) { e.style.padding = Math.round(size * 0.18) + 'px'; e.style.boxSizing = 'border-box'; e.style.borderRadius = (o.radius != null ? o.radius : size * 0.28) + 'px'; e.style.background = o.bg; }
+    return e;
+  };
+  /** Dibuja el trazo de un ícono (DrawSVG) como si se trazara a mano. */
+  K.drawIcon = function (tl, el, at, o) { o = o || {}; var paths = el.querySelectorAll('path,circle,line,polyline,polygon,rect,ellipse'); tl.from(paths, { drawSVG: '0%', duration: o.dur || 0.9, stagger: 0.05, ease: 'power2.inOut' }, at); return el; };
+
   /** Mapa/imagen: imagen de la biblioteca con encuadre y movimiento (Ken Burns). */
   K.image = function (parent, key, o) {
     o = o || {};

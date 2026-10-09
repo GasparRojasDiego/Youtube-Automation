@@ -22,7 +22,7 @@ describe.skipIf(!nfs.existsSync(SRC_DB))("edición v2 de extremo a extremo", () 
     nfs.mkdirSync(WORK, { recursive: true });
     for (const ext of ["", "-wal", "-shm"]) if (nfs.existsSync(SRC_DB + ext)) nfs.copyFileSync(SRC_DB + ext, path.join(WORK, "atril.db" + ext));
     ipc.openDb(path.join(WORK, "atril.db"));
-    ipc.setPaths({ data: path.join(WORK, "data"), exe_dir: WORK, resources: path.resolve(__dirname, "../src-tauri"), home: WORK, documents: path.join(WORK, "docs") });
+    ipc.setPaths({ data: path.join(WORK, "data"), exe_dir: WORK, resources: path.resolve(__dirname, "../src-tauri"), home: WORK, documents: path.join(WORK, "docs"), downloads: path.join(WORK, "descargas") });
     const { migrate } = await import("../src/lib/schema");
     const { loadSettings, saveSettings } = await import("../src/lib/settings");
     const repo = await import("../src/lib/repo");

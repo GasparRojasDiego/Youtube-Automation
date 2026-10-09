@@ -11,7 +11,7 @@ import { recordApiCall, apiCount, API_LIMITS } from "../lib/usage";
 import { stripHtml } from "../lib/util";
 
 export type SourceId = "openverse" | "pexels" | "pixabay" | "wikimedia" | "nasa" | "met" | "freesound";
-export type AssetKind = "image" | "video" | "sfx" | "music";
+export type AssetKind = "image" | "video" | "sfx" | "music" | "icon";
 
 export interface Candidate {
   source: SourceId; sourceId: string; kind: AssetKind;
@@ -33,6 +33,7 @@ export const SOURCES_FOR: Record<AssetKind, SourceId[]> = {
   video: ["pexels", "pixabay", "wikimedia", "nasa"],
   sfx: ["freesound", "openverse"],
   music: ["openverse", "freesound"],
+  icon: [],
 };
 
 // ---------- Licencias ----------
