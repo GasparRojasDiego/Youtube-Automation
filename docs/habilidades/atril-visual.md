@@ -84,7 +84,7 @@ Va en Habilidades → Visual. Etiquetas (ATRIL 2.4 o posterior): [plan] = storyb
 
 ## Animaciones [animaciones]
 ### Regla principal: impacto visual primero
-- La imagen cuenta la historia; el texto solo la rotula. Cada escena tiene un protagonista visual: figuras geométricas, íconos, un diagrama, un mapa, un gráfico, una imagen, un generador o un movimiento de cámara. Una escena que es solo texto sobre un fondo liso es un defecto.
+- La imagen cuenta la historia; el texto solo la rotula. En las piezas a pantalla completa, cada escena tiene un protagonista visual: figuras geométricas, íconos, un diagrama, un mapa, un gráfico, una imagen, un generador o un movimiento de cámara; una escena que es solo texto sobre un fondo liso es un defecto. Las superpuestas van sobre el metraje y pueden ser solo un rótulo, una fuente o un sello.
 - Presupuesto de texto en una pieza a pantalla completa: como máximo 6 palabras visibles a la vez (una cifra más una etiqueta de 1–3 palabras es lo ideal); los cuadros donde el texto es lo principal, ≤ 30 % de la duración; un solo bloque de texto entrando a la vez; jamás una oración de la narración.
 - Densidad y sorpresa: ≥ 3 elementos con movimiento propio por escena y un evento visual nuevo cada 0,5–1,5 s. Cada pieza tiene al menos un movimiento de cámara (entrar a un detalle, alejarse para revelar, latigazo) y un acento de impacto (cortina, destello, apagón, golpe de sello, parpadeo, glitch, temblor, corte en franjas). Nunca la misma transición dos veces seguidas.
 - Construir → transformar → resolver: los elementos nacen de algo (un punto, una línea, una figura), se transforman en la idea siguiente (morph, eco, división, emisión, conexión, órbita) y terminan en una imagen final clara, sostenida ≥ 0,8 s.
@@ -100,7 +100,7 @@ Un recuadro central con la cifra se inclina hacia atrás (K.tilt) → salen copi
 - Barra de censura (K.redact) como firma: descubre el dato clave; una por pieza como máximo.
 - Tablero de evidencia = K.network sobre inkRaised, solo con vínculos documentados (montos con fecha); nunca corcho con hilo rojo.
 - Extracto de documento: tarjeta paper con "EXCERPT · SOURCE [n]"; como texto, solo las palabras literales del guion; el resto en bloques grises o barras; sin membrete, logotipo, sello ni firma de la entidad.
-- Mapas: tierra inkRaised, agua ink, límites graphite; la región se revela en sodium y la cámara entra a la ciudad.
+- Mapas: agua ink, tierra inkRaised con bordes en ash al 50–70 % (que se vean: contraste de al menos 3:1 con el fondo), la región clave en sodium, alfileres en bone; la cámara entra a la ciudad.
 - Cada cifra o afirmación sobre alguien real lleva su línea de fuente dentro de la pieza (Courier Prime 24–28 px, en una esquina).
 - Movimiento: entradas de 0,4–0,8 s con expo.out o power3.out; salidas más rápidas (expo.in); rebote (back.out) solo en el acento principal; escalonados de 0,03–0,08 s. Acercarse = intimidad o revelación; alejarse = contexto o aislamiento; lateral = recorrido o tiempo; subir = poder.
 - Zonas: nada importante en los 240 px inferiores (subtítulos) ni a menos de 96 px de los lados y 64 px de arriba.

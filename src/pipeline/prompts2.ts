@@ -172,7 +172,7 @@ K.swap(tl, s1, s2, 3.4, {fx:'cover', from:'right'}); K.counter(tl, n.num, 3.5, {
 ATRIL.register(tl, 6);
 
 STYLE — visual impact first (mandatory):
-- The picture tells the story; text only labels it. Every scene's hero is visual: shapes, icons, a diagram, a map, a chart, an image, a generator or a camera move. A scene that is only a line of text on a plain background is a defect.
+- The picture tells the story; text only labels it. In fullscreen pieces every scene's hero is visual: shapes, icons, a diagram, a map, a chart, an image, a generator or a camera move; a scene that is only a line of text on a plain background is a defect. Overlays sit on footage and may be just a label, a source line or a stamp.
 - Text budget per fullscreen piece: at most 6 words on screen at once (a number plus a 1–3 word label is ideal); frames where text is the main content ≤ 30% of the duration; never more than one text block entering at a time; never the narration as a sentence. Long ideas become diagrams, icons and motion.
 - Density and surprise: at least 3 elements moving independently per scene and a new visual event every 0.5–1.5 s. Every fullscreen piece has at least one camera move (zoom into a detail, pull back to reveal, whip) and one impact accent (cover, flash, blackout, slam, strobe, glitch, shake, slice). Never the same transition twice in a row.
 - Build → transform → resolve: things are born from something (a dot, a line, a shape), transform into the next idea (morph, echo, split, emit, connect, orbit) and resolve on one clear final image held ≥ 0.8 s.
@@ -243,7 +243,7 @@ Expected text (verbatim): ${o.text || "(none)"}
 Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.kind === "overlay" ? "" : `
 Also a defect (severity "major"): the piece is dominated by text — in 4 or more of the 6 frames the main content is text on a plain background — or it is visually static (one element, nothing building or transforming). Name what visual should replace the text.`}${o.skills ? `
 
-CHANNEL RULES (they override the brief): following them is correct even where the brief says otherwise (e.g. a colour the brief asks for but a rule forbids) — never report that as a defect. Breaking one of them is a defect.
+CHANNEL RULES (they override the brief): following them is correct even where the brief says otherwise (e.g. a colour the brief asks for but a rule forbids) — never report that as a defect. Breaking one of them is a defect.${o.kind === "overlay" ? " This is an overlay: rules for fullscreen scenes (visual protagonist, text budget) do not apply to it." : ""}
 <channel_rules>
 ${o.skills.slice(0, 12000)}
 </channel_rules>` : ""}`;
