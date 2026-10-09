@@ -14,7 +14,7 @@ import { uploadVideo, setThumbnail } from "../providers/youtube";
 import { onUploadProgress, onUploadSession } from "../lib/ipc";
 import * as P from "./prompts";
 import * as L from "./logic";
-import { joinAudioArgs, toWavArgs, trimSilenceArgs } from "./montage";
+import { joinAudioArgs } from "./montage";
 import { renderThumbnail } from "./cards";
 import { parseSilences, alignSentences } from "./align";
 import { segInfos, segmentOffsets, segmentLength } from "./timeline";
@@ -43,7 +43,7 @@ export const checkCancel = (ctx: Ctx) => { if (ctx.cancelled()) throw new UserEr
 async function wordsTarget(v: Video): Promise<[number, number, number]> {
   const s = getSettings().production;
   const p = await skillParams(v.channel_id, "guion", SCRIPT_DEFAULTS);
-  const [lo, hi] = s.targetMinutes[v.mode];
+  const [lo, hi] = s.targetMinutes;
   return [Math.round(lo * p.wordsPerMinute), Math.round(hi * p.wordsPerMinute), p.wordsPerMinute];
 }
 
@@ -79,10 +79,10 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
   } else {
     await ctx.progress("Escribiendo el guion…");
     script = (await claudeRun<ScriptOut>({ stage: "script", label: "Guion", system: P.SYSTEM_BASE, schema: P.SCRIPT_SCHEMA,
-      prompt: P.scriptPrompt({ skills, topic: v.data.topic?.title ?? v.title, research, minWords: minW, maxWords: maxW, premium: v.mode === "premium" }),
+      prompt: P.scriptPrompt({ skills, topic: v.data.topic?.title ?? v.title, research, minWords: minW, maxWords: maxW }),
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
     script.version = 1;
-    const passes = getSettings().production.scriptPasses[v.mode];
+    const passes = getSettings().production.scriptPasses;
     for (let i = 1; i < passes; i++) {
       checkCancel(ctx);
       await ctx.progress(`Pasada de mejora ${i + 1}/${passes}…`);
@@ -131,36 +131,15 @@ async function alignVoice(seg: VoiceSegmentV2, text: string, videoId: string) {
   seg.sentences = alignSentences(sentences, seg.duration, parseSilences(stderr, seg.duration));
   await activity(videoId, "voice", "audio", `Voz alineada (${sentences.length} frases)`, "");
 }
-export function ownVoiceDir(v: Video) { return joinPath(v.dir, "voice", "own"); }
-
 export async function stageVoice(ctx: Ctx): Promise<VoiceOut> {
   const v = ctx.video;
   const script = await need<ScriptOut>(v, "script", "Guion");
   const prev = await out<VoiceOut>(v, "voice");
   const override = await skillParams<VoiceOverride>(v.channel_id, "voz", {});
-  const provider = v.voice_mode === "own" ? "own" : ttsProviderName(override);
+  const provider = ttsProviderName(override);
   const dir = joinPath(v.dir, "voice");
   await fs.mkdir(dir);
   const segments: VoiceOut["segments"] = [];
-  if (provider === "own") {
-    const files = await fs.list(ownVoiceDir(v));
-    const missing = script.segments.filter((s) => !files.some((f) => f.name.startsWith(`${s.id}.`)));
-    if (missing.length) throw new NeedsUser(`Graba tu narración: faltan ${missing.length} de ${script.segments.length} segmentos.`);
-    for (const s of script.segments) {
-      const f = files.find((x) => x.name.startsWith(`${s.id}.`))!;
-      const hash = await sha256(`own|${f.size}|${f.modified}`);
-      const outPath = joinPath(dir, `${s.id}.wav`);
-      const old = prev?.segments.find((x) => x.segment_id === s.id);
-      if (old && old.hash === hash && (await fs.exists(outPath))) { segments.push(old); continue; }
-      await ctx.progress(`Procesando tu grabación: ${s.title}`);
-      const tmp = joinPath(dir, `${s.id}.raw.wav`);
-      await ffmpeg(toWavArgs(f.path, tmp, { denoise: true }));
-      await ffmpeg(trimSilenceArgs(tmp, outPath));
-      await fs.remove(tmp);
-      segments.push({ segment_id: s.id, path: outPath, duration: await probeDuration(outPath), hash });
-    }
-    for (const seg of segments) await alignVoice(seg, script.segments.find((x) => x.id === seg.segment_id)!.text_en, v.id);
-  } else {
     const st = getSettings().tts;
     const voiceKey = JSON.stringify({ provider, g: st.google, ge: st.gemini, e: st.elevenlabs, override });
     for (const [i, s] of script.segments.entries()) {
@@ -179,7 +158,6 @@ export async function stageVoice(ctx: Ctx): Promise<VoiceOut> {
       segments.push({ segment_id: s.id, path: outPath, duration: await probeDuration(outPath), hash });
     }
     for (const seg of segments) await alignVoice(seg, script.segments.find((x) => x.id === seg.segment_id)!.text_en, v.id);
-  }
   return { provider, segments, total: segments.reduce((a, s) => a + s.duration, 0) };
 }
 
@@ -249,7 +227,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   pkg.description = L.composeDescription({ body: pkg.description_body_en, chapters: pkg.chapters, sources: L.usedSources(script, research),
     credits: L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || iconIds.includes(a.id) || sfxIds.includes(a.id) || polish.music.some((x) => x.asset_id === a.id)),
       polish.music.filter((b) => b.path && !b.asset_id).map((b) => b.title ?? ""), (await listMusic()).filter((m) => polish.music.some((b) => b.path === m.path)).map((m) => m.attribution).filter(Boolean)),
-    disclosure: L.adaptDisclosure(s.publishing.aiDisclosure, { generatedImages: generatedUsedNow, aiVoice: voice.provider !== "own" }) });
+    disclosure: L.adaptDisclosure(s.publishing.aiDisclosure, { generatedImages: generatedUsedNow, aiVoice: true }) });
   pkg.tags = L.sanitizeTags(pkg.tags);
   pkg.motion_count = motion?.items.filter((m) => m.file).length ?? 0;
   await fs.writeText(joinPath(v.dir, "captions.en.srt"), pkg.srt);

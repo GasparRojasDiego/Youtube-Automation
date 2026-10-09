@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Mic, Square, RotateCcw, Download, MonitorPlay, Check, Play, ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ExternalLink, RotateCcw, Download, MonitorPlay, ChevronDown } from "lucide-react";
 import { openUrl, openPath } from "@tauri-apps/plugin-opener";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { fileUrl, fs } from "../../lib/ipc";
-import { listArtifacts, setStage, resetFrom, type Video, type StageRow } from "../../lib/repo";
+import { fileUrl } from "../../lib/ipc";
+import { listArtifacts, type Video, type StageRow } from "../../lib/repo";
 import type { ResearchOut, ScriptOut, VoiceOut, PackageOut, RenderOut, PublishOut } from "../../pipeline/types";
-import { ownVoiceDir, exportPackage } from "../../pipeline/stages";
-import { runVideo, redoVoiceSegment } from "../../pipeline/runner";
+import { exportPackage } from "../../pipeline/stages";
+import { redoVoiceSegment } from "../../pipeline/runner";
 import { Card, Chip, AsyncButton, Empty } from "../../ui/kit";
-import { joinPath, fmtDuration, fmtBytes, wordCount, fmtDate } from "../../lib/util";
+import { fmtDuration, fmtBytes, wordCount, fmtDate } from "../../lib/util";
 import { toast, logError } from "../../lib/events";
 import { navigate } from "../../ui/nav";
 
@@ -80,11 +80,9 @@ export function ScriptPanel({ video, data }: { video: Video; data: ScriptOut }) 
 export function VoicePanel({ video, row, script }: { video: Video; row: StageRow; script?: ScriptOut }) {
   const data = row.output as VoiceOut | null;
   if (!script) return <Card><div className="text-sm text-muted-foreground">Primero se necesita el guion aprobado.</div></Card>;
-  if (video.voice_mode === "own" && (row.status === "review" || row.status === "pending" || row.status === "failed")) return <OwnVoiceRecorder video={video} script={script} />;
   if (!data) return null;
   return (
-    <Card title={`Narración · ${fmtDuration(data.total)} · ${data.provider}`}
-      actions={video.voice_mode === "own" && <button className="btn-brand btn-sm" onClick={async () => { await resetFrom(video.id, "voice"); await setStage(video.id, "voice", { status: "review", progress: "Regraba lo que quieras y continúa." }); }}><Mic size={13} /> Regrabar</button>}>
+    <Card title={`Narración · ${fmtDuration(data.total)} · ${data.provider}`}>
       <div className="space-y-2">
         {script.segments.map((s) => {
           const seg = data.segments.find((x) => x.segment_id === s.id);
@@ -93,69 +91,11 @@ export function VoicePanel({ video, row, script }: { video: Video; row: StageRow
               <div className="w-56 text-sm truncate">{s.title}</div>
               {seg ? <audio controls preload="none" className="h-8 flex-1" src={fileUrl(seg.path, seg.hash.slice(0, 8))} /> : <span className="flex-1 text-xs text-muted-foreground">sin audio</span>}
               <span className="text-xs tabular text-muted-foreground w-12 text-right">{seg ? fmtDuration(seg.duration) : ""}</span>
-              {video.voice_mode !== "own" && <button className="btn-ghost btn-sm" title="Rehacer" onClick={() => void redoVoiceSegment(video.id, s.id)}><RotateCcw size={13} /></button>}
+              <button className="btn-ghost btn-sm" title="Rehacer" onClick={() => void redoVoiceSegment(video.id, s.id)}><RotateCcw size={13} /></button>
             </div>
           );
         })}
       </div>
-    </Card>
-  );
-}
-
-/** Teleprónter + grabación por segmento (modo de alta calidad con tu voz). */
-function OwnVoiceRecorder({ video, script }: { video: Video; script: ScriptOut }) {
-  const [idx, setIdx] = useState(0);
-  const [recording, setRecording] = useState(false);
-  const [done, setDone] = useState<Record<string, string>>({});
-  const [fontPx, setFontPx] = useState(30);
-  const rec = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const dir = ownVoiceDir(video);
-  const seg = script.segments[idx];
-
-  useEffect(() => { void fs.list(dir).then((l) => setDone(Object.fromEntries(l.map((f) => [f.name.split(".")[0], f.path])))); }, [dir]);
-
-  const start = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true } });
-      const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "" });
-      chunks.current = [];
-      mr.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunks.current, { type: "audio/webm" });
-        const b64 = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.readAsDataURL(blob); });
-        const path = joinPath(dir, `${seg.id}.webm`);
-        await fs.writeB64(path, b64);
-        setDone((d) => ({ ...d, [seg.id]: path }));
-        if (idx < script.segments.length - 1) setIdx(idx + 1);
-      };
-      mr.start(); rec.current = mr; setRecording(true);
-    } catch (e) { void logError(e, video.id, "No se pudo acceder al micrófono"); }
-  };
-  const stop = () => { rec.current?.stop(); setRecording(false); };
-  const all = script.segments.every((s) => done[s.id]);
-
-  return (
-    <Card title={`Tu voz · segmento ${idx + 1}/${script.segments.length}`} icon={Mic}
-      actions={<div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Tamaño</span><input type="range" min={20} max={48} value={fontPx} onChange={(e) => setFontPx(+e.target.value)} /></div>}>
-      <div className="flex gap-1.5 flex-wrap mb-3">
-        {script.segments.map((s, i) => <button key={s.id} onClick={() => !recording && setIdx(i)} className={`chip ${i === idx ? "border-primary text-primary bg-primary/10" : done[s.id] ? "border-green-500/50 text-green-700 dark:text-green-500" : "border-border"}`}>{done[s.id] && <Check size={10} />}{i + 1}</button>)}
-      </div>
-      <div className="rounded-lg bg-[#111113] text-[#F2EFE9] p-8 max-h-[46vh] overflow-y-auto leading-relaxed" style={{ fontSize: fontPx, fontFamily: '"Source Serif 4", Georgia, serif' }}>
-        <div className="text-xs uppercase tracking-[0.3em] text-[#9DB0F1] mb-4" style={{ fontFamily: "Poppins" }}>{seg.title}</div>
-        {seg.text_en}
-      </div>
-      <div className="flex items-center gap-3 mt-4">
-        {!recording ? <button className="btn-primary" onClick={() => void start()}><Mic size={15} /> {done[seg.id] ? "Volver a grabar" : "Grabar"}</button>
-          : <button className="btn-danger animate-glow" onClick={stop}><Square size={14} /> Terminar segmento</button>}
-        {done[seg.id] && !recording && <audio controls className="h-8" src={fileUrl(done[seg.id], Date.now())} />}
-        <div className="flex-1" />
-        <button className="btn-brand" disabled={!all || recording} onClick={async () => { await setStage(video.id, "voice", { status: "pending", progress: null }); runVideo(video.id); }}>
-          <Play size={14} /> Procesar grabaciones y continuar
-        </button>
-      </div>
-      <div className="text-[11px] text-muted-foreground mt-2">Lee con calma: los silencios y el ruido se limpian solos.</div>
     </Card>
   );
 }
@@ -202,7 +142,7 @@ export function PublishPanel({ video, row }: { video: Video; row: StageRow }) {
         <div className="space-y-3 text-sm">
           <div>{row.progress}</div>
           <div className="flex gap-2">
-            <button className="btn-brand" onClick={() => navigate({ page: "ajustes", tab: "youtube" })}><MonitorPlay size={14} /> Conectar YouTube</button>
+            <button className="btn-brand" onClick={() => navigate({ page: "ajustes" })}><MonitorPlay size={14} /> Conectar YouTube</button>
             <ExportButton video={video} />
           </div>
         </div>

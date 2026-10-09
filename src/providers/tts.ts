@@ -2,7 +2,7 @@
 // Todos escriben un archivo de audio por fragmento; el pipeline los une.
 import { fs } from "../lib/ipc";
 import { getSettings, SECRET } from "../lib/settings";
-import { addCost, monthUnits, assertBudget } from "../lib/costs";
+import { addCost, monthUnits } from "../lib/costs";
 import { requestJson, requireSecret, jsonHeaders } from "./net";
 import { UserError } from "../lib/events";
 
@@ -51,7 +51,6 @@ async function googleTts(job: TtsJob): Promise<TtsResult> {
   const used = await monthUnits("google-tts", "caracteres");
   const billable = Math.max(0, used + chars - cfg.freeCharsPerMonth) - Math.max(0, used - cfg.freeCharsPerMonth);
   const usd = (billable / 1_000_000) * cfg.priceUsdPerMChars;
-  await assertBudget(usd, "la narración");
   const voice = job.override?.voice || cfg.voice;
   const body: any = {
     input: { text: job.text },
@@ -61,8 +60,8 @@ async function googleTts(job: TtsJob): Promise<TtsResult> {
   const rate = job.override?.speakingRate ?? cfg.speakingRate;
   if (rate && rate !== 1) body.audioConfig.speakingRate = rate;
   const res = await requestJson<{ audioContent: string }>("Google TTS", {
-    method: "POST", url: `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(key)}`,
-    headers: jsonHeaders, bodyText: JSON.stringify(body), timeoutS: 180,
+    method: "POST", url: "https://texttospeech.googleapis.com/v1/text:synthesize",
+    headers: { ...jsonHeaders, "x-goog-api-key": key }, bodyText: JSON.stringify(body), timeoutS: 180,
   });
   if (!res.audioContent) throw new UserError("Google TTS no devolvió audio.", JSON.stringify(res).slice(0, 500), "Google TTS");
   const path = job.outPath + ".wav";
@@ -75,13 +74,11 @@ async function geminiTts(job: TtsJob): Promise<TtsResult> {
   const cfg = getSettings().tts.gemini;
   const key = await requireSecret(SECRET.geminiApiKey, "Gemini");
   const estTokens = (job.text.split(/\s+/).length / 2.5) * 32; // ~2,5 palabras/s, 32 tokens/s
-  const usd = (estTokens / 1_000_000) * cfg.priceUsdPerMAudioTokens;
-  await assertBudget(usd, "la narración");
   const style = job.override?.style ?? cfg.style;
   const res = await requestJson<any>("Gemini TTS", {
     method: "POST",
-    url: `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent?key=${encodeURIComponent(key)}`,
-    headers: jsonHeaders, timeoutS: 300,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${cfg.model}:generateContent`,
+    headers: { ...jsonHeaders, "x-goog-api-key": key }, timeoutS: 300,
     bodyText: JSON.stringify({
       contents: [{ parts: [{ text: style ? `${style}\n\n${job.text}` : job.text }] }],
       generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: job.override?.voice || cfg.voice } } } },
@@ -103,7 +100,6 @@ async function elevenTts(job: TtsJob): Promise<TtsResult> {
   const voiceId = job.override?.voice || cfg.voiceId;
   if (!voiceId) throw new UserError("Falta el ID de voz de ElevenLabs.", "Indícalo en Ajustes → Voz.", "ElevenLabs", false);
   const usd = (job.text.length / 1000) * cfg.priceUsdPer1kChars;
-  await assertBudget(usd, "la narración");
   const res = await requestJson<any>("ElevenLabs", {
     method: "POST", url: `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
     headers: { ...jsonHeaders, "xi-api-key": key, Accept: "audio/mpeg" }, response: "base64", timeoutS: 300,
@@ -125,13 +121,13 @@ export async function synthesize(job: TtsJob): Promise<TtsResult> {
   if (p === "google") return googleTts(job);
   if (p === "gemini") return geminiTts(job);
   if (p === "elevenlabs") return elevenTts(job);
-  throw new UserError("El modo de voz propia no usa síntesis: graba la narración en la etapa Voz.", "", "voz", false);
+  throw new UserError(`Proveedor de voz desconocido: ${p}.`, "Elige uno en Ajustes → Voz.", "voz", false);
 }
 
 export async function listGoogleVoices(languageCode = "en-US"): Promise<{ name: string; ssmlGender: string }[]> {
   const key = await requireSecret(SECRET.googleApiKey, "Google Cloud");
   const res = await requestJson<{ voices: { name: string; ssmlGender: string }[] }>("Google TTS", {
-    url: `https://texttospeech.googleapis.com/v1/voices?languageCode=${languageCode}&key=${encodeURIComponent(key)}`,
+    url: `https://texttospeech.googleapis.com/v1/voices?languageCode=${languageCode}`, headers: { "x-goog-api-key": key },
   });
   return (res.voices ?? []).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -141,7 +137,6 @@ export async function elevenSoundEffect(o: { prompt: string; seconds: number; ou
   const key = await requireSecret(SECRET.elevenlabsApiKey, "ElevenLabs");
   const seconds = Math.min(30, Math.max(0.5, Math.round(o.seconds * 10) / 10));
   const usd = seconds * getSettings().sfx.priceUsdPerSecond;
-  await assertBudget(usd, "un efecto de sonido");
   const res = await requestJson<any>("ElevenLabs (efectos)", {
     method: "POST", url: "https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128",
     headers: { ...jsonHeaders, "xi-api-key": key, Accept: "audio/mpeg" }, response: "base64", timeoutS: 180,

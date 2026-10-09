@@ -292,9 +292,9 @@ async function freesound(query: string, kind: AssetKind, n: number): Promise<Can
   const dur = kind === "sfx" ? "duration:[0.1 TO 12]" : "duration:[45 TO 600]";
   const p = new URLSearchParams({
     query, filter: `license:("Creative Commons 0" OR "Attribution") ${dur}`, sort: "score", page_size: String(Math.min(30, n * 4)),
-    fields: "id,name,tags,description,license,username,duration,previews,url,avg_rating,num_downloads", token,
+    fields: "id,name,tags,description,license,username,duration,previews,url,avg_rating,num_downloads",
   });
-  const r = await call<any>("freesound", "Freesound", `https://freesound.org/apiv2/search/text/?${p}`, {}, query);
+  const r = await call<any>("freesound", "Freesound", `https://freesound.org/apiv2/search/text/?${p}`, { Authorization: `Token ${token}` }, query);
   const out: Candidate[] = [];
   for (const x of r.results ?? []) {
     const lic = normLicense(String(x.license ?? "").includes("publicdomain/zero") ? "cc0" : String(x.license ?? "").includes("/by/") ? `cc by ${String(x.license).match(/(\d\.\d)/)?.[1] ?? ""}` : String(x.license ?? ""));

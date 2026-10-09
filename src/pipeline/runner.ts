@@ -54,7 +54,7 @@ async function runOnce(r: Running) {
     if (!next) { await updateVideo(video.id, { stage: null }); return; }
     // Videos antiguos detenidos en la revisión del guion: ya no se espera, se sigue
     if (next.status === "review" && next.stage === "verify") { await setStage(video.id, "verify", { status: "approved", progress: null }); continue; }
-    if (next.status === "review") return; // espera al usuario (revisión final o grabar tu voz)
+    if (next.status === "review") return; // espera al usuario (revisión final)
     const stage = next.stage;
     r.stage = stage;
     await updateVideo(video.id, { stage });
@@ -186,7 +186,7 @@ export async function applyScriptFixes(videoId: string, notes: string) {
     await setStage(videoId, "script", { status: "done", output: revised });
     await setStage(videoId, "verify", { status: "pending", progress: null });
     // Las etapas posteriores deben rehacerse con el nuevo guion
-    for (const s of ["voice", "storyboard", "assets", "polish", "motion", "package", "render", "final", "publish"] as StageId[]) await setStage(videoId, s, { status: "pending" });
+    for (const s of ["voice", "storyboard", "assets", "polish", "motion", "render", "package", "final", "publish"] as StageId[]) await setStage(videoId, s, { status: "pending" });
     runVideo(videoId);
   } catch (e) {
     await setStage(videoId, "verify", { status: "review", progress: null });
@@ -235,25 +235,25 @@ export async function recoverOnStartup() {
 }
 
 /** Crea un video a partir de lo que escribas (una idea, un tema o instrucciones) y lo produce hasta la revisión final. */
-export async function startFromPrompt(prompt: string, opts: { mode?: "standard" | "premium"; voiceMode?: "ai" | "own" } = {}): Promise<string | null> {
+export async function startFromPrompt(prompt: string): Promise<string | null> {
   const ch = await activeChannel();
   if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
   const text = prompt.trim();
   if (!text) return null;
   const first = text.split(/\n/)[0].trim();
   const title = first.length > 90 ? `${first.slice(0, 87)}…` : first;
-  const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, opts);
+  const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
   runVideo(v.id);
   return v.id;
 }
 
 /** Inicia el siguiente video con el próximo tema aprobado (si no hay uno en curso). */
-export async function startNextVideo(opts: { mode?: "standard" | "premium"; voiceMode?: "ai" | "own" } = {}): Promise<string | null> {
+export async function startNextVideo(): Promise<string | null> {
   const ch = await activeChannel();
   if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
   const topics = await listTopics(ch.id, "approved");
   if (!topics.length) { toast("warn", "No hay temas aprobados.", "Aprueba al menos uno en Temas."); return null; }
-  const v = await createVideo(ch.id, topics[0], { mode: opts.mode, voiceMode: opts.voiceMode });
+  const v = await createVideo(ch.id, topics[0], {});
   runVideo(v.id);
   return v.id;
 }

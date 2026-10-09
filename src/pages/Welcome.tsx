@@ -12,7 +12,7 @@ export function Welcome() {
     setBusy(true);
     const ch = await createChannel(name.trim() || "Mi canal");
     await saveSettings({ activeChannelId: ch.id, onboarded: true });
-    navigate({ page: "ajustes", tab: "keys" });
+    navigate({ page: "ajustes" });
   };
   return (
     <div className="relative h-full flex items-center justify-center overflow-hidden isolate">

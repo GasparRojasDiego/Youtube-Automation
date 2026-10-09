@@ -11,6 +11,7 @@
   --accent: 40 22% 86%; --destructive: 0 72% 48%;
   --border: 38 16% 82%; --input: 40 30% 96%; --ring: 228 80% 60%;
   --radius: 0.75rem;
+  --primary-strong: 228 78% 58%; --soft: 228 10% 87%; --soft-foreground: 228 14% 14%;
   --shadow-card: 0 1px 0 0 hsl(0 0% 100% / .7) inset, 0 10px 30px -18px hsl(228 30% 20% / .35);
 }
 .dark {
@@ -20,6 +21,7 @@
   --secondary: 230 8% 13%; --muted: 230 8% 13%; --muted-foreground: 228 8% 62%;
   --accent: 230 8% 15%; --destructive: 0 70% 52%;
   --border: 230 8% 17%; --input: 230 10% 8%; --ring: 228 100% 73%;
+  --primary-strong: 228 74% 60%; --soft: 228 9% 82%; --soft-foreground: 230 14% 10%;
   --shadow-card: 0 1px 0 0 hsl(0 0% 100% / .04) inset, 0 18px 40px -24px rgb(0 0 0 / .8);
 }
 
@@ -80,16 +82,6 @@ option { background: hsl(var(--popover)); color: hsl(var(--foreground)); }
   .hairline { @apply h-px bg-gradient-to-r from-transparent via-border to-transparent; }
   .text-gradient { @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary to-foreground/80; }
 }
-
-/* Fondo animado: líneas curvas finas que fluyen */
-@keyframes flow-x { from { transform: translateX(0); } to { transform: translateX(calc(-1 * var(--shift, 800px))); } }
-.flow-line { animation: flow-x linear infinite; will-change: transform; }
-
-/* Eco de palabra: texto replicado en contorno que deriva detrás del título */
-@keyframes echo-drift { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.echo-row { animation: echo-drift 60s linear infinite; }
-.echo-row.rev { animation-direction: reverse; animation-duration: 80s; }
-.echo-text { -webkit-text-stroke: 1px hsl(var(--primary) / .11); color: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

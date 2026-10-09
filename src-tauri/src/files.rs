@@ -151,31 +151,20 @@ pub fn app_paths(app: tauri::AppHandle) -> Result<AppPaths, String> {
     })
 }
 
-/// Instala una actualización: espera a que ATRIL se cierre, ejecuta el
-/// instalador en modo silencioso y vuelve a abrir la app (solo Windows).
+/// Instala una actualización: abre el instalador en modo silencioso (sin ninguna
+/// ventana), con /UPDATE (conserva accesos directos) y /R (vuelve a abrir ATRIL al
+/// terminar), y cierra la app: es el último momento posible, porque el instalador
+/// necesita reemplazar sus archivos.
 #[tauri::command]
 pub fn update_install(app: tauri::AppHandle, installer: String) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let pid = std::process::id();
-        // ping como pausa: «timeout» falla en procesos sin consola
-        let script = format!(
-            "@echo off\r\n:wait\r\ntasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n\"{installer}\" /S\r\nping -n 2 127.0.0.1 >nul\r\nstart \"\" \"{exe}\"\r\ndel \"%~f0\"\r\n",
-            pid = pid,
-            installer = installer,
-            exe = exe.to_string_lossy()
-        );
-        let path = std::env::temp_dir().join("atril-actualizar.cmd");
-        std::fs::write(&path, script).map_err(|e| format!("No se pudo preparar la actualización: {e}"))?;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        std::process::Command::new("cmd")
-            .arg("/C")
-            .arg(&path)
-            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        std::process::Command::new(&installer)
+            .args(["/S", "/UPDATE", "/R"])
+            .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
             .spawn()
             .map_err(|e| format!("No se pudo iniciar el instalador: {e}"))?;
         app.exit(0);

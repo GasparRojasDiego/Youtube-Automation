@@ -3,12 +3,12 @@ import { db } from "./ipc";
 import { safeJson } from "./util";
 import { emit } from "./bus";
 
-export type StageModelKey = "topics" | "research" | "script" | "verify" | "package" | "analysis" | "storyboard" | "vision" | "polish" | "motion" | "critique";
+export type StageModelKey = "topics" | "research" | "script" | "verify" | "package" | "analysis" | "storyboard" | "vision" | "polish" | "motion" | "fix" | "critique";
 
 export interface AppSettings {
   settingsVersion: number;
-  theme: "dark" | "light";
-  ui: { ambient: boolean };          // fondo animado (constelación y líneas)
+  theme: "system" | "dark" | "light";
+  profile: { name: string; avatar: string; id: string };   // avatar: archivo en la carpeta de datos
   activeChannelId: string | null;
   onboarded: boolean;
   claude: {
@@ -19,7 +19,7 @@ export interface AppSettings {
     timeoutMin: number;
   };
   tts: {
-    provider: "google" | "gemini" | "elevenlabs" | "own";
+    provider: "google" | "gemini" | "elevenlabs";
     google: { voice: string; languageCode: string; speakingRate: number; priceUsdPerMChars: number; freeCharsPerMonth: number };
     gemini: { model: string; voice: string; style: string; priceUsdPerMAudioTokens: number };
     elevenlabs: { voiceId: string; modelId: string; stability: number; similarity: number; style: number; speed: number; priceUsdPer1kChars: number };
@@ -28,7 +28,7 @@ export interface AppSettings {
     provider: "auto" | "gemini" | "openai" | "none";   // auto = el que tenga clave (OpenAI primero)
     gemini: { model: string; priceUsd: number };
     openai: { model: string; quality: string; size: string; priceUsd: number };
-    perVideo: { standard: number; premium: number };    // tope de imágenes generadas por video
+    perVideo: number;                   // tope de imágenes generadas por video
     thumbnailCandidates: number;
   };
   sfx: {
@@ -36,18 +36,16 @@ export interface AppSettings {
     maxGenerated: number;               // efectos creados con ElevenLabs por video
     priceUsdPerSecond: number;          // estimado (40 créditos por segundo)
   };
-  budget: { monthlyPen: number; penPerUsd: number; warnAtPct: number; hardStop: boolean };
   publishing: {
     timeZone: string; time: string; categoryId: string; defaultLanguage: string;
     aiDisclosure: string; privacyPolicyUrl: string;
   };
   production: {
-    targetMinutes: { standard: [number, number]; premium: [number, number] };
-    scriptPasses: { standard: number; premium: number };
+    targetMinutes: [number, number];
+    scriptPasses: number;
     autoRunToReview: boolean;
     verifyMode: "auto" | "off";        // auto = revisa datos y corrige solo, sin detenerse
   };
-  review: { dailyMinutesGoal: number };
   media: {
     libraryDir: string;                 // vacío = Documentos\ATRIL\Biblioteca
     sources: Record<"openverse" | "pexels" | "pixabay" | "wikimedia" | "nasa" | "met" | "freesound", boolean>;
@@ -60,28 +58,28 @@ export interface AppSettings {
   motion: {
     enabled: boolean;
     browserPath: string;                // vacío = Microsoft Edge o Google Chrome detectados
-    perVideo: { standard: number; premium: number };
+    perVideo: number;
     critique: boolean;                  // revisión visual de cada animación (Sonnet) y una corrección (Opus)
     perCall: number;                    // composiciones por llamada a Opus
   };
   ffmpeg: { path: string; ffprobePath: string; encoder: "auto" | "h264_qsv" | "h264_mf" | "libx264"; quality: number };
 }
 
-export const SETTINGS_VERSION = 22;
+export const SETTINGS_VERSION = 23;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: SETTINGS_VERSION,
-  theme: "dark",
-  ui: { ambient: true },
+  theme: "system",
+  profile: { name: "", avatar: "", id: "" },
   activeChannelId: null,
   onboarded: false,
   claude: {
     path: "claude",
     extraArgs: "",
     models: { topics: "sonnet", research: "sonnet", script: "opus", verify: "sonnet", package: "sonnet", analysis: "sonnet",
-      storyboard: "sonnet", vision: "sonnet", polish: "opus", motion: "opus", critique: "sonnet" },
+      storyboard: "sonnet", vision: "sonnet", polish: "opus", motion: "opus", fix: "opus", critique: "sonnet" },
     effort: { topics: "medium", research: "medium", script: "high", verify: "medium", package: "medium", analysis: "medium",
-      storyboard: "medium", vision: "low", polish: "high", motion: "high", critique: "low" },
+      storyboard: "medium", vision: "low", polish: "high", motion: "high", fix: "high", critique: "low" },
     timeoutMin: 40,
   },
   tts: {
@@ -94,11 +92,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
     provider: "auto",
     gemini: { model: "gemini-3.1-flash-image-preview", priceUsd: 0.067 },
     openai: { model: "gpt-image-2", quality: "medium", size: "1536x1024", priceUsd: 0.05 },
-    perVideo: { standard: 15, premium: 25 },
+    perVideo: 15,
     thumbnailCandidates: 3,
   },
   sfx: { elevenlabs: false, maxGenerated: 25, priceUsdPerSecond: 0.007 },
-  budget: { monthlyPen: 100, penPerUsd: 3.75, warnAtPct: 80, hardStop: true },
   publishing: {
     timeZone: "America/New_York",
     time: "12:00",
@@ -108,12 +105,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
     privacyPolicyUrl: "",
   },
   production: {
-    targetMinutes: { standard: [10, 13], premium: [12, 15] },
-    scriptPasses: { standard: 1, premium: 2 },
+    targetMinutes: [10, 13],
+    scriptPasses: 1,
     autoRunToReview: true,
     verifyMode: "auto",
   },
-  review: { dailyMinutesGoal: 30 },
   media: {
     libraryDir: "",
     sources: { openverse: true, pexels: true, pixabay: true, wikimedia: true, nasa: true, met: true, freesound: true },
@@ -123,7 +119,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     visionBatch: 10,
     maxClipSeconds: 5,
   },
-  motion: { enabled: true, browserPath: "", perVideo: { standard: 10, premium: 14 }, critique: true, perCall: 2 },
+  motion: { enabled: true, browserPath: "", perVideo: 10, critique: true, perCall: 2 },
   ffmpeg: { path: "", ffprobePath: "", encoder: "auto", quality: 21 },
 };
 
@@ -144,6 +140,7 @@ export async function loadSettings(): Promise<AppSettings> {
   const saved = safeJson<any>(rows[0]?.value, {});
   current = deepMerge(DEFAULT_SETTINGS, saved);
   if (rows[0] && (saved.settingsVersion ?? 0) < SETTINGS_VERSION) current = await migrateSettings(current, saved.settingsVersion ?? 0);
+  if (!current.profile.id) await saveSettings((x) => ({ ...x, profile: { ...x.profile, id: profileId() } }));
   return current;
 }
 
@@ -154,10 +151,20 @@ async function migrateSettings(s: AppSettings, from: number): Promise<AppSetting
     if (/^gemini-2\.5-flash-image/.test(s.images.gemini.model)) s.images.gemini = { model: "gemini-3.1-flash-image-preview", priceUsd: 0.067 };
     if (s.images.openai.model === "gpt-image-1-mini" && s.images.openai.quality === "low") s.images.openai = { model: "gpt-image-2", quality: "medium", size: "1536x1024", priceUsd: 0.05 };
     s.media.allowGenerated = true;
-    s.motion.perVideo = { standard: Math.max(10, s.motion.perVideo.standard), premium: Math.max(14, s.motion.perVideo.premium) };
     if (s.claude.models.verify === "opus") { s.claude.models.verify = "sonnet"; s.claude.effort.verify = "medium"; }
     if (/Every factual claim is sourced below/.test(s.publishing.aiDisclosure)) s.publishing.aiDisclosure = s.publishing.aiDisclosure.replace("Every factual claim is sourced below.", "Sources are listed below.");
     s.production.autoRunToReview = true;
+  }
+  if (from < 23) {
+    // Una sola categoría de video (sin estándar/premium), voz siempre sintética, modelo propio para corregir animaciones
+    const std = (x: any, d: any) => (x && typeof x === "object" && !Array.isArray(x) ? x.standard ?? d : x ?? d);
+    s.images.perVideo = std(s.images.perVideo, 15);
+    s.motion.perVideo = Math.max(10, std(s.motion.perVideo, 10));
+    s.production.targetMinutes = std(s.production.targetMinutes, [10, 13]);
+    s.production.scriptPasses = std(s.production.scriptPasses, 1);
+    if ((s.tts.provider as string) === "own") s.tts.provider = "google";
+    if (!s.claude.models.fix) { s.claude.models.fix = s.claude.models.motion || "opus"; s.claude.effort.fix = s.claude.effort.motion || "high"; }
+    for (const k of ["budget", "review", "ui"]) delete (s as any)[k];
   }
   s.settingsVersion = SETTINGS_VERSION;
   await db.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('app',?)", [JSON.stringify(s)]);
@@ -165,6 +172,15 @@ async function migrateSettings(s: AppSettings, from: number): Promise<AppSetting
 }
 
 export const getSettings = () => current;
+
+/** ID de usuario: 12 caracteres sin ambigüedad (sin 0/O ni 1/I/L), generado una vez. */
+export function profileId(): string {
+  const A = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => A[b % A.length]).join("");
+}
+
+/** ¿Tema oscuro? «system» sigue al dispositivo. */
+export const isDark = (t = current.theme) => t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
 
 export async function saveSettings(patch: Partial<AppSettings> | ((s: AppSettings) => AppSettings)): Promise<AppSettings> {
   current = typeof patch === "function" ? patch(structuredClone(current)) : deepMerge(current, patch);

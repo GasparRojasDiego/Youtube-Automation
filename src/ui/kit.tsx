@@ -3,15 +3,15 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, Check, AlertTriangle, CircleDashed, Clock, Eye, Ban, type LucideIcon } from "lucide-react";
 import type { StageStatus } from "../lib/repo";
-import { Scramble, EchoWord } from "./Constellation";
+import { getSettings } from "../lib/settings";
+import { fileUrl } from "../lib/ipc";
 
-export function PageHeader({ kicker, title, subtitle, actions, echo }: { kicker?: string; title: string; subtitle?: ReactNode; actions?: ReactNode; echo?: string | false }) {
+export function PageHeader({ kicker, title, subtitle, actions }: { kicker?: string; title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="relative flex items-end justify-between gap-4 mb-7 pt-2">
-      {echo !== false && <EchoWord word={echo || title} className="-top-3 opacity-90 [mask-image:linear-gradient(90deg,transparent,#000_15%,#000_70%,transparent)]" />}
+    <div className="relative flex items-end justify-between gap-4 mb-7">
       <div className="relative min-w-0">
         {kicker && <div className="kicker mb-1.5">{kicker}</div>}
-        <h1 className="text-[28px] leading-tight font-bold tracking-tight truncate"><Scramble text={title} /></h1>
+        <h1 className="text-[28px] leading-tight font-bold tracking-tight truncate">{title}</h1>
         {subtitle && <div className="text-sm text-muted-foreground mt-1.5">{subtitle}</div>}
       </div>
       {actions && <div className="relative flex items-center gap-2 shrink-0">{actions}</div>}
@@ -107,7 +107,7 @@ export function Chip({ children, tone = "muted" }: { children: ReactNode; tone?:
   return <span className={`chip ${cls}`}>{children}</span>;
 }
 
-export function Modal({ open, onClose, title, echo, children, wide = false, footer }: { open: boolean; onClose: () => void; title: string; echo?: string; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
+export function Modal({ open, onClose, title, children, wide = false, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -118,7 +118,6 @@ export function Modal({ open, onClose, title, echo, children, wide = false, foot
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm p-6 animate-fade-up" onMouseDown={onClose}>
       <div className={`relative card bg-card w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-pop-in`} onMouseDown={(e) => e.stopPropagation()}>
-        {echo && <EchoWord word={echo} className="top-1 opacity-70" />}
         <div className="relative px-6 pt-5 pb-3">
           <h3 className="text-lg font-bold tracking-tight">{title}</h3>
           <button className="btn-ghost btn-sm absolute right-3 top-3.5" onClick={onClose} aria-label="Cerrar"><X size={16} /></button>
@@ -202,4 +201,13 @@ export function ReviewTimer({ onTick }: { onTick?: (s: number) => void }) {
     return () => clearInterval(id);
   }, [onTick]);
   return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular"><Clock size={12} />{Math.floor(s / 60)}:{String(s % 60).padStart(2, "0")}</span>;
+}
+
+/** Foto de perfil (o iniciales sobre el color de la marca). */
+export function Avatar({ size = 32, className = "" }: { size?: number; className?: string }) {
+  const p = getSettings().profile;
+  const initials = (p.name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+  return p.avatar
+    ? <img src={fileUrl(p.avatar.split("?")[0], p.avatar.split("?")[1])} alt="" style={{ width: size, height: size }} className={`rounded-full object-cover ring-1 ring-border shrink-0 ${className}`} />
+    : <span style={{ width: size, height: size, fontSize: size * 0.38 }} className={`rounded-full grid place-items-center font-semibold text-white shrink-0 bg-gradient-to-br from-primary-strong to-primary ${className}`}>{initials}</span>;
 }

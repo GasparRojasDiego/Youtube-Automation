@@ -47,7 +47,7 @@ pub async fn http_request(req: HttpReq) -> Result<HttpRes, String> {
     } else if let Some(b) = req.body_b64 {
         rb = rb.body(B64.decode(b).map_err(|e| e.to_string())?);
     }
-    let res = rb.send().await.map_err(|e| format!("Error de red ({}): {e}", host_of(&req.url)))?;
+    let res = rb.send().await.map_err(|e| net_err(&req.url, e))?;
     let status = res.status().as_u16();
     let headers = res
         .headers()
@@ -64,7 +64,72 @@ pub async fn http_request(req: HttpReq) -> Result<HttpRes, String> {
 }
 
 fn host_of(url: &str) -> String {
-    url.split("://").nth(1).and_then(|r| r.split('/').next()).unwrap_or(url).to_string()
+    url.split("://").nth(1).and_then(|r| r.split(['/', '?']).next()).unwrap_or("?").to_string()
+}
+
+/// Error de red sin la URL completa: solo el servidor (las claves de las APIs nunca llegan a los registros).
+fn net_err(url: &str, e: reqwest::Error) -> String {
+    format!("Error de red ({}): {}", host_of(url), e.without_url())
+}
+
+#[derive(Serialize)]
+pub struct Probe {
+    bytes: u64,
+    ttfb_ms: u64,
+    body_ms: u64,
+}
+
+/// Mide la conexión con los primeros ~3 MB de un archivo: latencia hasta el primer byte y velocidad del flujo.
+#[tauri::command]
+pub async fn update_probe(url: String) -> Result<Probe, String> {
+    let c = client(60)?;
+    let t0 = std::time::Instant::now();
+    let mut res = c.get(&url).header("Range", "bytes=0-3145727").send().await.map_err(|e| net_err(&url, e))?;
+    if !res.status().is_success() {
+        return Err(format!("HTTP {} en {}", res.status().as_u16(), host_of(&url)));
+    }
+    let mut bytes = 0u64;
+    let mut first: Option<std::time::Instant> = None;
+    while let Some(chunk) = res.chunk().await.map_err(|e| net_err(&url, e))? {
+        first.get_or_insert_with(std::time::Instant::now);
+        bytes += chunk.len() as u64;
+    }
+    let f = first.unwrap_or(t0);
+    Ok(Probe { bytes, ttfb_ms: f.duration_since(t0).as_millis() as u64, body_ms: f.elapsed().as_millis().max(1) as u64 })
+}
+
+/// Descarga el instalador por partes, avisa el avance («update-progress») y devuelve su huella SHA-256.
+#[tauri::command]
+pub async fn update_download(app: tauri::AppHandle, url: String, path: String) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncWriteExt;
+    let c = client(3600)?;
+    let mut res = c.get(&url).send().await.map_err(|e| net_err(&url, e))?;
+    if !res.status().is_success() {
+        return Err(format!("HTTP {} al descargar la actualización", res.status().as_u16()));
+    }
+    let total = res.content_length().unwrap_or(0);
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let tmp = format!("{path}.part");
+    let mut file = tokio::fs::File::create(&tmp).await.map_err(|e| e.to_string())?;
+    let mut hasher = Sha256::new();
+    let (mut done, mut last) = (0u64, std::time::Instant::now());
+    while let Some(chunk) = res.chunk().await.map_err(|e| net_err(&url, e))? {
+        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        hasher.update(&chunk);
+        done += chunk.len() as u64;
+        if last.elapsed() >= Duration::from_millis(100) {
+            last = std::time::Instant::now();
+            let _ = app.emit("update-progress", serde_json::json!({ "done": done, "total": total }));
+        }
+    }
+    file.flush().await.map_err(|e| e.to_string())?;
+    drop(file);
+    let _ = app.emit("update-progress", serde_json::json!({ "done": done, "total": total.max(done) }));
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
 /// Descarga a disco (imágenes de archivo, miniaturas de referencia, etc.).
@@ -75,9 +140,9 @@ pub async fn http_download(url: String, path: String, headers: Option<HashMap<St
     for (k, v) in headers.unwrap_or_default() {
         rb = rb.header(k, v);
     }
-    let res = rb.send().await.map_err(|e| format!("Error de red ({}): {e}", host_of(&url)))?;
+    let res = rb.send().await.map_err(|e| net_err(&url, e))?;
     if !res.status().is_success() {
-        return Err(format!("HTTP {} al descargar {}", res.status().as_u16(), url));
+        return Err(format!("HTTP {} al descargar de {}", res.status().as_u16(), host_of(&url)));
     }
     let bytes = res.bytes().await.map_err(|e| e.to_string())?;
     if let Some(parent) = std::path::Path::new(&path).parent() {

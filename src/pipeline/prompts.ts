@@ -109,11 +109,10 @@ const SCRIPT_RULES = (minW: number, maxW: number) => `Requirements:
 - Write for the ear: varied sentence length, no lists, no stage directions, no URLs read aloud, numbers written as they are spoken.
 - Titles must be intriguing and delivered by the video.`;
 
-export function scriptPrompt(o: { skills: string; topic: string; research: unknown; minWords: number; maxWords: number; premium: boolean }) {
+export function scriptPrompt(o: { skills: string; topic: string; research: unknown; minWords: number; maxWords: number }) {
   return `Write the narration script for this video.${wrapSkills(o.skills)}
 
 TOPIC: ${o.topic}
-MODE: ${o.premium ? "premium (weekly flagship: richer analysis, more careful rhythm)" : "standard daily video"}
 
 ${SCRIPT_RULES(o.minWords, o.maxWords)}
 

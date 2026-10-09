@@ -54,10 +54,10 @@ function imagePromptFor(sh: Shot, narration: string, style: string): string {
 }
 
 /** Animaciones por video: el ajuste, pero nunca menos de una por minuto de narración. */
-async function motionBudget(ctx: Ctx, totalSeconds = 0) {
+async function motionBudget(totalSeconds = 0) {
   const m = getSettings().motion;
   if (!m.enabled) return 0;
-  return Math.max(m.perVideo[ctx.video.mode], Math.ceil(totalSeconds / 60) + 1);
+  return Math.max(m.perVideo, Math.ceil(totalSeconds / 60) + 1);
 }
 
 // ======================= 5. Storyboard (Sonnet) =======================
@@ -71,7 +71,7 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const segs = segInfos(script, voice);
   const narrTotal = segs.reduce((a, s) => a + s.narration, 0);
-  const budget = await motionBudget(ctx, narrTotal);
+  const budget = await motionBudget(narrTotal);
   const sbSkills = await composeSkills(v.channel_id, ["visuals", "montage"]);
   const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION]));
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
@@ -275,7 +275,7 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
   const chosen = new Set<string>();
   const narr = (sh: Shot) => shotNarration(sh, segs.find((x) => x.id === sh.segment_id)!);
   const aiReady = await aiImagesReady();
-  const aiCap = s.images.perVideo[v.mode];
+  const aiCap = s.images.perVideo;
   let aiUsed = 0;
 
   // Imagen con IA para una toma (respeta el tope por video)
@@ -423,7 +423,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const segs = segInfos(script, voice);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
   const total = segs.reduce((a, s) => a + segmentLength(s, montage.pauseBetweenSegments), 0);
-  const budget = await motionBudget(ctx, total);
+  const budget = await motionBudget(total);
   const assetMap = await getAssets(assets.shots.map((x) => x.asset_id).filter(Boolean) as string[]);
   const describe = (s: Shot) => {
     const a = s.asset_id ? assetMap.get(s.asset_id) : null;

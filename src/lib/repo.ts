@@ -91,8 +91,8 @@ export const STAGES = [
   { id: "assets", label: "Medios", short: "Medios" },
   { id: "polish", label: "Retoques", short: "Retoques" },
   { id: "motion", label: "Animaciones", short: "Motion" },
-  { id: "package", label: "Metadatos", short: "Metadatos" },
   { id: "render", label: "Montaje", short: "Montaje" },
+  { id: "package", label: "Metadatos", short: "Metadatos" },
   { id: "final", label: "Revisión final", short: "Revisión", gate: true },
   { id: "publish", label: "Publicación", short: "Publicar" },
 ] as const;
@@ -121,7 +121,7 @@ export async function getVideo(id: string): Promise<Video | null> {
   return r[0] ? rowToVideo(r[0]) : null;
 }
 
-export async function createVideo(channelId: string, topic: Topic | null, opts: { title?: string; mode?: Video["mode"]; voiceMode?: Video["voice_mode"] }): Promise<Video> {
+export async function createVideo(channelId: string, topic: Topic | null, opts: { title?: string }): Promise<Video> {
   const id = uid("v_");
   const paths = await appPaths();
   const title = opts.title ?? topic?.title ?? "Video sin título";
@@ -131,7 +131,7 @@ export async function createVideo(channelId: string, topic: Topic | null, opts: 
   const t = now();
   const stmts = [
     { sql: "INSERT INTO videos(id,channel_id,topic_id,title,mode,voice_mode,status,stage,dir,created_at,updated_at,data) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-      params: [id, channelId, topic?.id ?? null, title, opts.mode ?? "standard", opts.voiceMode ?? "ai", "active", "research", dir, t, t,
+      params: [id, channelId, topic?.id ?? null, title, "standard", "ai", "active", "research", dir, t, t,
         JSON.stringify({ topic: topic ? { title: topic.title, angle: topic.angle, notes: topic.notes, sources: topic.sources } : { title } })] },
     ...STAGES.map((s) => ({ sql: "INSERT INTO stages(video_id,stage,status) VALUES(?,?,?)", params: [id, s.id, "pending"] })),
   ];

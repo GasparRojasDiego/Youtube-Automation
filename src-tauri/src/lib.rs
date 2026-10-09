@@ -159,6 +159,8 @@ pub fn run() {
             files::update_install,
             net::http_request,
             net::http_download,
+            net::update_probe,
+            net::update_download,
             net::youtube_upload,
             proc::proc_run,
             proc::proc_kill,

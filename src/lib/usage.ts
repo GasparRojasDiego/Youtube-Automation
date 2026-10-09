@@ -1,6 +1,5 @@
-// Consumo: plan de Claude (ventanas de 5 h y 7 días, según los eventos
-// oficiales `rate_limit_event` de Claude Code), tokens por tarea, cuota
-// gratuita de voz y llamadas a APIs de medios.
+// Consumo: plan de Claude (ventana de 5 h, según los eventos oficiales
+// `rate_limit_event` de Claude Code), tokens por tarea y llamadas a APIs de medios.
 import { db } from "./ipc";
 import { emit } from "./bus";
 import { now, safeJson } from "./util";
@@ -59,15 +58,6 @@ export async function recordClaudeRun(r: ClaudeRun) {
   emit("usage");
 }
 
-/**
- * Cuánto de cada ventana consumió una tarea: diferencia entre la utilización
- * antes y después (si la ventana no se reinició entre medias).
- */
-export function windowDelta(before: number | null, after: number | null, sameWindow = true): number | null {
-  if (before == null || after == null || !sameWindow) return null;
-  return Math.max(0, after - before);
-}
-
 // ---------- APIs de medios ----------
 export const API_LIMITS: Record<string, { label: string; perHour?: number; perDay?: number; perMonth?: number; perMinute?: number }> = {
   openverse: { label: "Openverse", perHour: 5, perDay: 100 },   // sin registro; con registro: 100/min, 10 000/día
@@ -99,6 +89,22 @@ export function fmtReset(ms: number | null | undefined): string {
 
 export const pct = (x: number | null | undefined, digits = 1) => x == null ? "—" : `${(x * 100).toFixed(digits)} %`;
 
+/**
+ * Consumo de un grupo de tareas: tokens y cuánto subió el límite de 5 horas
+ * (suma de lo que subió durante cada tarea, según el dato oficial de Claude
+ * Code; si la ventana se repuso, cuenta desde 0). Resolución: 1 punto.
+ */
+export function stepUsage(runs: Pick<RunRow, "input_tokens" | "cache_read" | "cache_write" | "output_tokens" | "five_hour" | "five_hour_before">[]) {
+  let pctSum = 0, known = false, input = 0, output = 0;
+  for (const r of runs) {
+    input += r.input_tokens + r.cache_read + r.cache_write; output += r.output_tokens;
+    if (r.five_hour == null || r.five_hour_before == null) continue;
+    known = true;
+    pctSum += r.five_hour >= r.five_hour_before ? r.five_hour - r.five_hour_before : r.five_hour;
+  }
+  return { input, output, pct: known ? Math.round(pctSum * 1000) / 1000 : null, runs: runs.length };
+}
+
 // ---------- Análisis del consumo de Claude ----------
 export interface RunRow {
   id: number; ts: number; video_id: string | null; stage: string; label: string; model: string;
@@ -115,23 +121,6 @@ export async function listRuns(o: { videoId?: string; since?: number; limit?: nu
   return db.query<RunRow>(`SELECT * FROM claude_runs ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY id DESC LIMIT ?`, p);
 }
 
-export interface Calibration { per5h: number | null; per7d: number | null; samples: number }
-
-/**
- * Cuánto % de cada ventana consume, en promedio, 1 USD de «equivalente API».
- * Claude Code informa la utilización con poca resolución; con varias tareas
- * medidas se obtiene una estimación fina por tarea.
- */
-export async function calibration(days = 21): Promise<Calibration> {
-  const rows = await db.query<RunRow>("SELECT * FROM claude_runs WHERE ts>=? AND api_equiv>0", [now() - days * 86_400_000]);
-  let d5 = 0, a5 = 0, d7 = 0, a7 = 0, n = 0;
-  for (const r of rows) {
-    if (r.five_hour != null && r.five_hour_before != null && r.five_hour >= r.five_hour_before) { d5 += r.five_hour - r.five_hour_before; a5 += r.api_equiv; n++; }
-    if (r.seven_day != null && r.seven_day_before != null && r.seven_day >= r.seven_day_before) { d7 += r.seven_day - r.seven_day_before; a7 += r.api_equiv; }
-  }
-  return { per5h: a5 >= 1 && d5 > 0 ? d5 / a5 : null, per7d: a7 >= 1 && d7 > 0 ? d7 / a7 : null, samples: n };
-}
-
 export const totalInput = (r: Pick<RunRow, "input_tokens" | "cache_read" | "cache_write">) => r.input_tokens + r.cache_read + r.cache_write;
 
 export function fmtK(n: number): string {
@@ -140,8 +129,3 @@ export function fmtK(n: number): string {
   return String(Math.round(n));
 }
 
-export const STAGE_NAMES: Record<string, string> = {
-  topics: "Banco de temas", research: "Investigación", script: "Guion", verify: "Verificación", voice: "Voz", storyboard: "Storyboard",
-  assets: "Medios y casting", polish: "Retoques", motion: "Animaciones", package: "Metadatos", render: "Montaje", analysis: "Referentes",
-  usage: "Consulta de límite", vision: "Visión", plan: "Plan visual",
-};

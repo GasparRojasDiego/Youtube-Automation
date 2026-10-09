@@ -193,7 +193,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
         )}
       </div>
       <ShotEditorV2 video={video} shot={edit} onClose={() => setEdit(null)} />
-      <Modal open={reject} onClose={() => setReject(false)} title="Rechazar video" echo="rechazar"
+      <Modal open={reject} onClose={() => setReject(false)} title="Rechazar video"
         footer={<><button className="btn-ghost" onClick={() => setReject(false)}>Cancelar</button>
           <button className="btn-danger" onClick={async () => { await addReview(video.id, "final", "rejected", reason, secs.current); await rejectVideo(video.id, reason); setReject(false); }}>Rechazar</button></>}>
         <Field label="Motivo"><textarea className="input min-h-24" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>

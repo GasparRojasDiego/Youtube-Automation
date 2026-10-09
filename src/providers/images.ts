@@ -2,7 +2,7 @@
 // Si el modelo elegido ya no existe, se prueba el siguiente de la lista.
 import { fs, secrets } from "../lib/ipc";
 import { getSettings, SECRET } from "../lib/settings";
-import { addCost, assertBudget } from "../lib/costs";
+import { addCost } from "../lib/costs";
 import { requestJson, requireSecret, jsonHeaders } from "./net";
 import { UserError } from "../lib/events";
 
@@ -49,7 +49,6 @@ async function geminiOnce(model: string, key: string, job: ImageJob) {
 async function geminiImage(job: ImageJob): Promise<ImageResult> {
   const cfg = getSettings().images.gemini;
   const key = await requireSecret(SECRET.geminiApiKey, "Gemini");
-  await assertBudget(cfg.priceUsd, "una imagen");
   let last: unknown = null;
   for (const model of chain(cfg.model, GEMINI_IMAGE_MODELS)) {
     try {
@@ -67,7 +66,6 @@ async function geminiImage(job: ImageJob): Promise<ImageResult> {
 async function openaiImage(job: ImageJob): Promise<ImageResult> {
   const cfg = getSettings().images.openai;
   const key = await requireSecret(SECRET.openaiApiKey, "OpenAI");
-  await assertBudget(cfg.priceUsd, "una imagen");
   const size = job.aspect === "1:1" ? "1024x1024" : job.aspect === "9:16" ? "1024x1536" : cfg.size;
   let last: unknown = null;
   for (const model of chain(cfg.model, OPENAI_IMAGE_MODELS)) {

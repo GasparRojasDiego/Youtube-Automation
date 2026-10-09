@@ -1,5 +1,6 @@
-// Habilidades en dos partes: Textual (guion, títulos, descripción) y Visual
-// (imágenes, animaciones, montaje, miniatura). Se inyectan como reglas obligatorias.
+// Instrucciones: directrices de contenido (guion, títulos, descripción) arriba y
+// directrices visuales (imágenes, animaciones, montaje, miniatura) abajo, en una
+// sola página. Se inyectan como reglas obligatorias.
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles, Plus, Upload, Download, History, Trash2, Save, AlertTriangle, RotateCcw, Wand2, Check, Type, Eye } from "lucide-react";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -7,25 +8,23 @@ import { fs } from "../lib/ipc";
 import { useBus } from "../lib/bus";
 import { activeChannel, type Channel } from "../lib/repo";
 import { listSkills, saveSkill, deleteSkill, setSkillEnabled, skillVersions, parseSkillFile, serializeSkillFile, parseParamBlocks, skillKindOf, stageSizes, KIND_SCOPES, SKILL_TEMPLATES, type Skill, type SkillKind } from "../lib/skills";
-import { PageHeader, Card, Empty, Toggle, Chip, Modal, Field, AsyncButton, Tabs } from "../ui/kit";
+import { Card, Empty, Toggle, Chip, Modal, Field, AsyncButton } from "../ui/kit";
 import { lineDiff, fmtDate, slugify } from "../lib/util";
 import { refineSkill } from "../pipeline/extras";
 import { toast, logError } from "../lib/events";
 
 export function Skills() {
-  const [tab, setTab] = useState<SkillKind>("script");
   return (
-    <div>
-      <PageHeader kicker="Identidad" title="Habilidades" subtitle="Tus reglas. La IA las trata como obligatorias y comprueba cada una antes de entregar."
-        actions={<Tabs value={tab} onChange={setTab} tabs={[{ id: "script", label: "Textual", icon: Type }, { id: "visual", label: "Visual", icon: Eye }]} />} />
-      <SkillEditor key={tab} kind={tab} />
+    <div className="space-y-10">
+      <SkillEditor kind="script" />
+      <SkillEditor kind="visual" />
     </div>
   );
 }
 
-const KIND_TEXT: Record<SkillKind, { hint: string; empty: string }> = {
-  script: { hint: "Guion, títulos y descripción: gancho, estructura, tono, qué evitar.", empty: "Sin habilidades textuales" },
-  visual: { hint: "Imágenes, animaciones, montaje, sonido y miniatura.", empty: "Sin habilidades visuales" },
+const KIND_TEXT: Record<SkillKind, { title: string; icon: typeof Type; hint: string; empty: string }> = {
+  script: { title: "Directrices de contenido", icon: Type, hint: "Guion, títulos y descripción: gancho, estructura, tono, qué evitar.", empty: "Sin directrices de contenido" },
+  visual: { title: "Directrices visuales", icon: Eye, hint: "Imágenes, animaciones, montaje, sonido y miniatura.", empty: "Sin directrices visuales" },
 };
 
 type Draft = { id?: string; name: string; content: string; enabled: boolean };
@@ -74,10 +73,14 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
     }
   };
 
+  const K = KIND_TEXT[kind];
   return (
-    <>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm text-muted-foreground">{KIND_TEXT[kind].hint}</div>
+    <section>
+      <div className="flex items-end justify-between gap-4 mb-3">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight flex items-center gap-2"><K.icon size={18} className="text-primary" />{K.title}</h2>
+          <div className="text-sm text-muted-foreground mt-0.5">{K.hint}</div>
+        </div>
         <div className="flex gap-2">
           <button className="btn-ghost" onClick={() => void importFile()}><Upload size={15} /> Importar .md</button>
           <button className="btn-primary" onClick={() => { setSel(null); setDraft({ name: kind === "script" ? "Guion" : "Estilo visual", content: SKILL_TEMPLATES[kind], enabled: true }); }}><Plus size={15} /> Nueva</button>
@@ -85,7 +88,7 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
       </div>
       <div className="grid grid-cols-[300px_1fr] gap-4 items-start">
         <Card pad={false}>
-          {skills.length === 0 ? <Empty icon={Sparkles} title={KIND_TEXT[kind].empty} /> : (
+          {skills.length === 0 ? <Empty icon={Sparkles} title={K.empty} /> : (
             <div className="divide-y divide-border/60">
               {skills.map((s) => (
                 <div key={s.id} onClick={() => setSel(s.id)} className={`px-3 py-2.5 cursor-pointer flex items-center gap-2.5 ${sel === s.id ? "bg-primary/10" : "hover:bg-accent/40"}`}>
@@ -104,7 +107,7 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
                 <input className="input flex-1" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nombre" />
                 <Toggle checked={draft.enabled} onChange={(v) => setDraft({ ...draft, enabled: v })} label="Activa" />
               </div>
-              <textarea className="input font-mono text-[12.5px] leading-relaxed min-h-[52vh]" spellCheck={false} value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} />
+              <textarea className="input font-mono text-[12.5px] leading-relaxed min-h-[44vh]" spellCheck={false} value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} />
               {paramErrors.map((e) => <div key={e} className="text-xs text-red-600 dark:text-red-500 flex items-center gap-1.5"><AlertTriangle size={12} /> {e}</div>)}
               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span title="Pon etiquetas al final de un título para mandar esa sección solo a esas etapas, p. ej. «## Efectos [animaciones]». Etiquetas: temas, investigación, guion, paquete, miniatura, plan, montaje, retoques, animaciones, todas.">Llega a:</span>
@@ -169,7 +172,7 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
           )}
         </div>
       </Modal>
-    </>
+    </section>
   );
 }
 
