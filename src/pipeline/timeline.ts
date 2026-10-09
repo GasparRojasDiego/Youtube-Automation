@@ -337,3 +337,18 @@ export function repairMusic(raw: { segment_ids: string[]; mood_en: string }[], s
   for (const b of beds) b.segment_ids.sort((a, c) => segIds.indexOf(a) - segIds.indexOf(c));
   return beds.sort((a, b) => segIds.indexOf(a.segment_ids[0]) - segIds.indexOf(b.segment_ids[0]));
 }
+
+export type MotionSfxRaw = { at: number; type: string; query_en: string };
+/** Efectos que declara una animación: dentro de su duración, separados ≥0,25 s, a volumen bajo (son detalle, no protagonistas). */
+export function motionCues(m: MotionItem, raw: MotionSfxRaw[] | undefined): SfxCue[] {
+  const loud = /impact|boom|hit|thud|sub drop/i, mid = /whoosh|swoosh|riser|glitch/i;
+  const cues: SfxCue[] = [];
+  const list = (raw ?? []).filter((c) => c && Number.isFinite(c.at) && c.type?.trim()).map((c) => ({ ...c, at: Math.max(0, Math.min(m.duration - 0.05, c.at)) })).sort((a, b) => a.at - b.at);
+  for (const c of list) {
+    if (cues.length >= (m.kind === "overlay" ? 3 : 16)) break;
+    if (cues.length && c.at - cues[cues.length - 1].at < 0.25) continue;
+    const t = `${c.type} ${c.query_en}`;
+    cues.push({ id: `${m.id}-fx${cues.length + 1}`, at: Math.round(c.at * 100) / 100, type: c.type.trim(), query_en: (c.query_en || c.type).trim(), gain_db: loud.test(t) ? -16 : mid.test(t) ? -18 : -21 });
+  }
+  return cues;
+}

@@ -61,8 +61,8 @@ pl.to(tl, 6.2, { quad: [[0,0],[0,6],[10,8],[10,2]], dur: 1.1 });
 K.blackout(tl, 8.0, { hold: 2.5, max: 1 });
 const logo = K.title(s, 'LEDGER', { size: 190, weight: 900, color: '#E8E2D4' }); logo.style.zIndex = 60; gsap.set(logo, { opacity: 0 });
 tl.set(logo, { opacity: 1 }, 8.4); K.reveal(tl, logo, 8.4, { by: 'chars', fx: 'scale' });
-const ring = K.svgLayer(s); ring.style.zIndex = 59; const rc = K.svg('circle', { cx: 960, cy: 540, r: 120, fill: 'none', stroke: '#E9A23B', 'stroke-width': 6 }, ring);
-tl.fromTo(rc, { attr: { r: 60 }, opacity: 1 }, { attr: { r: 620 }, opacity: 0, duration: 0.9, ease: 'expo.out' }, 8.75);
+const ring = K.svgLayer(s); ring.style.zIndex = 59; const rc = K.svg('circle', { cx: 960, cy: 540, r: 120, fill: 'none', stroke: '#E9A23B', 'stroke-width': 6, opacity: 0 }, ring);
+tl.fromTo(rc, { attr: { r: 60 }, opacity: 1 }, { attr: { r: 620 }, opacity: 0, duration: 0.9, ease: 'expo.out', immediateRender: false }, 8.75);
 ATRIL.register(tl, 11);`,
 };
 
@@ -107,8 +107,8 @@ tl.to(w5, { scale: 0.15, opacity: 0, duration: 0.45, ease: 'expo.in' }, 13.3);
 const s6 = K.scene({ bg: INK }); K.swap(tl, s5, s6, 13.8);
 const c2 = K.el('div', { css: { position: 'absolute', left: '860px', top: '200px', width: '200px', height: '200px', borderRadius: '50%', background: SOD, color: INK, font: '900 120px Archivo', display: 'flex', alignItems: 'center', justifyContent: 'center' }, text: '2' }, s6);
 tl.from(c2, { scale: 0, duration: 0.4, ease: 'back.out(2)' }, 13.9);
-const rl = K.svgLayer(s6), rr = K.svg('circle', { cx: 960, cy: 300, r: 100, fill: 'none', stroke: SOD, 'stroke-width': 5 }, rl);
-tl.fromTo(rr, { attr: { r: 100 }, opacity: 1 }, { attr: { r: 520 }, opacity: 0, duration: 0.7, ease: 'expo.out' }, 14.2);
+const rl = K.svgLayer(s6), rr = K.svg('circle', { cx: 960, cy: 300, r: 100, fill: 'none', stroke: SOD, 'stroke-width': 5, opacity: 0 }, rl);
+tl.fromTo(rr, { attr: { r: 100 }, opacity: 1 }, { attr: { r: 520 }, opacity: 0, duration: 0.7, ease: 'expo.out', immediateRender: false }, 14.2);
 const wv = K.wave(s6, { x: 360, y: 600, w: 1200, h: 220, split: 0.15 }); tl.from(wv.el, { opacity: 0, y: 40, duration: 0.4 }, 14.4); tl.to(wv.p, { split: 0.6, duration: 1.5, ease: 'none' }, 14.8);
 tl.to(wv.p, { level: 0.06, duration: 0.35, ease: 'power2.in' }, 16.3);
 const s7 = K.scene({ bg: '#17110D' }); K.swap(tl, s6, s7, 16.8);

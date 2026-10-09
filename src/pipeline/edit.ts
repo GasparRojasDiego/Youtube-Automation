@@ -24,7 +24,7 @@ import { renderSourceCard, renderTitleCard, renderQuoteCard, renderTextCard } fr
 import { out, need, checkCancel, type Ctx } from "./stages";
 import * as P2 from "./prompts2";
 import { SYSTEM_BASE } from "./prompts";
-import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, iconKey, type SegInfo, type PolishRaw } from "./timeline";
+import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, iconKey, motionCues, type MotionSfxRaw, type SegInfo, type PolishRaw } from "./timeline";
 import { segmentV2Args, finalMixV2Args, withFilterScript, segmentV2Duration, type LayerShot, type LayerOverlay } from "./montage2";
 import { concatList } from "./montage";
 import { wordTimings } from "./align";
@@ -486,6 +486,16 @@ async function contactSheet(samples: string[], outPath: string, transparent: boo
   await ffmpeg([...args, "-filter_complex", f.join(";"), "-map", "[v]", "-frames:v", "1", "-q:v", "3", outPath]);
 }
 
+/** Busca o crea el sonido de cada efecto de las animaciones (con la misma cadena que el resto: biblioteca → Freesound → ElevenLabs → síntesis). */
+async function resolveMotionSfx(ctx: Ctx, items: MotionItem[]) {
+  const pending = items.filter((m) => m.file && (m.sfx ?? []).some((c) => !c.path));
+  if (!pending.length) return;
+  // Se desplazan 10 s para que el adelanto de un whoosh (su pico cae en el golpe) pueda quedar antes del inicio de la animación
+  const all = pending.flatMap((m) => (m.sfx ?? []).map((c) => ({ ...c, id: `${m.id}|${c.id}`, at: c.at + 10 })));
+  const done = await resolveSfx(ctx, all);
+  for (const m of pending) m.sfx = done.filter((c) => c.id.startsWith(`${m.id}|`)).map((c) => ({ ...c, id: c.id.slice(m.id.length + 1), at: Math.round((c.at - 10) * 100) / 100 }));
+}
+
 export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const v = ctx.video;
   const polish = await need<PolishOut>(v, "polish", "Retoques");
@@ -507,10 +517,10 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   // Reutilizar lo ya renderizado
   for (const m of items) {
     const old = prev?.items.find((p) => p.hash === m.hash && p.file);
-    if (old && (await fs.exists(old.file!))) { m.file = old.file; m.code = old.code; m.critique_es = old.critique_es; m.poster = old.poster; }
+    if (old && (await fs.exists(old.file!))) { m.file = old.file; m.code = old.code; m.critique_es = old.critique_es; m.poster = old.poster; m.sfx = old.sfx; }
   }
   const todo = items.filter((m) => !m.file);
-  if (!todo.length) return { items, rendered: items.filter((m) => m.file).length, failed: 0 };
+  if (!todo.length) { await resolveMotionSfx(ctx, items); return { items, rendered: items.filter((m) => m.file).length, failed: 0 }; }
 
   const browserPath = await requireBrowser();
   const res = await motionResources();
@@ -553,7 +563,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   };
 
   const compose = async (batch: MotionItem[]) => {
-    const r = await claudeRun<{ compositions: { id: string; title: string; duration: number; css: string; html: string; js: string; libs: ("map" | "d3")[] }[] }>({
+    const r = await claudeRun<{ compositions: { id: string; title: string; duration: number; css: string; html: string; js: string; libs: ("map" | "d3")[]; sfx?: MotionSfxRaw[] }[] }>({
       stage: "motion", activityStage: "motion", label: `Animaciones ${batch.map((x) => x.id).join(", ")}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
       prompt: P2.motionPrompt({ skills, palette, items: batch.map((m) => ({ id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "", libs: m.libs ?? [], context: contextOf(m),
         assets: assetsFor(m).map((x) => ({ key: x.key, description: (x.a!.tags.split(",")[0] || x.a!.title).slice(0, 120) })), icons: Object.keys(iconsFor(m)) })) }),
@@ -564,7 +574,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 
   const fix = async (m: MotionItem, code: { css: string; html: string; js: string }, problems: string[]) => {
     await activity(v.id, "motion", "motion", `Opus corrige la animación ${m.id}`, problems.join("\n"));
-    const r = await claudeRun<{ compositions: { id: string; css: string; html: string; js: string; libs: ("map" | "d3")[] }[] }>({
+    const r = await claudeRun<{ compositions: { id: string; css: string; html: string; js: string; libs: ("map" | "d3")[]; sfx?: MotionSfxRaw[] }[] }>({
       stage: "motion", activityStage: "motion", label: `Corrección de animación ${m.id}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
       prompt: P2.motionFixPrompt({ item: { id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "" }, code, problems, skills }),
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
@@ -617,6 +627,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
             }
             m.file = r.file; m.error = null;
             m.code = { css: c.css, html: c.html, js: c.js, libs: c.libs ?? [], duration: m.duration };
+            m.sfx = motionCues(m, c.sfx);
             // Cuadro de muestra persistente (la carpeta de trabajo se borra al terminar)
             m.poster = r.file.replace(/\.(mp4|mov)$/i, ".jpg");
             try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (r.duration * 0.6).toFixed(2), "-i", r.file, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", m.poster]); }
@@ -644,6 +655,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     await activity(v.id, "motion", "warn", "El motor de animaciones falló; el video sigue sin las animaciones que faltan", engineFail);
     await log("error", "animaciones", "El motor de animaciones falló. Revisa Diagnóstico → Motor de animaciones.", engineFail, v.id, true);
   }
+  await resolveMotionSfx(ctx, items);
   return { items, rendered: items.filter((m) => m.file).length, failed };
 }
 
@@ -752,7 +764,7 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
     narration.push({ path: vs.path, duration: segDur });
   }
   await ctx.progress("Mezcla final: voz, música, efectos…");
-  await activity(v.id, "render", "audio", `Mezcla: ${polish.music.filter((b) => b.path).length} cama(s) musical(es), ${polish.sfx.length} efectos`);
+  await activity(v.id, "render", "audio", `Mezcla: ${polish.music.filter((b) => b.path).length} cama(s) musical(es), ${polish.sfx.length + motionDone.reduce((a, m) => a + (m.sfx ?? []).length, 0)} efectos`);
   const listPath = joinPath(dir, "list.txt");
   await fs.writeText(listPath, concatList(clips));
   const total = narration.reduce((a, s) => a + s.duration, 0);
@@ -763,7 +775,10 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
     const end = Math.min(total, offsets[last] + segmentLength(lastSeg, montage.pauseBetweenSegments) + (i < arr.length - 1 ? 1.5 : 0));
     return { path: b.path!, start, end, gainDb: montage.musicVolumeDb + (b.gain_db ?? 0), fadeIn: i === 0 ? 2 : 1.5, fadeOut: i === arr.length - 1 ? 4 : 1.5 };
   });
-  const sfx = polish.sfx.filter((c) => c.path && c.at < total).map((c) => ({ path: c.path!, at: c.at, gainDb: c.gain_db, maxDur: Math.min(8, c.duration ?? 6) }));
+  // Efectos de las animaciones en su instante global; un efecto de retoques a <0,35 s de uno de ellos se omite (no se duplican)
+  const motionSfx = motionDone.flatMap((m) => (m.sfx ?? []).filter((c) => c.path).map((c) => ({ path: c.path!, at: offsets[m.segment_id] + m.start + c.at, gainDb: c.gain_db, maxDur: Math.min(3, c.duration ?? 2) })))
+    .filter((c) => c.at >= 0 && c.at < total);
+  const sfx = [...polish.sfx.filter((c) => c.path && c.at < total && !motionSfx.some((x) => Math.abs(x.at - c.at) < 0.35)).map((c) => ({ path: c.path!, at: c.at, gainDb: c.gain_db, maxDur: Math.min(8, c.duration ?? 6) })), ...motionSfx];
   const clipAudio = polish.shots.filter((s) => s.media === "video" && s.clip_audio_db != null && s.path && !motionDone.some((m) => m.kind === "fullscreen" && m.shot_ids.includes(s.id)))
     .map((s) => ({ path: s.path!, clipIn: s.clip_in ?? 0, at: offsets[s.segment_id] + (s.start ?? 0), dur: s.dur ?? 1, gainDb: s.clip_audio_db! }));
   const file = joinPath(v.dir, "final.mp4");

@@ -199,7 +199,9 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   const s = getSettings();
   const assetIds = [...new Set(polish.shots.map((x) => x.asset_id).filter(Boolean) as string[])];
   const iconIds = [...new Set((motion?.items ?? []).filter((m) => m.file).flatMap((m) => m.icon_ids ?? []))];
-  const assetMap = await getAssets([...assetIds, ...iconIds, ...polish.sfx.map((x) => x.asset_id ?? "").filter(Boolean), ...polish.music.map((x) => x.asset_id ?? "").filter(Boolean)]);
+  // Efectos de sonido usados: los de retoques y los que declaran las animaciones (Freesound CC BY exige crédito)
+  const sfxIds = [...new Set([...polish.sfx, ...(motion?.items ?? []).filter((m) => m.file).flatMap((m) => m.sfx ?? [])].map((x) => x.asset_id ?? "").filter(Boolean))];
+  const assetMap = await getAssets([...assetIds, ...iconIds, ...sfxIds, ...polish.music.map((x) => x.asset_id ?? "").filter(Boolean)]);
   // Mejores imágenes del video para fondos de miniatura (sin personas reales identificables)
   const bgOptions = assetIds.map((id) => assetMap.get(id)!).filter((a) => a && a.kind === "image" && !a.real_person && a.quality >= 3)
     .sort((a, b) => b.quality - a.quality).slice(0, 12);
@@ -245,7 +247,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   pkg.srt = L.buildSrtAligned(segs, offsets);
   // Créditos: atribución obligatoria (CC BY / BY-SA) completa; el resto, resumido
   pkg.description = L.composeDescription({ body: pkg.description_body_en, chapters: pkg.chapters, sources: L.usedSources(script, research),
-    credits: L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || iconIds.includes(a.id) || polish.sfx.some((x) => x.asset_id === a.id) || polish.music.some((x) => x.asset_id === a.id)),
+    credits: L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || iconIds.includes(a.id) || sfxIds.includes(a.id) || polish.music.some((x) => x.asset_id === a.id)),
       polish.music.filter((b) => b.path && !b.asset_id).map((b) => b.title ?? ""), (await listMusic()).filter((m) => polish.music.some((b) => b.path === m.path)).map((m) => m.attribution).filter(Boolean)),
     disclosure: L.adaptDisclosure(s.publishing.aiDisclosure, { generatedImages: generatedUsedNow, aiVoice: voice.provider !== "own" }) });
   pkg.tags = L.sanitizeTags(pkg.tags);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, ensureMotionCadence, keywordsQuery, fallbackQueries, type SegInfo } from "./timeline";
+import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, ensureMotionCadence, keywordsQuery, fallbackQueries, motionCues, type SegInfo } from "./timeline";
 import { buildSrtAligned, creditLines, composeDescription, adaptDisclosure } from "./logic";
 import { normLicense, rankCandidates, type Candidate } from "../media/sources";
 import { ftsQuery } from "../media/library";
@@ -151,5 +151,23 @@ describe("subtítulos, créditos y licencias", () => {
   it("consulta FTS segura", () => {
     expect(ftsQuery("The \"abandoned\" hospital, 1920s!")).toBe('"abandoned"* OR "hospital"* OR "1920s"*');
     expect(ftsQuery("a of")).toBe("");
+  });
+});
+
+describe("efectos de sonido de las animaciones", () => {
+  const m = { id: "m1", kind: "fullscreen" as const, shot_ids: ["s1"], start: 0, duration: 6, segment_id: "seg1", brief_en: "" };
+  it("ordena, recorta a la duración, separa ≥0,25 s y gradúa el volumen", () => {
+    const cues = motionCues(m, [
+      { at: 2.0, type: "click", query_en: "ui click" }, { at: 0.4, type: "whoosh", query_en: "fast whoosh" },
+      { at: 2.1, type: "pop", query_en: "soft pop" }, { at: 9, type: "impact", query_en: "deep impact" }, { at: Number.NaN, type: "pop", query_en: "" },
+    ]);
+    expect(cues.map((c) => [c.at, c.type])).toEqual([[0.4, "whoosh"], [2, "click"], [5.95, "impact"]]);
+    expect(cues.map((c) => c.gain_db)).toEqual([-18, -21, -16]);
+    expect(cues[0].id).toBe("m1-fx1");
+  });
+  it("una capa superpuesta lleva como máximo 3", () => {
+    const raw = Array.from({ length: 8 }, (_, i) => ({ at: i * 0.5, type: "pop", query_en: "pop" }));
+    expect(motionCues({ ...m, kind: "overlay" }, raw)).toHaveLength(3);
+    expect(motionCues(m, undefined)).toEqual([]);
   });
 });

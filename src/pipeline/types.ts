@@ -124,6 +124,7 @@ export interface MotionItem {
   file?: string | null; error?: string | null; attempts?: number; critique_es?: string; hash?: string;
   code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number };
   poster?: string | null;
+  sfx?: SfxCue[];            // efectos sincronizados con sus movimientos (tiempo desde el inicio de la animación)
 }
 
 export interface PolishOut { shots: Shot[]; sfx: SfxCue[]; music: MusicBed[]; motion: MotionItem[]; notes_es: string; grade: Grade; key?: string; skipped?: boolean; verify_es?: string[] }

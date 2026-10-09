@@ -78,6 +78,24 @@ const s2 = K.scene({ bg: '#111' }); K.swap(tl, s, s2, 1.35, { fx: 'cover', from:
 ATRIL.register(tl, 1.5);`,
 };
 
+// Piezas v2.5: plano en perspectiva, capas, interfaz, cursor, foco, ruptura, pincel, ciclo, mosaico, vidrio, carrusel…
+const KIT2 = (img: string): Composition => ({
+  id: "k2", duration: 1.5, transparent: false, css: "", html: "", assets: { img1: img, img2: img },
+  js: `const tl = gsap.timeline(); const s = K.scene(); K.show(tl, s, 0);
+const pl = K.plane(s, { quad: [[0,0],[10,3],[13,-3],[3,-6]], fit: { w: 1300 } }); const ui = K.ui(pl.el, { title: 'App', heading: 'Ready', labels: ['A', 'B', 'C'] });
+const cues = ui.awaken(tl, 0.05, { step: 0.1 }); pl.to(tl, 0.6, { quad: [[0,0],[0,6],[10,8],[10,2]], dur: 0.4 }); if (!cues.length) throw new Error('awaken sin pasos');
+const cur = K.cursor(s, { x: 300, y: 300 }); cur.path(tl, 0.1, [[300,300],[900,500],[1400,400]], 0.8); cur.click(tl, 0.5); K.focus(ui.cards, { cursor: cur, from: 0.1, to: 1 });
+const sk = K.stack(s, { n: 5 }); sk.spread(tl, 0.2, { dur: 0.4 }); sk.collapse(tl, 0.9);
+const w = K.title(s, 'BREAK THE TEXT', { size: 120, y: 200 }); K.explode(tl, w, 0.6, { split: 'words', dur: 0.8 });
+const c = K.title(s, 'CUT', { size: 160, y: 900 }); K.cut(tl, c, 0.3); K.echo(tl, c, 0.4, { n: 2 }); K.slice(tl, c, 0.8, { n: 3 });
+const br = K.brush(s, { image: 'img1' }); br.play(tl, 0.1, 1); K.cycle(tl, s, 'SAME', 0.2, { n: 6, dur: 0.6, end: 'END' });
+K.tiles(tl, 0.9, { dur: 0.3 }); K.flicker(tl, 1.2, { n: 2 }); const g = K.glass(s, { x: 100, y: 100 }); g.shine(tl, 0.3);
+K.carousel(tl, s, ['img1', 'img2'], 0.1, { dur: 0.8, each: 0.2 }); const gl = K.gallery(s, ['img1'], { n: 6 }); gl.fadeIn(tl, 0.1, { amount: 0.2 }); gl.burst(tl, 0.6); gl.cover(tl, 1.1, 0, { dur: 0.2 });
+const sc = K.scatter(s, { n: 30 }); sc.grow(tl, 0.1); sc.drift(tl, 0.8); const wv = K.wave(s, { y: 700 }); tl.to(wv.p, { split: 0.8, duration: 1 }, 0.2);
+const r = K.roll(s, ['1', '2', '3'], { x: 960, y: 540 }); r.run(tl, 0.1, 0.3); const ty = K.typeline(s, 'typing along a long line', { size: 60 }); ty.type(tl, 0.1, 0.6); ty.fall(tl, 0.8, { dur: 0.6 });
+ATRIL.register(tl, 1.5);`,
+});
+
 describe.skipIf(!CHROME || !hasFfmpeg)("motor de motion", () => {
   it("renderiza una composición opaca, una con alfa y detecta errores", async () => {
     const host = nodeHost();
@@ -107,6 +125,10 @@ describe.skipIf(!CHROME || !hasFfmpeg)("motor de motion", () => {
       const r3 = await renderComposition(b, KIT, { resources: path.join(ROOT, "motion"), fontsDir: path.join(ROOT, "fonts"), workDir: path.join(work, "k1"), out: path.join(work, "k1.mp4"), samples: [0.9] });
       expect([...r3.errors, ...r3.consoleErrors]).toEqual([]);
       expect(r3.frames).toBe(45);
+      const img = path.join(work, "img.jpg");
+      execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=640x400:d=1", "-frames:v", "1", img]);
+      const r4 = await renderComposition(b, KIT2(img), { resources: path.join(ROOT, "motion"), fontsDir: path.join(ROOT, "fonts"), workDir: path.join(work, "k2"), out: path.join(work, "k2.mp4"), samples: [0.5] });
+      expect([...r4.errors, ...r4.consoleErrors]).toEqual([]);
 
       // Recursos ausentes: error del motor (no se le pide a Opus que lo "corrija")
       const b2 = await launchBrowser(host, CHROME!, path.join(work, "sin-recursos"));
