@@ -72,14 +72,15 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const segs = segInfos(script, voice);
   const narrTotal = segs.reduce((a, s) => a + s.narration, 0);
   const budget = await motionBudget(ctx, narrTotal);
-  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, STORYBOARD_VERSION]));
+  const sbSkills = await composeSkills(v.channel_id, ["visuals", "montage"]);
+  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION]));
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
 
   await ctx.progress("Armando el storyboard…");
   const r = await claudeRun<{ beats: any[]; music: any[]; emphasis: { segment_id: string; words: string[] }[]; notes_es: string; skills_check_es?: string[] }>({
     stage: "storyboard", activityStage: "storyboard", label: "Storyboard", system: SYSTEM_BASE, schema: P2.STORYBOARD_SCHEMA,
     prompt: P2.storyboardPrompt({
-      skills: await composeSkills(v.channel_id, ["visuals", "montage"]),
+      skills: sbSkills,
       visual, shotSeconds: montage.shotSeconds, motionBudget: budget, minutes: narrTotal / 60, aiImages: await aiImagesReady(), maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor,
       segments: segs.map((s) => ({ id: s.id, title: s.title, on_screen_sources: script.segments.find((x) => x.id === s.id)?.on_screen_sources ?? [],
         sentences: s.sentences.map((t, i) => ({ i, text: t, dur: Math.max(0.3, (s.spans[i]?.end ?? 0) - (s.spans[i]?.start ?? 0)) })) })),
@@ -413,10 +414,12 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const script = await need<ScriptOut>(v, "script", "Guion");
   const voice = await need<VoiceOut>(v, "voice", "Voz");
   const prev = await out<PolishOut>(v, "polish");
-  if (prev && prev.key === assets.key && !prev.skipped) return prev;
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
   const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const captions = await skillParams(v.channel_id, "subtitulos", CAPTION_DEFAULTS);
+  const polishSkills = await composeSkills(v.channel_id, ["montage", "edit"]);
+  const key = `${assets.key}:${(await sha256(JSON.stringify([polishSkills, montage, visual, captions.enabled]))).slice(0, 16)}`;
+  if (prev && prev.key === key && !prev.skipped) return prev;
   const segs = segInfos(script, voice);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
   const total = segs.reduce((a, s) => a + segmentLength(s, montage.pauseBetweenSegments), 0);
@@ -433,7 +436,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   await activity(v.id, "polish", "think", "Opus revisa el corte");
   const r = await claudeRun<PolishRaw>({
     stage: "polish", activityStage: "polish", label: "Retoques de edición", system: SYSTEM_BASE, schema: P2.POLISH_SCHEMA,
-    prompt: P2.polishPrompt({ skills: await composeSkills(v.channel_id, ["montage", "edit"]),
+    prompt: P2.polishPrompt({ skills: polishSkills,
       motionBudget: budget, edl, captions: captions.enabled, palette: { background: visual.background, foreground: visual.foreground, accent: visual.accent, muted: visual.muted, fontTitle: visual.fontTitle, fontBody: visual.fontBody } }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
   });
@@ -465,7 +468,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
     await log("warn", "retoques", `Opus sugiere comprobar ${verify.length} dato(s) antes de publicar.`, verify.join("\n"), v.id);
   }
   const sfx = await resolveSfx(ctx, applied.sfx);
-  return { shots: applied.shots, sfx, music: assets.music, motion: applied.motion, notes_es: r.data.notes_es ?? "", grade: applied.grade, key: assets.key, verify_es: verify };
+  return { shots: applied.shots, sfx, music: assets.music, motion: applied.motion, notes_es: r.data.notes_es ?? "", grade: applied.grade, key, verify_es: verify };
 }
 
 // ======================= 8. Animaciones (Opus + motor) =======================
@@ -499,7 +502,8 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const dir = joinPath(v.dir, "motion");
   await fs.mkdir(dir);
   const assetMap = await getAssets([...new Set(items.flatMap((m) => m.asset_ids ?? []))]);
-  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette]));
+  const skillsKey = (await sha256(skills)).slice(0, 12);
+  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette, skillsKey]));
   // Reutilizar lo ya renderizado
   for (const m of items) {
     const old = prev?.items.find((p) => p.hash === m.hash && p.file);
