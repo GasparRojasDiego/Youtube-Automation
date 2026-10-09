@@ -13,10 +13,16 @@ unidas por transiciones rápidas: destello, barrido de color, glitch, deslizamie
 - HUD en las esquinas en mono mayúsculas: arriba a la izquierda el capítulo («CH 03 / THE COST»), a la derecha un código de tiempo que corre (TC), abajo el nombre del canal.
 - Un elemento protagonista por escena; mucho espacio negativo.
 
-## Tipografía (la estrella)
-- Palabra clave enorme en serif cursiva elegante (DM Serif Display / Playfair Display italic) o en grotesca pesada en mayúsculas (Inter 900, Anton).
+## Visual primero (regla principal)
+- La imagen cuenta la historia; el texto solo la rotula. Cada escena tiene un protagonista visual: figuras, íconos,
+  un diagrama, un mapa, un gráfico o un movimiento de cámara. Una escena que es solo texto es un defecto.
+- Máximo 6 palabras visibles a la vez (una cifra y una etiqueta corta es lo ideal); jamás una frase de la narración.
+- Al menos 3 elementos moviéndose por escena, un movimiento de cámara y un acento de impacto por pieza
+  (cortina, destello, apagón, golpe de sello, temblor).
+
+## Tipografía (al servicio de la imagen)
+- Una palabra o cifra fuerte por escena, en grotesca pesada o mono; serif cursiva solo como acento ocasional.
 - Contraste fuerte de escala con etiquetas pequeñas en mono.
-- Las letras entran escalonadas (desenfoque o subida); el texto se queda en pantalla el tiempo justo para leerlo.
 
 ## Cómo mostrar cada cosa
 - Números → contador grande que sube («353+» con etiqueta debajo) o cronómetro digital que cambia («TIME LEFT 70:08:00 → 03:12:08»).

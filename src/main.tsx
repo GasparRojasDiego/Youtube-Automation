@@ -7,6 +7,12 @@ import "@fontsource/poppins/700.css";
 import "@fontsource/poppins/800.css";
 // Fuentes disponibles para las tarjetas y miniaturas de los canales
 import "@fontsource/anton/400.css";
+import "@fontsource/archivo/500.css";
+import "@fontsource/archivo/700.css";
+import "@fontsource/archivo/800.css";
+import "@fontsource/archivo/900.css";
+import "@fontsource/courier-prime/400.css";
+import "@fontsource/courier-prime/700.css";
 import "@fontsource/oswald/400.css";
 import "@fontsource/oswald/600.css";
 import "@fontsource/oswald/700.css";

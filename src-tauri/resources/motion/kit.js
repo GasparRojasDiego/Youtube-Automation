@@ -77,11 +77,13 @@
     else if (fx === 'flash') K.flash(tl, at - 0.06, { color: o.color || '#fff', dur: d * 0.7 });
     else if (fx === 'wipe') { tl.set(el, { visibility: 'hidden' }, at); K.wipe(tl, at - d / 2, { color: o.color || (K.pal.accent || '#C6F432'), dur: d, dir: o.dir }); tl.set(el, { visibility: 'visible' }, at); }
     else if (fx === 'glitch') K.glitch(tl, el, at, { dur: d * 0.8 });
+    else if (fx === 'whip') tl.fromTo(el, { xPercent: o.dir === 'right' ? -110 : 110, filter: 'blur(28px)' }, { xPercent: 0, filter: 'blur(0px)', duration: o.dur || 0.4, ease: 'expo.out' }, at);
     return el;
   };
   K.hide = function (tl, el, at, o) {
     o = o || {}; el = $(el); var fx = o.fx || 'cut', d = o.dur || 0.35;
     if (fx === 'fade') tl.to(el, { opacity: 0, duration: d, ease: 'power2.in' }, at);
+    else if (fx === 'whip') tl.to(el, { xPercent: o.dir === 'right' ? 110 : -110, filter: 'blur(28px)', duration: d, ease: 'expo.in' }, at);
     else if (fx === 'zoom') tl.to(el, { scale: 0.86, opacity: 0, filter: 'blur(10px)', duration: d, ease: 'power3.in' }, at);
     else if (fx === 'slide') tl.to(el, { xPercent: o.dir === 'right' ? 100 : -100, duration: d, ease: 'expo.inOut' }, at);
     tl.set(el, { visibility: 'hidden' }, at + (fx === 'cut' ? 0 : d));
@@ -90,6 +92,8 @@
   /** Pasa de una escena a otra en `at`. */
   K.swap = function (tl, from, to, at, o) {
     o = o || {}; var fx = o.fx || 'cut';
+    if (fx === 'whip') { K.hide(tl, from, at - 0.28, { fx: 'whip', dur: 0.28, dir: o.dir }); K.show(tl, to, at, { fx: 'whip', dur: 0.42, dir: o.dir }); return; }
+    if (fx === 'cover') { var cd = o.dur || 0.6; K.cover(tl, at - cd, { from: o.from || (o.dir === 'right' ? 'right' : 'left'), shape: o.shape, color: o.color, dur: cd }); K.hide(tl, from, at); K.show(tl, to, at); return; }
     var outFx = fx === 'fade' || fx === 'zoom' || fx === 'slide' ? fx : 'cut';
     K.hide(tl, from, at + (outFx === 'cut' ? 0 : 0) , { fx: outFx, dur: o.dur || 0.35, dir: o.dir });
     K.show(tl, to, at, o);
@@ -348,12 +352,18 @@
     A.addRender(function (t) { var k = Math.min(1, t / d); el.style.transform = 'scale(' + (1 + z * k).toFixed(4) + ') translate(' + ((o.x || 0) * k).toFixed(1) + 'px,' + ((o.y || 0) * k).toFixed(1) + 'px)'; el.style.transformOrigin = '50% 50%'; });
     return el;
   };
+  /** Caja de un elemento según el diseño (sin las transformaciones de las transiciones), en su contenedor posicionado. */
+  var box = K.box = function (el) {
+    if (el instanceof HTMLElement && el.offsetParent) return { parent: el.offsetParent, left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight };
+    var r = el.getBoundingClientRect(), sr = stage().getBoundingClientRect();
+    return { parent: stage(), left: r.left - sr.left, top: r.top - sr.top, width: r.width, height: r.height };
+  };
   /** Rectángulo de resaltador translúcido que se dibuja sobre un elemento. */
   K.highlight = function (tl, target, at, o) {
-    o = o || {}; target = $(target); var r = target.getBoundingClientRect(), sr = stage().getBoundingClientRect(), p = o.pad || 14;
-    var h = K.el('div', { cls: 'k-hl', css: { left: (r.left - sr.left - p) + 'px', top: (r.top - sr.top - p) + 'px', width: (r.width + 2 * p) + 'px', height: (r.height + 2 * p) + 'px', background: o.color || 'rgba(255,214,10,.45)', borderRadius: (o.radius || 6) + 'px' } }, o.parent || target.parentNode);
+    o = o || {}; target = $(target); var r = box(target), p = o.pad || 14, par = o.parent || r.parent;
+    var h = K.el('div', { cls: 'k-hl', css: { left: (r.left - p) + 'px', top: (r.top - p) + 'px', width: (r.width + 2 * p) + 'px', height: (r.height + 2 * p) + 'px', background: o.color || 'rgba(255,214,10,.45)', borderRadius: (o.radius || 6) + 'px' } }, par);
     tl.fromTo(h, { scaleX: 0 }, { scaleX: 1, duration: o.dur || 0.5, ease: 'power3.inOut' }, at);
-    if (o.label) { var l = K.el('div', { cls: 'k-pill', css: { left: (r.left - sr.left - p) + 'px', top: (r.top - sr.top - p - 64) + 'px', background: o.labelBg || '#FFD60A', color: '#111', borderColor: 'transparent' }, text: o.label }, o.parent || target.parentNode); tl.from(l, { y: 16, opacity: 0, duration: 0.4, ease: 'back.out(2)' }, at + 0.3); }
+    if (o.label) { var l = K.el('div', { cls: 'k-pill', css: { left: (r.left - p) + 'px', top: (r.top - p - 64) + 'px', background: o.labelBg || '#FFD60A', color: '#111', borderColor: 'transparent' }, text: o.label }, par); tl.from(l, { y: 16, opacity: 0, duration: 0.4, ease: 'back.out(2)' }, at + 0.3); }
     return h;
   };
   /** Columnas numeradas (01–05) con título, nota y valor. */
@@ -552,6 +562,276 @@
     o = o || {};
     var e = K.el('div', { cls: 'k-abs', css: { left: (o.x || 0) + 'px', top: (o.y || 0) + 'px', width: (o.w || W) + 'px', height: (o.h || H) + 'px', backgroundImage: 'url("' + A.asset(key) + '")', backgroundSize: 'cover', backgroundPosition: (o.fx != null ? o.fx * 100 : 50) + '% ' + (o.fy != null ? o.fy * 100 : 50) + '%', borderRadius: (o.radius || 0) + 'px', overflow: 'hidden' } }, parent);
     return e;
+  };
+
+
+  /* ---------- impacto visual (v2.4) ---------- */
+  var origin = function (from) {
+    if (Array.isArray(from)) return from;
+    return ({ left: [0, H / 2], right: [W, H / 2], top: [W / 2, 0], bottom: [W / 2, H], center: [W / 2, H / 2], tl: [0, 0], tr: [W, 0], bl: [0, H], br: [W, H] })[from || 'left'] || [W / 2, H / 2];
+  };
+  var farthest = function (x, y) { return Math.max(Math.hypot(x, y), Math.hypot(W - x, y), Math.hypot(x, H - y), Math.hypot(W - x, H - y)); };
+  var shapeD = function (k, x, y, r) {
+    return k === 'square' ? K.polyD(x, y, r * 1.25, 4, Math.PI / 4) : k === 'diamond' ? K.polyD(x, y, r * 1.25, 4) : k === 'tri' ? K.polyD(x, y, r * 1.2, 3)
+      : k === 'hex' ? K.polyD(x, y, r * 1.12, 6) : k === 'star' ? K.starD(x, y, r * 1.3, r * 0.55, 5)
+      : k === 'plus' ? 'M' + (x - r * 0.3) + ',' + (y - r) + 'h' + (r * 0.6) + 'v' + (r * 0.7) + 'h' + (r * 0.7) + 'v' + (r * 0.6) + 'h' + (-r * 0.7) + 'v' + (r * 0.7) + 'h' + (-r * 0.6) + 'v' + (-r * 0.7) + 'h' + (-r * 0.7) + 'v' + (-r * 0.6) + 'h' + (r * 0.7) + 'Z'
+      : K.circleD(x, y, r);
+  };
+  var SHAPES = ['circle', 'tri', 'square', 'hex', 'diamond', 'star'];
+  K.shapeD = shapeD;
+
+  /** Cámara virtual: construye la escena dentro de cam.world y vuela/acerca a cualquier punto. */
+  K.camera = function (parent, o) {
+    o = o || {};
+    var rig = K.el('div', { cls: 'k-layer' }, parent);
+    var world = K.el('div', { cls: 'k-layer', css: { transformOrigin: '0 0' } }, rig);
+    gsap.set(world, { x: 0, y: 0, scale: 1, transformOrigin: '0 0' });
+    var cam = { rig: rig, world: world };
+    var target = function (p) { var z = p.zoom != null ? p.zoom : 1, x = p.x != null ? p.x : W / 2, y = p.y != null ? p.y : H / 2; return { x: W / 2 - x * z, y: H / 2 - y * z, scale: z }; };
+    cam.to = function (tl, at, p) { p = p || {}; tl.to(world, Object.assign(target(p), { duration: p.dur != null ? p.dur : 1.2, ease: p.ease || 'expo.inOut' }), at); if (p.rot != null) tl.to(rig, { rotation: p.rot, transformOrigin: '50% 50%', duration: p.dur != null ? p.dur : 1.2, ease: p.ease || 'expo.inOut' }, at); return cam; };
+    cam.set = function (tl, at, p) { tl.set(world, target(p || {}), at); return cam; };
+    cam.shake = function (tl, at, p) { K.shake(tl, rig, at, p); return cam; };
+    return cam;
+  };
+
+  /** Copias que se abren desde un elemento, cada una más transparente (arriba/abajo o en diagonal). */
+  K.echo = function (tl, el, at, o) {
+    o = o || {}; el = $(el); var n = o.n || 3, dx = o.dx || 0, dy = o.dy != null ? o.dy : 110, out = [];
+    for (var i = 1; i <= n; i++) {
+      (o.both === false ? [1] : [-1, 1]).forEach(function (sg) {
+        var c = el.cloneNode(true); c.removeAttribute('id'); c.setAttribute('aria-hidden', 'true');
+        el.parentNode.insertBefore(c, el);
+        var op = (o.opacity != null ? o.opacity : 0.5) * Math.pow(o.falloff || 0.6, i - 1);
+        tl.fromTo(c, { x: '+=0', y: '+=0', opacity: 0 }, { x: '+=' + (dx * i * sg), y: '+=' + (dy * i * sg), opacity: op, duration: o.dur || 0.7, ease: o.ease || 'expo.out' }, at + (i - 1) * (o.stagger || 0.05));
+        out.push(c);
+      });
+    }
+    return out;
+  };
+
+  /** Una forma de color crece desde un borde o punto hasta tapar el cuadro y se va. Cambia de escena en .mid. */
+  K.cover = function (tl, at, o) {
+    o = o || {}; var p = origin(o.from), d = o.dur || 0.6, hold = o.hold != null ? o.hold : 0.08, R = farthest(p[0], p[1]) + 60;
+    var c = K.el('div', { cls: 'k-flash', css: { opacity: 1, background: o.color || K.pal.accent || '#C6F432', zIndex: 48 } }, o.parent);
+    var shape = o.shape || 'circle', at2 = at + d + hold;
+    if (shape === 'rect') {
+      var ins = { left: 'inset(0 100% 0 0)', right: 'inset(0 0 0 100%)', top: 'inset(0 0 100% 0)', bottom: 'inset(100% 0 0 0)' }[typeof o.from === 'string' ? o.from : 'left'] || 'inset(50% 50% 50% 50%)';
+      tl.fromTo(c, { clipPath: ins }, { clipPath: 'inset(0% 0% 0% 0%)', duration: d, ease: o.ease || 'expo.inOut' }, at);
+    } else if (shape === 'diamond') {
+      var x = p[0], y = p[1], q = function (r) { return 'polygon(' + x + 'px ' + (y - r) + 'px, ' + (x + r) + 'px ' + y + 'px, ' + x + 'px ' + (y + r) + 'px, ' + (x - r) + 'px ' + y + 'px)'; };
+      tl.fromTo(c, { clipPath: q(0) }, { clipPath: q(R * 1.5), duration: d, ease: o.ease || 'expo.inOut' }, at);
+    } else tl.fromTo(c, { clipPath: 'circle(0px at ' + p[0] + 'px ' + p[1] + 'px)' }, { clipPath: 'circle(' + R + 'px at ' + p[0] + 'px ' + p[1] + 'px)', duration: d, ease: o.ease || 'expo.inOut' }, at);
+    if (o.out !== false) {
+      var dx = p[0] < W * 0.34 ? 1 : p[0] > W * 0.66 ? -1 : 0, dy = dx ? 0 : p[1] < H * 0.34 ? 1 : p[1] > H * 0.66 ? -1 : 0;
+      if (dx || dy) tl.to(c, { xPercent: dx * 102, yPercent: dy * 102, duration: d * 0.8, ease: 'expo.in' }, at2);
+      else tl.to(c, { opacity: 0, scale: 1.08, duration: d * 0.6, ease: 'power2.in' }, at2);
+    }
+    return { el: c, mid: at + d };
+  };
+
+  /** Flecha (recta o curva) con degradado que se dibuja; .flow() hace correr el color por ella. */
+  var arrowN = 0;
+  K.arrow = function (parent, o) {
+    o = o || {}; var s = K.svgLayer(parent), id = 'kar' + (++arrowN);
+    var x1 = o.from[0], y1 = o.from[1], x2 = o.to[0], y2 = o.to[1], b = o.bend || 0;
+    var cx = (x1 + x2) / 2 - (y2 - y1) * b, cy = (y1 + y2) / 2 + (x2 - x1) * b;
+    var c1 = o.color || K.pal.accent || '#C6F432', c2 = o.color2 || K.pal.fg || '#FFFFFF', w = o.width || 10, hs = o.head || w * 3.2;
+    var defs = K.svg('defs', {}, s);
+    var g = K.svg('linearGradient', { id: id, gradientUnits: 'userSpaceOnUse', x1: x1, y1: y1, x2: (x1 + x2) / 2, y2: (y1 + y2) / 2, spreadMethod: 'reflect', gradientTransform: 'translate(0,0)' }, defs);
+    K.svg('stop', { offset: 0, 'stop-color': c1 }, g); K.svg('stop', { offset: 1, 'stop-color': c2 }, g);
+    var path = K.svg('path', { d: 'M' + x1 + ',' + y1 + ' Q' + cx + ',' + cy + ' ' + x2 + ',' + y2, fill: 'none', stroke: 'url(#' + id + ')', 'stroke-width': w, 'stroke-linecap': 'round', 'stroke-dasharray': o.dash || null }, s);
+    var ang = Math.atan2(y2 - cy, x2 - cx) * 180 / Math.PI;
+    var hg = K.svg('g', { transform: 'translate(' + x2 + ',' + y2 + ') rotate(' + ang.toFixed(2) + ')' }, s);
+    var head = K.svg('path', { d: 'M' + (w * 0.6) + ',0 L' + (-hs) + ',' + (-hs * 0.62) + ' L' + (-hs * 0.62) + ',0 L' + (-hs) + ',' + (hs * 0.62) + 'Z', fill: o.headColor || c1 }, hg);
+    var a = { svg: s, path: path, head: head, grad: g };
+    a.draw = function (tl, at, dur) { dur = dur || 0.9; tl.fromTo(path, { drawSVG: '0%' }, { drawSVG: '100%', duration: dur, ease: o.ease || 'power3.inOut' }, at); tl.fromTo(head, { scale: 0, svgOrigin: '0 0' }, { scale: 1, duration: 0.35, ease: 'back.out(2.4)' }, at + dur * 0.85); return a; };
+    a.flow = function (tl, at, dur, rep) { tl.fromTo(g, { attr: { gradientTransform: 'translate(0,0)' } }, { attr: { gradientTransform: 'translate(' + (x2 - x1).toFixed(1) + ',' + (y2 - y1).toFixed(1) + ')' }, duration: dur || 1.2, ease: 'none', repeat: rep || 0 }, at); return a; };
+    a.tip = [x2, y2];
+    return a;
+  };
+
+  /** Núcleo del que brotan figuras geométricas que giran y se transforman unas en otras. */
+  K.emitter = function (parent, o) {
+    o = o || {}; var s = K.svgLayer(parent), cx = o.x != null ? o.x : W / 2, cy = o.y != null ? o.y : H / 2, n = o.n || 10, sz = o.size || 34, R0 = o.core || 80;
+    var cols = o.colors || [K.pal.accent || '#C6F432', K.pal.fg || '#FFFFFF'];
+    var core = K.svg('circle', { cx: cx, cy: cy, r: R0, fill: o.coreColor || cols[0] }, s), parts = [];
+    for (var i = 0; i < n; i++) {
+      var k = o.shapes ? o.shapes[i % o.shapes.length] : SHAPES[i % SHAPES.length], col = cols[i % cols.length], outline = i % 3 === 2;
+      var e = K.svg('path', { d: shapeD(k, 0, 0, sz), fill: outline ? 'none' : col, stroke: col, 'stroke-width': outline ? 5 : 0 }, s);
+      gsap.set(e, { x: cx, y: cy, scale: 0 });
+      parts.push({ el: e, k: SHAPES.indexOf(k) < 0 ? 0 : SHAPES.indexOf(k) });
+    }
+    var em = { svg: s, core: core, parts: parts.map(function (p) { return p.el; }), x: cx, y: cy };
+    em.burst = function (tl, at, q) {
+      q = q || {}; var dist = q.dist || 430;
+      parts.forEach(function (p, i) { var a = i * 2 * Math.PI / n + K.rand(-0.25, 0.25), r = dist * K.rand(0.62, 1.08); tl.fromTo(p.el, { x: cx, y: cy, scale: 0, rotation: 0 }, { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.82, scale: K.rand(0.8, 1.5), rotation: K.rand(-220, 220), duration: q.dur || 1.1, ease: 'expo.out' }, at + i * 0.02); });
+      tl.fromTo(core, { attr: { r: R0 * 1.35 } }, { attr: { r: R0 }, duration: 0.6, ease: 'elastic.out(1,0.45)', immediateRender: false }, at);
+      return em;
+    };
+    em.morph = function (tl, at, q) { q = q || {}; parts.forEach(function (p, i) { p.k = (p.k + (q.step || 1)) % SHAPES.length; tl.to(p.el, { morphSVG: shapeD(SHAPES[p.k], 0, 0, sz), rotation: '+=' + (q.spin || 90), duration: q.dur || 0.7, ease: 'expo.inOut' }, at + i * 0.03); }); return em; };
+    em.collapse = function (tl, at, q) { q = q || {}; tl.to(em.parts, { x: cx, y: cy, scale: 0, rotation: '+=180', duration: q.dur || 0.55, ease: 'expo.in', stagger: 0.015 }, at); tl.to(core, { attr: { r: q.toR != null ? q.toR : R0 }, duration: 0.4, ease: 'power2.inOut' }, at + 0.3); return em; };
+    return em;
+  };
+
+  /** Rejilla de figuras (patrón): entra, ondula, se desplaza por filas y se atenúa menos las elegidas. */
+  K.pattern = function (parent, o) {
+    o = o || {}; var cols = o.cols || 13, rows = o.rows || 7, gap = o.gap || 120, sz = o.size || 22, shp = o.shape || 'circle';
+    var x0 = o.x != null ? o.x : W / 2 - (cols - 1) * gap / 2, y0 = o.y != null ? o.y : H / 2 - (rows - 1) * gap / 2;
+    var c1 = o.color || K.pal.fg || '#FFFFFF', c2 = o.color2 || K.pal.accent || '#C6F432', s = K.svgLayer(parent), items = [], rowsEl = [];
+    for (var r = 0; r < rows; r++) {
+      var rg = K.svg('g', {}, s); rowsEl.push(rg);
+      for (var c = 0; c < cols; c++) {
+        var k = shp === 'mix' ? SHAPES[(r * 2 + c) % 4] : shp, every = o.every || 7;
+        var e = K.svg('path', { d: shapeD(k, 0, 0, sz), fill: (r * cols + c) % every === 0 ? c2 : c1 }, rg);
+        gsap.set(e, { x: x0 + c * gap, y: y0 + r * gap });
+        items.push(e);
+      }
+    }
+    var pt = { svg: s, items: items, rows: rowsEl, cols: cols, rowsN: rows };
+    var grid = [rows, cols];
+    pt.at = function (r, c) { return items[r * cols + c]; };
+    pt.enter = function (tl, at, q) { q = q || {}; tl.from(items, { scale: 0, opacity: 0, duration: q.dur || 0.55, ease: q.ease || 'back.out(2)', stagger: { grid: grid, from: q.from || 'center', amount: q.amount || 0.8 } }, at); return pt; };
+    pt.wave = function (tl, at, q) { q = q || {}; tl.to(items, { scale: q.scale || 1.7, duration: q.dur || 0.35, ease: 'sine.inOut', yoyo: true, repeat: 1, stagger: { grid: grid, from: q.from || 'start', amount: q.amount || 1.1 } }, at); return pt; };
+    pt.shift = function (tl, at, q) { q = q || {}; rowsEl.forEach(function (g, i) { tl.to(g, { x: (i % 2 ? -1 : 1) * (q.dist || gap), duration: q.dur || 0.9, ease: q.ease || 'expo.inOut' }, at); }); return pt; };
+    pt.spin = function (tl, at, q) { q = q || {}; tl.to(items, { rotation: '+=' + (q.deg || 90), duration: q.dur || 0.6, ease: 'expo.inOut', stagger: { grid: grid, from: q.from || 'edges', amount: q.amount || 0.5 } }, at); return pt; };
+    pt.dim = function (tl, at, q) {
+      q = q || {}; var keep = (q.keep || []).map(function (i) { return Array.isArray(i) ? i[0] * cols + i[1] : i; });
+      var rest = items.filter(function (e, i) { return keep.indexOf(i) < 0; });
+      tl.to(rest, { opacity: q.to != null ? q.to : 0.1, duration: q.dur || 0.6, ease: 'power2.out', stagger: { amount: 0.35, from: 'random' } }, at);
+      if (keep.length) tl.to(keep.map(function (i) { return items[i]; }), { scale: q.scale || 2, fill: q.color || c2, duration: 0.6, ease: 'back.out(2)' }, at);
+      return pt;
+    };
+    return pt;
+  };
+
+  /** Láminas largas y finas que entran alternando izquierda / derecha, con texto opcional. */
+  K.slabs = function (tl, parent, items, at, o) {
+    o = o || {}; var h = o.h || 92, gap = o.gap || 26, w = o.w || 1400, n = items.length;
+    var y0 = (o.y != null ? o.y : H / 2) - (n * h + (n - 1) * gap) / 2, x = o.x != null ? o.x : (W - w) / 2;
+    var cols = o.colors || [K.pal.fg || '#FFFFFF', K.pal.accent || '#C6F432'];
+    return items.map(function (txt, i) {
+      var e = K.el('div', { cls: 'k-slab', css: { left: x + 'px', top: (y0 + i * (h + gap)) + 'px', width: w + 'px', height: h + 'px', background: cols[i % cols.length], color: o.textColor || K.pal.bg || '#111111', fontSize: Math.round(h * 0.42) + 'px', justifyContent: o.align === 'right' ? 'flex-end' : o.align === 'center' ? 'center' : 'flex-start' }, html: txt || '' }, parent);
+      var left = (i % 2 === 0) !== !!o.startRight;
+      tl.fromTo(e, { x: left ? -(x + w + 80) : (W - x + 80) }, { x: 0, duration: o.dur || 0.7, ease: o.ease || 'expo.out' }, at + i * (o.stagger || 0.18));
+      return e;
+    });
+  };
+
+  /** Red de nodos (íconos o etiquetas) unidos por líneas que se dibujan: quién paga a quién, quién manda a quién. */
+  K.network = function (parent, o) {
+    o = o || {}; var s = K.svgLayer(parent), lg = K.svg('g', {}, s), nodes = {}, links = [], labels = [];
+    var col = o.color || K.pal.fg || '#FFFFFF', acc = o.accent || K.pal.accent || '#C6F432';
+    (o.nodes || []).forEach(function (n) {
+      var ic = n.icon && A.icons && A.icons[n.icon] ? '<span class="k-node-ic">' + A.icons[n.icon] + '</span>' : '<span class="k-node-dot"></span>';
+      var e = K.el('div', { cls: 'k-node', html: ic + (n.label ? '<b>' + n.label + '</b>' : '') }, parent);
+      e.style.left = (n.x - e.offsetWidth / 2) + 'px'; e.style.top = (n.y - (n.icon ? 64 : 22)) + 'px';
+      nodes[n.id] = { el: e, x: n.x, y: n.y };
+    });
+    (o.links || []).forEach(function (l) {
+      var a = nodes[l.from], b = nodes[l.to]; if (!a || !b) return;
+      var p = K.svg('path', { d: 'M' + a.x + ',' + a.y + ' L' + b.x + ',' + b.y, stroke: l.accent ? acc : col, 'stroke-width': l.w || 4, fill: 'none', opacity: l.accent ? 1 : 0.55, 'stroke-dasharray': l.dashed ? '12 12' : null }, lg);
+      links.push(p);
+      if (l.label) { var t = K.el('div', { cls: 'k-pill', css: { fontSize: '22px', padding: '6px 14px', background: K.pal.bg || '#111', color: l.accent ? acc : col }, text: l.label }, parent); t.style.left = ((a.x + b.x) / 2 - t.offsetWidth / 2) + 'px'; t.style.top = ((a.y + b.y) / 2 - t.offsetHeight / 2) + 'px'; labels.push(t); }
+    });
+    var net = { svg: s, nodes: nodes, links: links, labels: labels };
+    net.build = function (tl, at, q) {
+      q = q || {}; var els = Object.keys(nodes).map(function (k) { return nodes[k].el; });
+      tl.from(els, { scale: 0, opacity: 0, duration: 0.5, ease: 'back.out(2)', stagger: q.stagger || 0.12 }, at);
+      tl.from(links, { drawSVG: '0%', duration: q.linkDur || 0.6, ease: 'power3.inOut', stagger: q.stagger || 0.12 }, at + els.length * (q.stagger || 0.12) * 0.6);
+      if (labels.length) tl.from(labels, { opacity: 0, y: 12, duration: 0.35, stagger: 0.08 }, at + els.length * (q.stagger || 0.12) * 0.6 + 0.4);
+      return net;
+    };
+    net.focus = function (tl, at, id, q) { q = q || {}; var n = nodes[id]; if (!n) return net; tl.to(n.el, { scale: q.scale || 1.25, duration: 0.45, ease: 'back.out(2.4)' }, at); var others = Object.keys(nodes).filter(function (k) { return k !== id; }).map(function (k) { return nodes[k].el; }); tl.to(others, { opacity: q.dim != null ? q.dim : 0.3, duration: 0.4 }, at); return net; };
+    return net;
+  };
+
+  /** Elementos que orbitan alrededor de un punto (los de delante, más grandes). */
+  K.orbit = function (els, o) {
+    o = o || {}; var cx = o.x != null ? o.x : W / 2, cy = o.y != null ? o.y : H / 2, r = o.r || 340, ry = o.ry != null ? o.ry : r * 0.38, sp = o.speed || 0.5;
+    els = [].slice.call(els);
+    els.forEach(function (e, i) { var ph = i * 2 * Math.PI / els.length; A.addRender(function (t) { var a = ph + t * sp, f = (Math.sin(a) + 1) / 2; e.style.left = (cx + Math.cos(a) * r - e.offsetWidth / 2).toFixed(1) + 'px'; e.style.top = (cy + Math.sin(a) * ry - e.offsetHeight / 2).toFixed(1) + 'px'; e.style.zIndex = f > 0.5 ? 3 : 1; e.style.scale = (0.75 + 0.35 * f).toFixed(3); }); });
+    return els;
+  };
+
+  /** Corta un elemento en franjas que se separan en direcciones alternas. */
+  K.slice = function (tl, el, at, o) {
+    o = o || {}; el = $(el); var n = o.n || 6, dist = o.dist || 220, d = o.dur || 0.7, vert = o.dir === 'y', parts = [];
+    for (var i = 0; i < n; i++) {
+      var c = el.cloneNode(true); c.removeAttribute('id'); el.parentNode.insertBefore(c, el.nextSibling);
+      var a = (i / n * 100).toFixed(3), b = (100 - (i + 1) / n * 100).toFixed(3);
+      c.style.clipPath = vert ? 'inset(0 ' + b + '% 0 ' + a + '%)' : 'inset(' + a + '% 0 ' + b + '% 0)';
+      gsap.set(c, { visibility: 'hidden' }); parts.push(c);
+    }
+    tl.set(parts, { visibility: 'visible' }, at).set(el, { visibility: 'hidden' }, at);
+    parts.forEach(function (c, i) { var sg = i % 2 ? 1 : -1, v = {}; v[vert ? 'y' : 'x'] = sg * dist * (o.out ? 6 : 1); if (o.out) v.opacity = 0; tl.to(c, Object.assign(v, { duration: d, ease: o.out ? 'expo.in' : 'expo.inOut' }), at + i * 0.025); });
+    return parts;
+  };
+
+  /** Banda de texto que corre sin fin (cinta de noticias / marquesina). */
+  K.marquee = function (parent, text, o) {
+    o = o || {}; var band = K.el('div', { cls: 'k-marquee', css: { top: ((o.y != null ? o.y : H / 2) - (o.size || 60) * 0.75) + 'px', fontSize: (o.size || 60) + 'px', background: o.bg || 'transparent', color: o.color || 'currentColor', transform: 'rotate(' + (o.rot || 0) + 'deg)' } }, parent);
+    var inner = K.el('div', { cls: 'k-marquee-in', text: (text + (o.sep || '   ✦   ')).repeat(12) }, band);
+    var sp = o.speed || 160, dir = o.dir === 'right' ? 1 : -1;
+    A.addRender(function (t) { var half = inner.scrollWidth / 2 || 2000; var xx = (t * sp) % half; inner.style.transform = 'translateX(' + (dir < 0 ? -xx : xx - half).toFixed(1) + 'px)'; });
+    return band;
+  };
+
+  /** Foco: todo se oscurece menos un círculo, que puede moverse a otro punto. */
+  K.spotlight = function (tl, at, o) {
+    o = o || {}; var e = K.el('div', { cls: 'k-flash', css: { opacity: 1, zIndex: 45 } }, o.parent), p = { x: o.x != null ? o.x : W / 2, y: o.y != null ? o.y : H / 2, r: 0, a: 0 }, dark = o.dark != null ? o.dark : 0.82;
+    var paint = function () { e.style.background = 'radial-gradient(circle at ' + p.x.toFixed(1) + 'px ' + p.y.toFixed(1) + 'px, rgba(0,0,0,0) ' + p.r.toFixed(1) + 'px, rgba(0,0,0,' + (dark * p.a).toFixed(3) + ') ' + (p.r + (o.soft || 50)).toFixed(1) + 'px)'; };
+    paint();
+    tl.to(p, { r: o.r || 220, a: 1, duration: o.dur || 0.6, ease: 'expo.out', onUpdate: paint }, at);
+    if (o.to) tl.to(p, { x: o.to.x != null ? o.to.x : p.x, y: o.to.y != null ? o.to.y : p.y, r: o.to.r || o.r || 220, duration: o.to.dur || 0.9, ease: 'expo.inOut', onUpdate: paint }, o.to.at != null ? o.to.at : at + (o.dur || 0.6) + 0.6);
+    if (o.off != null) tl.to(p, { a: 0, r: 1400, duration: 0.5, ease: 'power2.in', onUpdate: paint }, o.off);
+    return e;
+  };
+
+
+  /** Barra de censura sobre un elemento: 'reveal' (tapado desde el inicio y se retira), 'hide' (lo tapa) o 'pass' (lo tapa y sigue de largo). */
+  K.redact = function (tl, el, at, o) {
+    o = o || {}; el = $(el); var r = box(el), pad = o.pad != null ? o.pad : 10, d = o.dur || 0.45;
+    var right = o.dir === 'right';
+    var b = K.el('div', { cls: 'k-abs', css: { left: (r.left - pad) + 'px', top: (r.top - pad * 0.6) + 'px', width: (r.width + pad * 2) + 'px', height: (r.height + pad * 1.2) + 'px', background: o.color || '#050506', zIndex: 30, transformOrigin: right ? 'right center' : 'left center' } }, o.parent || r.parent);
+    var mode = o.mode || 'reveal';
+    if (mode === 'reveal') { gsap.set(b, { scaleX: 1 }); tl.to(b, { scaleX: 0, duration: d, ease: 'expo.out', transformOrigin: right ? 'left center' : 'right center' }, at); }
+    else { tl.fromTo(b, { scaleX: 0 }, { scaleX: 1, duration: d * 0.8, ease: 'expo.in' }, at); if (mode === 'pass') tl.to(b, { x: (right ? -1 : 1) * (W + r.width), duration: d * 1.2, ease: 'expo.in' }, at + d * 0.8 + (o.hold != null ? o.hold : 0.15)); }
+    return b;
+  };
+
+  /** Apagón: el cuadro se oscurece por completo para dar énfasis y vuelve. */
+  K.blackout = function (tl, at, o) {
+    o = o || {}; var b = K.el('div', { cls: 'k-flash', css: { background: o.color || '#000', zIndex: 46 } }, o.parent), d = o.dur || 0.3;
+    tl.fromTo(b, { opacity: 0 }, { opacity: o.max || 0.94, duration: d, ease: 'power2.in' }, at).to(b, { opacity: 0, duration: o.out || 0.45, ease: 'power2.out' }, at + d + (o.hold != null ? o.hold : 0.7));
+    return b;
+  };
+  /** Parpadeo rápido de un elemento (o destellos de todo el cuadro si el = null). */
+  K.strobe = function (tl, el, at, o) {
+    o = o || {}; var full = !el, step = o.step || 0.067, n = o.n || 4;
+    el = full ? K.el('div', { cls: 'k-flash', css: { background: o.color || '#FFFFFF', zIndex: 47 } }, o.parent) : $(el);
+    var on = full ? (o.max || 0.85) : 1, off = full ? 0 : (o.min != null ? o.min : 0);
+    for (var i = 0; i < n; i++) tl.set(el, { opacity: full ? on : off }, at + i * step * 2).set(el, { opacity: full ? off : on }, at + i * step * 2 + step);
+    return el;
+  };
+  /** Temblor de cámara (determinista). Úsalo en cam.rig o en una escena. */
+  K.shake = function (tl, el, at, o) {
+    o = o || {}; el = $(el) || stage(); var d = o.dur || 0.4, amp = o.amp || 16, n = Math.max(4, Math.round(d * 30));
+    for (var i = 0; i < n; i++) { var k = 1 - i / n; tl.set(el, { x: K.rand(-amp, amp) * k, y: K.rand(-amp, amp) * k, rotation: o.rot ? K.rand(-o.rot, o.rot) * k : 0 }, at + i * d / n); }
+    tl.set(el, { x: 0, y: 0, rotation: 0 }, at + d);
+    return el;
+  };
+  /** Golpe de sello: entra desde grande, aterriza y sacude a su contenedor. */
+  K.slam = function (tl, el, at, o) {
+    o = o || {}; el = $(el); var d = o.dur || 0.3, rot = o.rot != null ? o.rot : -6;
+    tl.fromTo(el, { scale: o.from || 2.6, opacity: 0, rotation: rot * 2 }, { scale: 1, opacity: 1, rotation: rot * 0.3, duration: d, ease: 'power4.in' }, at);
+    if (o.shake !== false) K.shake(tl, o.shakeEl || el.parentNode, at + d, { dur: 0.28, amp: o.amp || 12 });
+    return el;
+  };
+  /** Inclinación 3D: el elemento se va hacia atrás (o gira) con perspectiva. */
+  K.tilt = function (tl, el, at, o) {
+    o = o || {}; el = $(el);
+    tl.to(el, { rotationX: o.rx != null ? o.rx : 42, rotationY: o.ry || 0, z: o.z != null ? o.z : -160, transformPerspective: o.perspective || 1400, transformOrigin: o.origin || '50% 60%', duration: o.dur || 0.9, ease: o.ease || 'power3.inOut' }, at);
+    return el;
   };
 
   A.kit = true;

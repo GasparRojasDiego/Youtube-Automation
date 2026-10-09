@@ -22,7 +22,7 @@ export const STORYBOARD_SCHEMA = obj({
       avoid_es: str("Qué evitar (p. ej. personas reconocibles, logotipos); vacío si nada"),
       card_text: str("title/quote/text cards: exact short text (from the narration). Empty otherwise"),
       source_id: str("source_card: the source id. Empty otherwise"),
-      motion_brief_en: str("motion/map: the sequence, scene by scene (what appears, the key words/numbers, how it transitions). Empty otherwise"),
+      motion_brief_en: str("motion/map: the sequence, scene by scene, as visual actions (shapes, icons, diagram, camera, transitions) plus the few key numbers/words (≤ 6 per scene). Empty otherwise"),
     }), "1-3 shots that share the beat time, in order"),
     sfx: arr(obj({ at: en(["start", "end"]), type: str(`One of: ${SFX_TYPES}`), query_en: str("Freesound-style query, e.g. 'cinematic whoosh short'") }), "0-2 sound effects (every motion sequence, transition and reveal gets one)"),
   })),
@@ -47,13 +47,13 @@ Visual types:
 - clip: short stock video b-roll (max ${o.maxClip} s on screen) for movement: waves, traffic, crowds, fire, rain, timelapses, hands working.
 - ai_image: ${o.aiImages ? "an AI-generated image for scenes stock libraries cannot show well: a specific situation, a reconstruction of a past scene, a concept made visual, a close-up of a specific object in context. Write a detailed image_prompt_en. Never photorealistic fakes of real, identifiable people or of real news events; prefer cinematic illustration or clearly staged scenes. Use it for roughly 15–25% of shots." : "not available (no image API configured): do not use."}
 - meme: ${o.humor ? "a free-licensed reaction image or very short funny clip for a comedic beat (sparingly, never next to tragic facts)." : "do not use (the channel skills do not ask for humor)."}
-- motion: a motion-design sequence (kinetic typography, counters, timers, diagrams that morph, floating labels, data panels, 3D point fields, glitch/flash transitions). map: an animated map (locations, routes, borders).
+- motion: a visual motion-design sequence (geometric shapes and icons that build, morph and connect, diagrams, charts, counters, 3D point fields, camera moves into details, hard transitions such as covers, flashes and blackouts) with short labels only. map: an animated map (locations, routes, borders).
 - quote_card / title_card / text_card / source_card: STATIC text cards. They look cheap: use at most ${MAX_CARDS} in the whole video, only for moments that need very strong emphasis. Prefer motion for any text-heavy idea.
 
 Rules:
 - Group consecutive sentences into beats covering EVERY sentence of every segment in order (no gaps, no overlaps). Sentence indices start at 0 in each segment; durations (s) are given.
 - Pacing: a new visual every ${o.shotSeconds[0]}-${o.shotSeconds[1]} s. A long beat gets 2-3 shots that split its time. The hook (first 30 s) changes visuals faster.
-- MOTION CADENCE: the video lasts about ${o.minutes.toFixed(1)} min. Use between ${minMotion} and ${o.motionBudget} motion+map shots, spread so that there is at least one every ~60 s (never two minutes without one). A motion shot should own a whole beat of 6–15 s (several sentences) so it can play as a multi-scene sequence; write its motion_brief_en scene by scene with the exact words and numbers from the narration.
+- MOTION CADENCE: the video lasts about ${o.minutes.toFixed(1)} min. Use between ${minMotion} and ${o.motionBudget} motion+map shots, spread so that there is at least one every ~60 s (never two minutes without one). A motion shot should own a whole beat of 6–15 s (several sentences) so it can play as a multi-scene sequence; write its motion_brief_en scene by scene as visual actions (what appears, how it moves and transforms, camera, transitions), quoting only the key numbers or words from the narration (≤ 6 words per scene).
 - Each shot must illustrate what is being said at that moment, literally or metaphorically; prefer specific imagery over generic stock. Every photo/archival/clip/ai_image needs query_en plus 2-3 alt queries ending in a very generic 1–2 word query so a fallback always exists.
 - Never use a stock photo of an unknown person to represent a specific real person, a criminal, a victim or a suspect; use places, objects, documents, silhouettes or archival images instead. No logos or brands as the subject.
 - On-screen text never adds claims beyond the narration.
@@ -108,8 +108,8 @@ export const POLISH_SCHEMA = obj({
     shot_ids: arr(str(), "fullscreen: consecutive shots it replaces; overlay: the shot(s) it appears over"),
     start_s: num("overlay: seconds from the first shot's start; fullscreen: 0"),
     duration_s: num("overlay 2-10; fullscreen = the shots it replaces (up to 20)"),
-    brief_en: str("What to animate, scene by scene (layout, hierarchy, the movement idea, transitions)"),
-    text: str("Exact on-screen text (taken from the narration; no new claims)"),
+    brief_en: str("What to animate, scene by scene: the visual action (shapes, icons, diagram, camera moves, transitions), layout and hierarchy; text only as short labels"),
+    text: str("Exact short on-screen words: numbers and labels (≤ 6 words per scene), taken from the narration; no sentences, no new claims"),
     libs: arr(en(["map", "d3"])),
     asset_ids: arr(str(), "Library images to use inside the animation (ids from the shot list)"),
     icons_en: arr(str("Simple icon concept in English, 1-3 words, e.g. 'police officer', 'money', 'arrow up', 'clock', 'smartphone', 'person raising hand'"), "0-6 icons that would make this animation clearer"),
@@ -128,7 +128,7 @@ You can:
 3. Colour grade: one overall grade plus per-shot exceptions (sepia/noir for archival, cold for clinical scenes).
 4. Sound design: add or remove SFX at exact global times (they must sync with cuts or words), with gains between -30 and -6 dB. Less is more.
 5. Unmute a clip's own audio (clip_audio_db) only when its sound adds meaning; narration always stays on top.
-6. Motion graphics (max ${o.motionBudget} in total, at least one every ~60 s of video): "fullscreen" sequences replace shots — premium motion design with 2–5 scenes (kinetic typography, counters, timers, morphing diagrams, floating labels, data panels, maps, 3D point fields, glitch/flash/wipe transitions); "overlay" animations play over a shot with a transparent background (callouts, arrows, highlights, lower thirds, labels, counters). Replace every remaining static text card (title_card/quote_card/text_card/source_card) with a fullscreen motion sequence when the budget allows. A fullscreen sequence lasts exactly the summed duration of the shots it replaces: keep any scene timings in the brief inside that duration. Overlay text must be short. Brand palette: ${JSON.stringify(o.palette)} (if a channel skill restricts colours or style, the skill wins: never write a colour or style it forbids into a brief).
+6. Motion graphics (max ${o.motionBudget} in total, at least one every ~60 s of video): "fullscreen" sequences replace shots — premium, visual-first motion design with 2–5 scenes (geometric shapes and icons that build, morph and connect, camera moves into details, diagrams, maps, charts, counters, 3D point fields, cover/flash/blackout/whip transitions; text only as short labels); "overlay" animations play over a shot with a transparent background (callouts, arrows, highlights, lower thirds, labels, counters). Replace every remaining static text card (title_card/quote_card/text_card/source_card) with a fullscreen motion sequence when the budget allows, and make it SHOW the idea (shapes, icons, a diagram, a camera move) instead of animating the card's sentence. A fullscreen sequence lasts exactly the summed duration of the shots it replaces: keep any scene timings in the brief inside that duration. Overlay text must be short. Brand palette: ${JSON.stringify(o.palette)} (if a channel skill restricts colours or style, the skill wins: never write a colour or style it forbids into a brief).
 ${o.captions ? "Burned-in captions occupy the bottom 22% of the frame: keep overlays out of that area.\n" : ""}
 Every text you place on screen must come from the narration or the verified facts, never stronger than the narration.
 
@@ -143,6 +143,7 @@ CONTRACT (mandatory):
 - Return css, html and js. html goes inside <div id="stage"> (1920×1080, position:relative) and may be empty if you build everything with K.*. js runs after fonts load.
 - Build ONE gsap timeline (const tl = gsap.timeline()) holding ALL motion and end with ATRIL.register(tl, DURATION). Never use setTimeout, setInterval, requestAnimationFrame, CSS @keyframes/transitions, Date or performance.now. Per-frame drawing only through ATRIL.addRender(t => ...) (t = seconds) or the K generators.
 - Math.random is seeded; call it only during setup. K.rand(a,b) is a seeded helper.
+- from()/fromTo() render their start state immediately when created: if an element gets several from/fromTo tweens, add immediateRender:false to the later ones, or it will show the wrong state before they start.
 - Globals: gsap + SplitText, DrawSVGPlugin, MorphSVGPlugin, MotionPathPlugin, CustomEase, ScrambleTextPlugin, TextPlugin, Physics2DPlugin (registered). libs "d3": d3 v7 + topojson. libs "map": also ATRIL_WORLD (world-atlas countries-50m; objects.countries with properties.name, objects.land); use d3.geoMercator/geoNaturalEarth1/geoOrthographic + fitExtent and real [lon, lat].
 - Images: ATRIL.asset("key") → URL of a provided library image (or K.image(parent, key, {...})).
 - Icons: K.icon(parent, "key", {x, y, size, color, bg}) inserts a provided vector icon (keys listed per item; they inherit color) and K.drawIcon(tl, el, at) traces its strokes. Use them for people, objects, money, arrows, time, places… instead of drawing them by hand.
@@ -151,7 +152,7 @@ CONTRACT (mandatory):
 - Transparent overlays: never paint a full-frame background; stay inside safe margins (96 px sides, 64 px top) and out of the caption zone (bottom 240 px).
 
 KIT — global K (already themed: CSS vars --bg --fg --accent --muted --paper, --font-title --font-body --font-mono from the brand palette). Use it: it is tested and looks premium.
-Scenes: K.scene({bg, fg}) → full-frame container, hidden until shown. K.show(tl, el, at, {fx}) · K.hide(tl, el, at, {fx}) · K.swap(tl, from, to, at, {fx, color, dir}); fx = cut|fade|flash|wipe|iris|zoom|slide|glitch|blur. K.flash(tl, at, {color, dur}) · K.wipe(tl, at, {color, dir}) · K.glitch(tl, el, at, {dur, intensity}).
+Scenes: K.scene({bg, fg}) → full-frame container, hidden until shown. K.show(tl, el, at, {fx}) · K.hide(tl, el, at, {fx}) · K.swap(tl, from, to, at, {fx, color, dir}); fx = cut|fade|flash|wipe|iris|zoom|slide|glitch|blur|whip|cover ('iris' opens from {cx, cy} in % of the frame). K.flash(tl, at, {color, dur}) · K.wipe(tl, at, {color, dir}) · K.glitch(tl, el, at, {dur, intensity}).
 Backgrounds: K.paper(parent, {color, grid, gridSize, marks, grain}) textured paper + faint grid + camera crop marks · K.field(parent, color, {dots, rings}) flat colour field (optional dot lattice / circular radar grid) · K.dotGrid(parent, {color, gap, size}) · K.rings(parent, {color}) · K.marks(parent) · K.grain(null, {opacity}).
 HUD: K.hud({tl, tr, bl, br, color}, parent) corner labels in mono caps; the value 'TC' renders a running timecode (e.g. tr:'TC').
 Type: K.title(parent, html, {x, y, size, font, italic, weight, color, align, lines, maxW}) → centred at (x,y), auto-fit · K.text(parent, html, {...}) · K.reveal(tl, el, at, {by:'chars'|'words'|'lines', fx:'rise'|'blur'|'scale'|'drop'|'scramble'|'type'}) · K.counter(tl, el, at, {from, to, dur, decimals, prefix, suffix}) · K.timer(parent, {label, from, x, y, size}) → .run(tl, at, toSeconds, dur) · K.bigNumber(parent, {text, label, x, y, size}) → {num, label}.
@@ -159,25 +160,31 @@ Shapes: K.dot(parent, {x, y, r, color}) + K.drop(tl, dot, at) (falls with squash
 Pieces: K.tags(tl, parent, labels[], at, {x, y, rx, ry, pill}) floating cards around a point · K.highlight(tl, el, at, {color, label}) translucent marker box · K.columns(parent, [{num, title, note, value}], {x, y, w}) + K.revealColumns(tl, c, at) · K.window(parent, {title, rows:[[label, true|false|'value']], button, x, y, w}) app window · K.code(parent, {title, code, x, y, w}).type(tl, at, dur) · K.bars(parent, {values, labels, accent, x, y, w, h}).grow(tl, at) · K.ring(parent, {pct, r, x, y}).run(tl, at) · K.easeGraphs(tl, parent, ['none','power2.inOut','expo.out','back.out(1.7)','elastic.out(1,0.4)','bounce.out'], at, {y, w, h, color, accent}) · K.lightBar(tl, parent, at, {color, color2, y}).
 Generative (canvas; animate their .p on the timeline): K.points3d(parent, {color}) p:{morph 0 grid→1 torus, toSphere, rotX, rotY, wave, zoom, alpha} · K.flow(parent, {color, color2, add}) p:{alpha, speed, spread} · K.particles(parent, {x, y, color, color2}).boom(tl, at, dur) · K.ripples(parent, {color, coreColor}) p:{alpha, speed} · K.blobs(parent, {color, n}) p:{amp} · K.isoGrid(parent, {color, n, size}) p:{pulse}.
 Life: K.float(el, {amp, speed}) gentle floating · K.drift(el, {zoom, x, y, dur}) slow camera push.
-Skeleton:
+Impact: K.camera(scene) → cam: build inside cam.world, then cam.to(tl, at, {x, y, zoom, rot, dur, ease}) flies/zooms to any point (zoom into a detail, pull back to reveal), cam.shake(tl, at, {dur, amp}) · K.echo(tl, el, at, {n, dx, dy, opacity, both}) fading copies fan out (above/below or diagonal) · K.tilt(tl, el, at, {rx, ry, z}) 3D tilt back · K.cover(tl, at, {from:'left'|'right'|'top'|'bottom'|'center'|[x,y], shape:'circle'|'rect'|'diamond', color}) → {mid} a colour shape covers the whole frame, then slides off; K.swap fx also takes 'cover' (+from, color) and 'whip' (+dir) · K.arrow(parent, {from:[x,y], to:[x,y], bend, color, color2, width}) → .draw(tl, at, dur) · .flow(tl, at, dur, repeat) colour runs along it · .tip · K.emitter(parent, {x, y, n, size, colors, shapes}) → .burst(tl, at, {dist}) shapes fly out spinning · .morph(tl, at) each shape turns into the next · .collapse(tl, at) · K.pattern(parent, {cols, rows, gap, size, shape:'circle'|'square'|'tri'|'hex'|'diamond'|'star'|'plus'|'mix', color, color2}) → .enter(tl, at, {from}) · .wave · .shift (rows slide opposite ways) · .spin · .dim(tl, at, {keep:[[row, col]]}) · K.slabs(tl, parent, ['TEXT', …], at, {y, h, w, gap, colors, textColor}) long thin bars entering left/right/left · K.network(parent, {nodes:[{id, x, y, label, icon}], links:[{from, to, label, accent, dashed}]}) → .build(tl, at) · .focus(tl, at, id) · K.redact(tl, el, at, {mode:'reveal'|'hide'|'pass', color, dir}) censor bar · K.slice(tl, el, at, {n, dir:'x'|'y', dist, out}) cuts an element into strips · K.spotlight(tl, at, {x, y, r, to:{x, y, r, at}, off}) darkens all but a circle · K.blackout(tl, at, {hold}) whole frame goes dark for emphasis · K.strobe(tl, el|null, at, {n}) blinks · K.slam(tl, el, at) stamp hit with shake · K.shake(tl, el, at, {dur, amp}) · K.orbit(els, {x, y, r, speed}) · K.marquee(parent, 'TEXT', {y, size, speed, rot}) endless ticker band · K.shapeD(kind, x, y, r) path data for any shape.
+Skeleton (visual first: shapes and icons carry the idea, text is a short label):
 const tl = gsap.timeline();
-const s1 = K.scene(); K.paper(s1); K.hud({tl:'CHAPTER 02 / THE COST', tr:'TC', bl:'@channel'}, s1);
-const t1 = K.title(s1, 'Deadline', {font:'DM Serif Display', italic:true, weight:400, size:220, y:470});
-K.show(tl, s1, 0); K.reveal(tl, t1, 0.3, {fx:'blur'});
-const s2 = K.scene({bg:'#0B0B0B', fg:'#F4F4F2'}); const n = K.bigNumber(s2, {text:'0', label:'PROJECTS'});
-K.swap(tl, s1, s2, 3.2, {fx:'glitch'}); K.counter(tl, n.num, 3.3, {to:353, suffix:'+'});
+const s1 = K.scene(); K.field(s1, 'var(--bg)', {dots:'rgba(255,255,255,.07)'}); const cam = K.camera(s1);
+const em = K.emitter(cam.world, {n:12}); K.show(tl, s1, 0); em.burst(tl, 0.2); em.morph(tl, 1.2);
+const ar = K.arrow(cam.world, {from:[300,820], to:[1500,320], bend:0.15}); ar.draw(tl, 1.6, 0.8); ar.flow(tl, 2.3, 1);
+cam.to(tl, 2.4, {x:1500, y:320, zoom:2.2, dur:0.9});
+const s2 = K.scene(); const n = K.bigNumber(s2, {text:'0', label:'DONORS'});
+K.swap(tl, s1, s2, 3.4, {fx:'cover', from:'right'}); K.counter(tl, n.num, 3.5, {to:353, suffix:'+'}); K.blackout(tl, 5.2, {hold:0.4});
 ATRIL.register(tl, 6);
 
-STYLE — premium motion reel:
-- A fullscreen piece is a sequence of 2–5 scenes (≈2–5 s each) linked by snappy transitions (flash, wipe, glitch, slide, iris, morph). Something always moves (float, drift, timecode, generators): never a frozen frame.
-- Visual language: textured paper with faint grid and crop marks, or bold flat colour fields (paper #ECE8DF, white #FAFAF8, ink #0B0B0B, signal red #E8352B, electric blue #1F3BFF, lime #C6F432, orange #FF6A1A) — at most 3 per piece, harmonised with the brand palette. Mono caps HUD labels in corners. One hero element per scene.
-- Typography is the star: huge elegant italic serif words (DM Serif Display / Playfair Display italic) or heavy grotesk caps (Inter 800–900, Archivo Black, Anton) against small mono labels. Strong scale contrast.
-- Show numbers as counters or timers, lists as floating tags or numbered columns, comparisons as bars/rings, processes as diagrams that expand, morph and collapse (dot → radial diagram → dot), abstract ideas with generators (3D points, flow lines, particles, ripples, blobs).
-- Easing with intent: entrances 0.5–0.9 s expo.out/power3.out, staggered letters 0.03–0.06 s, back.out only for accents; hold text long enough to read (≈3 words/s).
+STYLE — visual impact first (mandatory):
+- The picture tells the story; text only labels it. Every scene's hero is visual: shapes, icons, a diagram, a map, a chart, an image, a generator or a camera move. A scene that is only a line of text on a plain background is a defect.
+- Text budget per fullscreen piece: at most 6 words on screen at once (a number plus a 1–3 word label is ideal); frames where text is the main content ≤ 30% of the duration; never more than one text block entering at a time; never the narration as a sentence. Long ideas become diagrams, icons and motion.
+- Density and surprise: at least 3 elements moving independently per scene and a new visual event every 0.5–1.5 s. Every fullscreen piece has at least one camera move (zoom into a detail, pull back to reveal, whip) and one impact accent (cover, flash, blackout, slam, strobe, glitch, shake, slice). Never the same transition twice in a row.
+- Build → transform → resolve: things are born from something (a dot, a line, a shape), transform into the next idea (morph, echo, split, emit, connect, orbit) and resolve on one clear final image held ≥ 0.8 s.
+- Visual language: flat colour fields or textured paper with a faint grid, geometric systems (circles, triangles, squares, hexagons, patterns), icons, arrows and connecting lines, at most 3 colours from the brand palette (accent sparingly), mono caps labels. One hero element per scene.
+- Type supports the image: one strong word or number per scene, heavy grotesk or condensed caps for impact, mono for labels and figures; elegant italic serif only as a rare accent. Strong scale contrast.
+- Show numbers as counters, bars, rings or patterns where a few items light up; lists as slabs, tags or icons; comparisons as bars, split screens or scales; flows of money or power as networks and arrows; processes as diagrams that expand, morph and collapse; abstract ideas with generators (3D points, flow lines, particles, ripples, blobs).
+- Easing with intent: entrances 0.4–0.8 s expo.out/power3.out, exits faster (expo.in), staggers 0.03–0.08 s, back.out only for accents; hold labels long enough to read (≈3 words/s).
+- Overlays stay light: one callout, arrow, highlight, label, stamp or counter over the footage.
 - Hierarchy and fit: headline 90–240 px, secondary 40–60 px, labels 24–34 px (never smaller than 22 px). No overflow, no overlap, no clipping.
 - Accuracy: texts, numbers, dates and names exactly as given; a counter ends on the exact value.
 
-EFFICIENCY: compact code (aim under ~120 lines per composition thanks to K), no comments, no prose outside the structured output.`;
+EFFICIENCY: compact code (aim under ~150 lines per composition thanks to K), no comments, no prose outside the structured output.`;
 
 export const MOTION_SCHEMA = obj({
   compositions: arr(obj({
@@ -225,7 +232,7 @@ ${o.code.js}
 // ---------- Revisión visual de una animación (Sonnet) ----------
 export const CRITIQUE_SCHEMA = obj({
   ok: bool("true if it is ready for broadcast"),
-  problems_en: arr(str(), "Concrete defects: text cut off or overflowing, overlapping elements, illegible text, empty frames, misspellings, wrong text, broken images, ugly composition"),
+  problems_en: arr(str(), "Concrete defects: text cut off or overflowing, overlapping elements, illegible text, empty frames, misspellings, wrong text, broken images, ugly composition, a fullscreen piece dominated by text or visually static"),
   severity: en(["none", "minor", "major"]),
 });
 
@@ -233,11 +240,12 @@ export function critiquePrompt(o: { kind: string; brief: string; text: string; s
   return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a documentary.
 Brief: ${o.brief}
 Expected text (verbatim): ${o.text || "(none)"}
-Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.skills ? `
+Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.kind === "overlay" ? "" : `
+Also a defect (severity "major"): the piece is dominated by text — in 4 or more of the 6 frames the main content is text on a plain background — or it is visually static (one element, nothing building or transforming). Name what visual should replace the text.`}${o.skills ? `
 
 CHANNEL RULES (they override the brief): following them is correct even where the brief says otherwise (e.g. a colour the brief asks for but a rule forbids) — never report that as a defect. Breaking one of them is a defect.
 <channel_rules>
-${o.skills.slice(0, 6000)}
+${o.skills.slice(0, 12000)}
 </channel_rules>` : ""}`;
 }
 

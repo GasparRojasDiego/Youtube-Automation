@@ -311,7 +311,7 @@ export function ensureMotionCadence(motion: MotionItem[], shots: Shot[], offsets
     best.ids.forEach((id) => used.add(id));
     const text = best.ids.map((id) => narration(shots.find((s) => s.id === id)!)).join(" ");
     out.push({ id: `m${++n}`, kind: "fullscreen", shot_ids: best.ids, segment_id: best.seg, start: best.start, duration: Math.min(20, best.dur),
-      brief_en: `Premium motion-design sequence (2-4 scenes) that visualises this narration with kinetic typography, numbers, diagrams or generative visuals, using only words and figures from it: "${text.slice(0, 500)}"`, text: "", libs: [], asset_ids: [] });
+      brief_en: `Premium, visual-first motion-design sequence (2-4 scenes) that SHOWS this narration with shapes, icons, diagrams, camera moves and generative visuals; text only as short labels using words and figures from it: "${text.slice(0, 500)}"`, text: "", libs: [], asset_ids: [] });
   }
   return out;
 }

@@ -6,7 +6,7 @@ import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialo
 import { fs } from "../lib/ipc";
 import { useBus } from "../lib/bus";
 import { activeChannel, type Channel } from "../lib/repo";
-import { listSkills, saveSkill, deleteSkill, setSkillEnabled, skillVersions, parseSkillFile, serializeSkillFile, parseParamBlocks, skillKindOf, KIND_SCOPES, SKILL_TEMPLATES, type Skill, type SkillKind } from "../lib/skills";
+import { listSkills, saveSkill, deleteSkill, setSkillEnabled, skillVersions, parseSkillFile, serializeSkillFile, parseParamBlocks, skillKindOf, stageSizes, KIND_SCOPES, SKILL_TEMPLATES, type Skill, type SkillKind } from "../lib/skills";
 import { PageHeader, Card, Empty, Toggle, Chip, Modal, Field, AsyncButton, Tabs } from "../ui/kit";
 import { lineDiff, fmtDate, slugify } from "../lib/util";
 import { refineSkill } from "../pipeline/extras";
@@ -51,6 +51,7 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
   }, [sel, all]);
 
   const paramErrors = useMemo(() => (draft ? parseParamBlocks(draft.content).errors : []), [draft?.content]);
+  const sizes = useMemo(() => (draft ? stageSizes(draft.content, KIND_SCOPES[kind]) : []), [draft?.content, kind]);
   const current = skills.find((x) => x.id === sel);
   const dirty = !!draft && (!current || draft.content !== current.content || draft.name !== current.name);
 
@@ -105,6 +106,11 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
               </div>
               <textarea className="input font-mono text-[12.5px] leading-relaxed min-h-[52vh]" spellCheck={false} value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} />
               {paramErrors.map((e) => <div key={e} className="text-xs text-red-600 dark:text-red-500 flex items-center gap-1.5"><AlertTriangle size={12} /> {e}</div>)}
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span title="Pon etiquetas al final de un título para mandar esa sección solo a esas etapas, p. ej. «## Efectos [animaciones]». Etiquetas: temas, investigación, guion, paquete, miniatura, plan, montaje, retoques, animaciones, todas.">Llega a:</span>
+                {sizes.filter((x) => x.chars > 0).map((x) => <span key={x.scope} className="rounded-full border border-border/70 px-2 py-0.5 tabular">{x.label} · {(x.chars / 1000).toFixed(1)} k</span>)}
+                <span className="ml-1">Dirige una sección con «## Título [animaciones]».</span>
+              </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-2">
                   <AsyncButton className="btn-primary" disabled={!dirty} onClick={() => persist(draft)}><Save size={14} /> Guardar</AsyncButton>

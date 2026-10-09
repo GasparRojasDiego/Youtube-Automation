@@ -52,3 +52,12 @@
 .k-lines div{position:absolute;left:0;right:0;height:10px;opacity:0;}
 .k-dotgrid{position:absolute;inset:0;}
 .k-device{position:absolute;}
+
+.k-slab{position:absolute;display:flex;align-items:center;padding:0 40px;box-sizing:border-box;font-family:var(--font-title);font-weight:800;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;overflow:hidden;}
+.k-node{position:absolute;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;white-space:nowrap;}
+.k-node b{font:700 28px/1.05 var(--font-title);color:var(--fg);}
+.k-node-ic{display:block;width:128px;height:128px;padding:24px;box-sizing:border-box;border-radius:30px;background:color-mix(in srgb,var(--fg) 8%,transparent);border:2px solid color-mix(in srgb,var(--fg) 22%,transparent);color:var(--accent);}
+.k-node-ic svg{width:100%;height:100%;display:block;}
+.k-node-dot{display:block;width:44px;height:44px;border-radius:50%;background:var(--accent);}
+.k-marquee{position:absolute;left:-200px;right:-200px;overflow:hidden;white-space:nowrap;font-family:var(--font-title);font-weight:900;text-transform:uppercase;line-height:1.5;}
+.k-marquee-in{display:inline-block;will-change:transform;}

@@ -495,7 +495,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const segs = segInfos(script, voice);
   const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const palette = { background: visual.background, foreground: visual.foreground, muted: visual.muted, accent: visual.accent, fontTitle: visual.fontTitle, fontBody: visual.fontBody, fontMono: visual.fontMono };
-  const skills = await composeSkills(v.channel_id, ["motion", "visuals"]);
+  const skills = await composeSkills(v.channel_id, ["motion"]);
   const dir = joinPath(v.dir, "motion");
   await fs.mkdir(dir);
   const assetMap = await getAssets([...new Set(items.flatMap((m) => m.asset_ids ?? []))]);

@@ -140,7 +140,7 @@ function cover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: number, 
 /** Miniatura 1280x720: fondo, degradado del lado del texto y texto con contorno. */
 export async function renderThumbnail(o: { background?: string | null; text: string; highlight?: string; layout: "left" | "right" | "center" }, p: ThumbnailParams, v: VisualParams, out: string) {
   const TW = 1280, TH = 720;
-  await ensureFonts([p.font]);
+  await Promise.all([document.fonts.load(`${p.weight ?? 400} 48px "${p.font}"`), ensureFonts([p.font])].map((x) => x.catch(() => null)));
   const { c, ctx } = canvas(TW, TH);
   ctx.fillStyle = v.background; ctx.fillRect(0, 0, TW, TH);
   if (o.background) { try { cover(ctx, await loadImage(o.background), TW, TH); } catch { /* fondo liso */ } }
@@ -151,7 +151,7 @@ export async function renderThumbnail(o: { background?: string | null; text: str
     ctx.fillStyle = g; ctx.fillRect(0, 0, TW, TH);
     const boxW = o.layout === "center" ? TW - 160 : TW * 0.52;
     const lines: string[][] = []; let cur: string[] = [];
-    const size = (n: number) => `400 ${n}px "${p.font}"`;
+    const size = (n: number) => `${p.weight ?? 400} ${n}px "${p.font}"`;
     let px = Math.round(150 * p.textScale);
     for (; px > 60; px -= 4) {
       ctx.font = size(px); lines.length = 0; cur = [];

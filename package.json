@@ -1,7 +1,7 @@
 {
   "name": "atril",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "type": "module",
   "description": "ATRIL — estudio de producción asistida para YouTube (VT Asvent)",
   "scripts": {
@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@fontsource/anton": "^5.3.0",
+    "@fontsource/archivo": "^5.3.0",
+    "@fontsource/courier-prime": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/oswald": "^5.3.0",
     "@fontsource/poppins": "^5.3.0",

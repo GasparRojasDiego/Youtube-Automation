@@ -18,8 +18,11 @@ export interface Composition {
 
 export const FONT_FILES: { family: string; file: string; weight?: string; style?: string }[] = [
   { family: "Anton", file: "Anton-Regular.ttf" },
+  { family: "Archivo", file: "Archivo.ttf", weight: "100 900" },
   { family: "Archivo Black", file: "ArchivoBlack-Regular.ttf" },
   { family: "Bebas Neue", file: "BebasNeue-Regular.ttf" },
+  { family: "Courier Prime", file: "CourierPrime-Regular.ttf", weight: "400" },
+  { family: "Courier Prime", file: "CourierPrime-Bold.ttf", weight: "700" },
   { family: "DM Serif Display", file: "DMSerifDisplay-Regular.ttf" },
   { family: "DM Serif Display", file: "DMSerifDisplay-Italic.ttf", style: "italic" },
   { family: "Inter", file: "Inter.ttf", weight: "100 900" },

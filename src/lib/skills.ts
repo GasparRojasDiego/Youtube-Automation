@@ -147,14 +147,83 @@ export const stripParamBlocks = (content: string) => stripComments(content).repl
 
 const matchesScope = (s: Skill, scope: Scope) => s.scopes.includes("all") || s.scopes.includes(scope);
 
-/** Puntos fuertes de los referentes activos (texto compacto). */
+// ---------- Secciones dirigidas a una etapa ----------
+// Un título que termina en etiquetas entre corchetes («## Efectos [animaciones]»)
+// manda esa sección (hasta el siguiente título de su nivel o superior) solo a
+// esas etapas, aunque la habilidad sea Textual o Visual. Sin etiquetas, la
+// sección hereda las etapas de su título padre o de la habilidad.
+
+const norm = (t: string) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+/** Etiqueta (sin tildes, minúsculas) → etapas. */
+export const STAGE_TAGS: Record<string, Scope[]> = {
+  todas: ["all"], todo: ["all"], all: ["all"],
+  temas: ["topics"], topics: ["topics"],
+  investigacion: ["research"], research: ["research"],
+  guion: ["script"], script: ["script"],
+  verificacion: ["verify"], verify: ["verify"],
+  paquete: ["metadata", "thumbnail"], metadatos: ["metadata"], metadata: ["metadata"], titulos: ["metadata"], titulo: ["metadata"], descripcion: ["metadata"],
+  miniatura: ["thumbnail"], thumbnail: ["thumbnail"],
+  plan: ["visuals"], storyboard: ["visuals"], imagenes: ["visuals"], imagen: ["visuals"], visuals: ["visuals"],
+  montaje: ["montage"], sonido: ["montage"], musica: ["montage"], montage: ["montage"],
+  retoques: ["edit"], edicion: ["edit"], edit: ["edit"],
+  animaciones: ["motion"], animacion: ["motion"], motion: ["motion"],
+};
+/** Nombres que se muestran en la interfaz, en el orden del pipeline. */
+export const STAGE_LABELS: { scope: Scope; label: string }[] = [
+  { scope: "topics", label: "Temas" }, { scope: "research", label: "Investigación" }, { scope: "script", label: "Guion" },
+  { scope: "metadata", label: "Paquete" }, { scope: "visuals", label: "Plan visual" }, { scope: "edit", label: "Retoques" },
+  { scope: "motion", label: "Animaciones" }, { scope: "thumbnail", label: "Miniatura" },
+];
+
+/** Etapas de un título con etiquetas al final, o null si no las tiene (o ninguna es conocida). */
+export function headingTags(title: string): { title: string; scopes: Scope[] } | null {
+  const m = title.match(/^(.*?)\s*\[([^\]]+)\]\s*$/);
+  if (!m) return null;
+  const scopes = new Set<Scope>();
+  for (const raw of m[2].split(",")) for (const sc of STAGE_TAGS[norm(raw)] ?? []) scopes.add(sc);
+  return scopes.size ? { title: m[1], scopes: [...scopes] } : null;
+}
+
+/** Deja solo las secciones que corresponden a alguna de las etapas pedidas. */
+export function sectionsFor(content: string, skillScopes: Scope[], requested: Scope[]): string {
+  const hits = (scopes: Scope[]) => scopes.includes("all") || requested.includes("all") || scopes.some((s) => requested.includes(s));
+  const stack: { level: number; scopes: Scope[] }[] = [];
+  const out: string[] = [];
+  let fence = false;
+  for (const line of content.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    const h = !fence ? line.match(/^(#{1,6})\s+(.*)$/) : null;
+    let text = line;
+    if (h) {
+      const level = h[1].length;
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+      const tags = headingTags(h[2]);
+      const inherited = stack.length ? stack[stack.length - 1].scopes : skillScopes;
+      stack.push({ level, scopes: tags ? tags.scopes : inherited });
+      if (tags) text = `${h[1]} ${tags.title}`;
+    }
+    const scopes = stack.length ? stack[stack.length - 1].scopes : skillScopes;
+    if (hits(scopes)) out.push(text);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Caracteres que recibe cada etapa de una habilidad (para la interfaz). */
+export function stageSizes(content: string, skillScopes: Scope[]): { scope: Scope; label: string; chars: number }[] {
+  const body = stripParamBlocks(content);
+  return STAGE_LABELS.map((s) => ({ ...s, chars: sectionsFor(body, skillScopes, [s.scope]).length }));
+}
 
 /** Texto de las habilidades activas para una etapa, listo para inyectar en un prompt. */
 export async function composeSkills(channelId: string | null, scope: Scope | Scope[]): Promise<string> {
   const scopes = Array.isArray(scope) ? scope : [scope];
-  // Una habilidad que aplica a varias etapas de la misma llamada se incluye una sola vez
-  const skills = (await listSkills(channelId)).filter((s) => s.enabled && scopes.some((sc) => matchesScope(s, sc)));
-  const parts = skills.map((s) => `<skill name="${s.name}">\n${stripParamBlocks(s.content)}\n</skill>`);
+  // Una habilidad que aplica a varias etapas de la misma llamada se incluye una sola vez;
+  // sus secciones con etiquetas pueden llegar a etapas fuera de su tipo.
+  const parts: string[] = [];
+  for (const s of (await listSkills(channelId)).filter((x) => x.enabled)) {
+    const body = sectionsFor(stripParamBlocks(s.content), s.scopes, scopes);
+    if (body) parts.push(`<skill name="${s.name}">\n${body}\n</skill>`);
+  }
   return parts.join("\n\n");
 }
 
@@ -207,6 +276,7 @@ export type VisualParams = typeof VISUAL_DEFAULTS;
 
 export const THUMBNAIL_DEFAULTS = {
   font: "Anton",
+  weight: 400,
   textColor: "#FFFFFF",
   strokeColor: "#000000",
   highlightColor: "#FFD400",
@@ -220,10 +290,18 @@ export const SCRIPT_DEFAULTS = { wordsPerMinute: 150 };
 export const SKILL_TEMPLATES: Record<SkillKind, string> = {
   script: `# Cómo debe salir el guion
 
+## Gancho y estructura [guion]
 - Gancho: …
 - Estructura: …
-- Tono y ritmo: …
-- Qué evitar: …
+
+## Tono y ritmo [guion]
+- …
+
+## Títulos y descripción [paquete]
+- …
+
+## Qué evitar
+- …
 
 <!-- Parámetro opcional (quita el comentario para activarlo):
 \`\`\`atril:guion
@@ -233,10 +311,18 @@ export const SKILL_TEMPLATES: Record<SkillKind, string> = {
 `,
   visual: `# Estilo visual
 
-- Imágenes: …
-- Animaciones: …
-- Montaje y sonido: …
-- Miniatura: …
+## Imágenes [plan]
+- …
+
+## Animaciones [animaciones]
+- La imagen cuenta la historia; el texto solo la rotula.
+- …
+
+## Montaje y sonido [montaje]
+- …
+
+## Miniatura [miniatura]
+- …
 
 <!-- Parámetros opcionales (quita el comentario para activarlos):
 \`\`\`atril:visual

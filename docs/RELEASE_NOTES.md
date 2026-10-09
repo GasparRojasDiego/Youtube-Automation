@@ -1,17 +1,15 @@
-# ATRIL 2.3.0
+# ATRIL 2.4.0
 
-Nueva cara, menos ruido y dos funciones nuevas: TikTok e íconos.
+Animaciones con más impacto visual y menos texto, y habilidades que llegan solo a la etapa que las usa.
 
 ## Descargar
-- **`ATRIL_2.3.0_instalador_x64.exe`**: recomendado (conserva tus datos).
-- `ATRIL_2.3.0_portable_x64.zip` y `ATRIL_2.3.0_x64.msi`: alternativas.
+- **`ATRIL_2.4.0_instalador_x64.exe`**: recomendado (conserva tus datos). Si ya tienes la 2.3, usa el botón «Actualizar» sobre Ajustes.
+- `ATRIL_2.4.0_portable_x64.zip` y `ATRIL_2.4.0_x64.msi`: alternativas.
 
 ## Cambios
-- **Rediseño completo.** Fondo con constelación y líneas curvas en movimiento, títulos que se descifran al aparecer, eco de palabras, menú con indicador que se desliza, tarjetas de vidrio y transiciones entre pantallas. El fondo animado se puede apagar en Ajustes → Apariencia.
-- **Menos cosas inútiles.** La cabecera solo muestra dónde estás, el consumo del plan y los avisos. El tema claro/oscuro está solo en Ajustes → Apariencia.
-- **Diagnóstico de un botón.** Comprueba todo y, si algo falla, arma un informe listo para copiar y pegar en el chat.
-- **TikTok.** Divide cada video en partes de 1:30 (cortando en la pausa entre frases más cercana; la última parte corta se une a la anterior), en vertical 9:16, y las guarda en Descargas/«título»/parte 1 … parte final. Sugiere texto y hashtags.
-- **Íconos.** Nueva sección en la Biblioteca. Se buscan en Iconify (solo licencias abiertas) o los dibuja Claude; las animaciones los usan.
-- **Habilidades en dos partes: Textual y Visual.** La IA las trata como reglas obligatorias y comprueba cada una (lo verás en el Estudio en vivo). Tus referentes pasaron a una habilidad textual.
-- **Actualización de un clic.** Cuando haya una versión nueva, aparece el botón «Actualizar» sobre Ajustes.
-- **Página web** de descarga renovada.
+- **Animaciones: visual primero.** Las instrucciones internas ya no dicen que «la tipografía es la estrella»: cada escena necesita un protagonista visual (figuras, íconos, diagramas, mapas, cámara), con un máximo de 6 palabras a la vez. La revisión automática marca como defecto grave una animación dominada por texto o estática.
+- **Kit de animación ampliado.** Piezas nuevas probadas con render real: cámara que entra a cualquier punto, ecos que se abren, inclinación 3D, cortina circular desde un borde, flechas con color que corre, núcleo que suelta figuras que se transforman, patrones, láminas alternadas, red de nodos (quién paga a quién), barra de censura, corte en franjas, foco, apagón, parpadeo, golpe de sello, temblor, órbita, cinta de texto y transiciones «latigazo» y «cortina».
+- **Secciones por etapa en las habilidades.** Un título como «## Efectos [animaciones]» manda esa sección solo a esa etapa; debajo del editor ves cuánto recibe cada una. Menos texto inútil en cada llamada a Claude.
+- **Fuentes nuevas:** Archivo y Courier Prime (licencia OFL), para animaciones, tarjetas y miniaturas. La miniatura acepta ahora el grosor de letra (`weight`).
+- **Habilidades de Atril listas para pegar** en `docs/habilidades`: guion, referentes y visual (con un catálogo de 121 efectos).
+- Correcciones: el resaltador y la barra de censura se colocaban mal cuando la escena entraba con transición; el revisor de animaciones ahora respeta las habilidades visuales.

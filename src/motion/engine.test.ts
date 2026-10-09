@@ -66,6 +66,15 @@ const KIT: Composition = {
 const t = K.title(s, 'Deadline', { font: 'DM Serif Display', italic: true, size: 200 }); const n = K.bigNumber(s, { text: '0', label: 'TEST', y: 800, size: 120 });
 const ic = K.icon(s, 'police', { x: 300, y: 300, size: 140, color: '#C6F432' }); K.drawIcon(tl, ic, 0.1);
 K.show(tl, s, 0); K.reveal(tl, t, 0.1, { fx: 'blur' }); K.counter(tl, n.num, 0.2, { to: 353, suffix: '+', dur: 0.8 }); K.glitch(tl, s, 1.1, { dur: 0.3 });
+const cam = K.camera(s); const card = K.title(cam.world, 'FILE 03', { font: 'Archivo', weight: 900, size: 90, y: 300 }); K.tilt(tl, card, 0.1); K.echo(tl, card, 0.2, { n: 2 }); cam.to(tl, 0.3, { x: 960, y: 300, zoom: 1.4, dur: 0.5 });
+const ar = K.arrow(s, { from: [200, 900], to: [900, 600], bend: 0.2 }); ar.draw(tl, 0.1, 0.5); ar.flow(tl, 0.6, 0.4);
+const em = K.emitter(s, { x: 1500, y: 300, n: 6 }); em.burst(tl, 0.2); em.morph(tl, 0.7); em.collapse(tl, 1.1);
+const pt = K.pattern(s, { cols: 5, rows: 3, gap: 60, x: 1300, y: 700, shape: 'mix' }); pt.enter(tl, 0.1); pt.wave(tl, 0.5); pt.shift(tl, 0.8); pt.dim(tl, 1.0, { keep: [[1, 2]] });
+K.slabs(tl, s, ['ONE', 'TWO'], 0.3, { y: 520, h: 60, w: 800 }); K.redact(tl, t, 0.4, { mode: 'pass' }); K.highlight(tl, n.num, 0.5);
+const net = K.network(s, { nodes: [{ id: 'a', x: 300, y: 600, label: 'A', icon: 'police' }, { id: 'b', x: 700, y: 600, label: 'B' }], links: [{ from: 'a', to: 'b', label: '$1', accent: true }] }); net.build(tl, 0.2); net.focus(tl, 0.9, 'a');
+K.orbit([ic], { r: 100 }); K.marquee(s, 'BREAKING', { y: 1000, size: 40 }); K.spotlight(tl, 0.6, { x: 960, y: 540, r: 200, to: { x: 400, at: 1.0 }, off: 1.3 });
+K.slice(tl, n.label, 0.7, { n: 4 }); K.slam(tl, n.num, 0.8); K.blackout(tl, 1.0, { hold: 0.1 }); K.strobe(tl, null, 1.2, { n: 2 }); K.shake(tl, cam.rig, 1.3, { dur: 0.2 });
+const s2 = K.scene({ bg: '#111' }); K.swap(tl, s, s2, 1.35, { fx: 'cover', from: 'right' }); const s3 = K.scene(); K.swap(tl, s2, s3, 1.45, { fx: 'whip' });
 ATRIL.register(tl, 1.5);`,
 };
 
