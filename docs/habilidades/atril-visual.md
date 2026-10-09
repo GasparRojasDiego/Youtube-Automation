@@ -1,11 +1,11 @@
-# Atril · Visual (v2.0 · 2026-10-09)
+# Atril · Visual (v2.1 · 2026-10-09)
 
-Va en Habilidades → Visual. Etiquetas (ATRIL 2.4 o posterior): [plan] = storyboard e imágenes con IA; [montaje] = plan y retoques; [retoques] = retoques de Opus; [animaciones] = composiciones de motion y su revisión; [miniatura] = paquete. Una sección sin etiqueta llega a todas las etapas visuales. ATRIL ya alinea la voz, los cortes, los subtítulos, la mezcla y la sonoridad final: aquí van solo decisiones creativas.
+Va en Habilidades → Visual. Etiquetas (ATRIL 2.4 o posterior; las piezas y los sonidos sincronizados de las secuencias de referencia, ATRIL 2.5): [plan] = storyboard e imágenes con IA; [montaje] = plan y retoques; [retoques] = retoques de Opus; [animaciones] = composiciones de motion y su revisión; [miniatura] = paquete. Una sección sin etiqueta llega a todas las etapas visuales. ATRIL ya alinea la voz, los cortes, los subtítulos, la mezcla y la sonoridad final: aquí van solo decisiones creativas.
 
 ## Identidad
 - Prioridad ante un choque: (1) políticas de YouTube, difamación y licencias; (2) legibilidad y sincronía con la voz; (3) la intención del beat; (4) el espectáculo.
 - "Wow" es la sensación de que cada cuadro fue decidido: intención en cada movimiento, ritmo atado a la voz, capas, un sistema tipográfico, sonido que cuenta y contención antes de revelar.
-- Paleta: ink #0D0E10 (fondo) · inkRaised #17181B (paneles) · graphite #3A3C41 (líneas; nunca texto) · ash #A3A39E (texto terciario) · bone #E8E2D4 (texto principal) · paper #D8CFBC (tarjetas de documento) · sodium #E9A23B (acento, ≤ 10 % del cuadro) · reveal #C8102E (rojo SOLO en beats de REVELACIÓN, ≤ 10 % del área y solo en texto de 96 px o más, trazos o regiones) · bar #050506 (barras de censura).
+- Paleta: ink #0D0E10 (fondo) · inkRaised #17181B (paneles) · graphite #3A3C41 (líneas; nunca texto) · ash #A3A39E (texto terciario) · bone #E8E2D4 (texto principal) · paper #D8CFBC (tarjetas de documento y fondo «arena») · umber #17110D (fondo cálido alternativo; solo fondos) · sodium #E9A23B (acento, ≤ 10 % del cuadro) · reveal #C8102E (rojo SOLO en beats de REVELACIÓN, ≤ 10 % del área y solo en texto de 96 px o más, trazos o regiones) · bar #050506 (barras de censura).
 - Sin colores de marca de la entidad (el carmesí de Harvard, el azul de Meta): cada tema se distingue por sus motivos, no por su logo.
 - Tipografía: Archivo (voz del narrador: impacto, capítulos, afirmaciones; pesos 500–900) y Courier Prime (voz del expediente: fechas, cifras, fuentes, sellos, contadores; 400 y 700). Sin tercera familia.
 - Motivo firma: barras de censura que se retiran (el expediente se desclasifica); 5–8 por video, separadas ≥ 30 s.
@@ -30,7 +30,7 @@ Va en Habilidades → Visual. Etiquetas (ATRIL 2.4 o posterior): [plan] = storyb
 - 0:00–0:15: la primera imagen retoma el concepto de la miniatura; una barra de censura descubre el sustantivo clave del título (no el hallazgo). Sin logo, título ni saludo.
 - 0:15–0:30: la primera evidencia (documento, cita o cifra) con su fuente en pantalla.
 - ≈ 3:00 (REVELACIÓN 1) y ≈ 6:00 (GIRO + REVELACIÓN 2), y ≈ 9:00 si el video pasa de 12 min: ahí van los 2–3 set pieces de 15–30 s (tablero de evidencia, vuelo de mapa, muro de documentos, línea de tiempo o collage), distintos entre sí y del video anterior. Un re-enganche menor (cada 60–90 s) lleva una animación corta, nunca un set piece.
-- Al menos una animación por minuto; cada una ocupa un beat completo de 6–15 s y su brief describe acciones visuales, no frases.
+- Al menos una animación por minuto; cada una ocupa un beat completo de 6–15 s (un set piece, hasta 30 s) y su brief describe acciones visuales, no frases.
 - Si el guion marca una REVELACIÓN, el plan deja la música en silencio justo antes y reserva el rojo para esa palabra.
 
 **Tratamiento por tipo de beat**
@@ -48,14 +48,14 @@ Va en Habilidades → Visual. Etiquetas (ATRIL 2.4 o posterior): [plan] = storyb
 
 **Sonido**
 - Impacto grave en REVELACIÓN, GIRO y set pieces; riser de 1–3 s que termina justo en la llegada; paper en documentos y barras; camera shutter cuando entra una foto; typewriter en lugares y fechas; whoosh solo en movimientos rápidos; heartbeat o clock ticking, rara vez.
-- Efectos en ≤ 50 % de los cortes; quita la mitad de los que pondrías por instinto.
+- Efectos en ≤ 50 % de los cortes de metraje; quita la mitad de los que pondrías por instinto. Dentro de las animaciones es distinto: cada movimiento clave lleva su sonido y la propia animación lo declara (§ Animaciones).
 - Música: 3–5 camas que cambian en límites de acto y en los re-enganches mayores; tensa al abrir, media en el acto 2, picos en las revelaciones, casi seca en LECTURA y REFLEXIÓN; nunca la pista más popular de una biblioteca.
 - Palabras de énfasis para subtítulos: cifras, nombres y la palabra revelada.
 
 **Lo que delata una plantilla → en su lugar**
 - El mismo zoom en cada foto → alterna acercar, alejar, paneo y deriva. Transiciones al azar → corte seco o una transición con motivo. Un whoosh en cada corte → silencio. Texto por todas partes → solo cifras y palabras clave. Todo centrado → tercios, con el texto en la zona libre. Ritmo de metrónomo → duraciones que siguen las frases. Apertura estática → tomas cortas y cambio de tipo cada 10–15 s en el primer minuto.
 
-**Vocabulario de efectos** (para escribir briefs de animación; el detalle está en la sección Animaciones): cámara que entra a un detalle · alejarse para revelar · cortina circular desde un lado · ecos que se abren · inclinación 3D · núcleo que suelta figuras que se transforman · patrón que se apaga menos una figura · láminas que entran alternadas · flecha que se dibuja y se llena de color · red de nodos con flujos de dinero · barra de censura que se retira o pasa · foco que oscurece todo menos un punto · apagón · golpe de sello · corte en franjas · contador que aterriza · vuelo de mapa a una ciudad.
+**Vocabulario de efectos** (para escribir briefs de animación; el detalle y las secuencias de referencia S0–S8 están en la sección Animaciones): cámara que entra a un detalle · alejarse para revelar · cortina circular desde un lado · ecos que se abren · inclinación 3D · núcleo que suelta figuras que se transforman · patrón que se apaga menos una figura · láminas que entran alternadas · flecha que se dibuja y se llena de color · red de nodos con flujos de dinero · barra de censura que se retira o pasa · foco que oscurece todo menos un punto · apagón · golpe de sello · corte en franjas · contador que aterriza · vuelo de mapa a una ciudad · app genérica en un plano inclinado que despierta · capas en profundidad · cursor que pulsa, elige, pinta o rompe · foco que sigue al cursor · ruptura con tiempo detenido · corte diagonal de una palabra · palabra que cambia de estilo cada vez más rápido · escritura con cámara y letras que caen · rodillo de números · línea cuyo círculo se vuelve el fondo · onda de audio · ramas con íconos · puntos que forman un círculo · galería que aparece y estalla · velo con manchas · pincel que revela · vidrio líquido · carrusel curvo · mosaico diagonal · destellos decrecientes · texto gigante que se asienta.
 
 ## Imágenes con IA [plan]
 - Una idea por imagen: un punto focal, espacio libre en el tercio opuesto para texto o animación, y nada de texto, letras, logotipos ni marcas de agua dentro.
@@ -78,43 +78,85 @@ Va en Habilidades → Visual. Etiquetas (ATRIL 2.4 o posterior): [plan] = storyb
 - Cámara por toma: zoom_in (intimidad, tensión), zoom_out (contexto, aislamiento), pan_left/pan_right (recorrer o relacionar), drift (sostener sin congelar), static solo en gráficos, punch_in con punch_at exacto en una palabra clave (uno cada ≥ 30 s). Nunca el mismo movimiento con la misma dirección en tomas seguidas.
 - Gradación: neutral por defecto; cold para lo clínico e institucional; noir para la tensión; sepia solo para archivo; warm solo en recuerdos humanos; punchy nunca sobre evidencias.
 - Efectos de sonido entre −30 y −6 dB, más bajos de lo que pide el instinto; los impactos caen en la palabra exacta; el whoosh tiene su pico en el corte; borra los decorativos.
-- Animaciones: pide íconos concretos en icons_en (person, money, bank, police officer, smartphone, clock, house, arrow up, arrow down, document, lock) en vez de describirlos; el brief describe acciones visuales escena por escena (§ Animaciones) y text lleva solo cifras y etiquetas cortas.
+- Animaciones: pide íconos concretos en icons_en (person, money, bank, police officer, smartphone, clock, house, arrow up, arrow down, document, lock) en vez de describirlos; el brief describe acciones visuales escena por escena y puede nombrar una secuencia de referencia ("like reference S3: word in a button, accelerating style cycle, rupture with time-freeze") o efectos del vocabulario; text lleva solo cifras y etiquetas cortas. Para una animación con imágenes (galería, carrusel, pincel, plano), pásale 2–6 asset_ids.
+- No añadas efectos de sonido dentro de una animación a pantalla completa: ella trae los suyos, sincronizados con cada movimiento; sí puedes poner uno en su entrada.
 - Superpuestas (overlay) para el ritual epistémico, con texto corto y literal: línea de fuente "SOURCE [n] · Medio · Mes año" arriba a un lado mientras se dice la afirmación; sellos DOCUMENTED (relleno bone), ALLEGED (sodium), ANALYSIS y RECONSTRUCTION (contorno ash), nunca en rojo y uno a la vez; barra de censura que descubre la cifra clave.
 - Las tarjetas estáticas que queden se convierten en animaciones que MUESTRAN la idea, no que animan la frase.
 
 ## Animaciones [animaciones]
 ### Regla principal: impacto visual primero
-- La imagen cuenta la historia; el texto solo la rotula. En las piezas a pantalla completa, cada escena tiene un protagonista visual: figuras geométricas, íconos, un diagrama, un mapa, un gráfico, una imagen, un generador o un movimiento de cámara; una escena que es solo texto sobre un fondo liso es un defecto. Las superpuestas van sobre el metraje y pueden ser solo un rótulo, una fuente o un sello.
-- Presupuesto de texto en una pieza a pantalla completa: como máximo 6 palabras visibles a la vez (una cifra más una etiqueta de 1–3 palabras es lo ideal); los cuadros donde el texto es lo principal, ≤ 30 % de la duración; un solo bloque de texto entrando a la vez; jamás una oración de la narración.
-- Densidad y sorpresa: ≥ 3 elementos con movimiento propio por escena y un evento visual nuevo cada 0,5–1,5 s. Cada pieza tiene al menos un movimiento de cámara (entrar a un detalle, alejarse para revelar, latigazo) y un acento de impacto (cortina, destello, apagón, golpe de sello, parpadeo, glitch, temblor, corte en franjas). Nunca la misma transición dos veces seguidas.
-- Construir → transformar → resolver: los elementos nacen de algo (un punto, una línea, una figura), se transforman en la idea siguiente (morph, eco, división, emisión, conexión, órbita) y terminan en una imagen final clara, sostenida ≥ 0,8 s.
-- Una pieza a pantalla completa = 3–5 escenas de 2–5 s. Las superpuestas son ligeras: una llamada, una flecha, un resaltado, un sello o un contador.
+- La imagen cuenta la historia; el texto solo la rotula. En las piezas a pantalla completa, cada escena tiene un protagonista visual: figuras geométricas, íconos, un diagrama, un mapa, un gráfico, una imagen, una interfaz, un generador o un movimiento de cámara; una escena que es solo texto sobre un fondo liso es un defecto. Las superpuestas van sobre el metraje y pueden ser solo un rótulo, una fuente o un sello.
+- Presupuesto de texto en una pieza a pantalla completa: como máximo 6 palabras legibles a la vez (una cifra más una etiqueta de 1–3 palabras es lo ideal); los cuadros donde el texto es lo principal, ≤ 30 % de la duración; un solo bloque de texto entrando a la vez; jamás una oración de la narración. Los textos pequeños y desenfocados de una constelación o una galería son textura y no cuentan. Excepción: la escritura con cámara (efecto 142) puede llevar una frase de ≤ 10 palabras, porque la cámara solo deja ver 3–5 a la vez.
+- Densidad y sorpresa: ≥ 3 elementos con movimiento propio por escena y un evento visual nuevo cada 0,3–1,5 s. Cada pieza tiene al menos un movimiento de cámara (entrar a un detalle, alejarse para revelar, latigazo) y un acento de impacto (cortina, destello, apagón, golpe de sello, ruptura, corte, glitch, temblor). Nunca la misma transición dos veces seguidas.
+- Construir → transformar → resolver: los elementos nacen de algo (un punto, una línea, una figura, el elemento anterior), se transforman en la idea siguiente (morph, eco, división, emisión, conexión, ruptura) y terminan en una imagen final clara, sostenida ≥ 0,8 s.
+- Una pieza a pantalla completa = 3–8 escenas de 1–5 s (máximo 30 s por pieza; una secuencia más larga se parte en dos). Las superpuestas son ligeras: una llamada, una flecha, un resaltado, un sello o un contador.
 - Prueba antes de entregar: si quitas todo el texto, ¿la pieza sigue contando algo? Si no, rehazla con imágenes.
 
-### Ejemplo de secuencia (ilustrativo; no reutilizar tal cual)
-Un recuadro central con la cifra se inclina hacia atrás (K.tilt) → salen copias arriba y abajo, cada vez más transparentes (K.echo), y todo se desplaza en diagonal mientras la cámara se acerca (cam.to) → un círculo entra desde la izquierda y cubre la escena (fx 'cover') → una flecha curva se dibuja y el color corre por ella (K.arrow .draw .flow) → un núcleo central suelta figuras geométricas que giran y se transforman unas en otras (K.emitter .burst .morph) → un patrón de figuras entra desde el centro, ondula y casi todo se apaga menos una (K.pattern .enter .wave .dim) → recién aquí aparece el texto, crece y la palabra clave se resalta → una barra lo tapa y sigue de largo (K.redact 'pass') → un ícono de dinero se dibuja (K.icon + K.drawIcon) → una flecha de crecimiento con su cifra → la cámara entra a la punta de la flecha → láminas largas y finas entran izquierda, derecha, izquierda con los datos (K.slabs) → apagón para dar énfasis (K.blackout).
+### Dinamismo: lo que hace vivos a los referentes
+1. Rápido y quieto: el movimiento clave dura 0,2–0,5 s y luego se sostiene 1–3 s. La energía sale del contraste de velocidades, no del movimiento constante.
+2. Cada escena nace de la anterior: la línea que sale del último número y cuyo círculo se vuelve el fondo; el número que regresa; el plano que sube y deja ver el siguiente; el match cut. Dentro de una pieza, evita cortar en seco entre escenas sin relación.
+3. Profundidad real: planos en perspectiva (K.plane), capas (K.stack), desenfoque por distancia (lo grande y cercano, desenfocado; lo mediano, nítido; K.focus) y piezas que vuelan hacia la cámara o hacia el fondo.
+4. Una mano que actúa: un cursor que pulsa, elige, pinta o rompe convierte la animación en causa y efecto.
+5. Acelerar y cortar: una repetición que se acelera (imagen, tipografía y sonido a la vez) y una palabra o un golpe que la corta.
+6. Golpe y pausa: después de una ruptura o un impacto, cámara lenta o tiempo detenido de 1–3 s.
+7. Fondos que cambian con motivo: ink, paper («arena»), umber o una imagen con velo; cada cambio llega con una transición del catálogo.
+8. Un sonido por movimiento clave (abajo).
+
+### Sonido sincronizado (ATRIL 2.5)
+Cada animación declara sus efectos con el segundo exacto del movimiento; ATRIL los busca o los sintetiza y los mezcla bajos. Mejor pocos y exactos que muchos vagos.
+- click: el cursor pulsa, un paso de una interfaz, cada cambio de un ciclo o de un rodillo (en un ciclo, los clics se aceleran con él).
+- pop: algo aparece (ícono, caja, círculo, rama, cifra).
+- whoosh o swoosh: un movimiento de menos de 0,5 s, un giro de plano, un deslizamiento, una cámara que vuela (ATRIL adelanta el sonido para que el pico caiga al final del movimiento).
+- impact o hit: ruptura, corte diagonal, golpe de sello, imagen que tapa el cuadro, palabra que corta un ciclo.
+- thud: rebote o caída · glitch: un glitch · typewriter: escritura · sub drop: apagón o caída de intensidad · riser: 1–2 s antes de una revelación.
+- Mínimo 0,25 s entre efectos; 4–14 por pieza a pantalla completa y 0–3 en una superpuesta. Antes de una REVELACIÓN, 0,5 s sin efectos.
 
 ### Estilo Atril en movimiento
-- Fondo ink con retícula de puntos tenue (K.dotGrid) o papel (K.paper); acento sodium con moderación; rojo solo en REVELACIÓN.
-- Impacto en Archivo 800–900 en mayúsculas; etiquetas, fechas, cifras y sellos en Courier Prime 700; HUD en las esquinas en Courier Prime ("FILE 03 / THE ENDOWMENT", TC).
+- Fondo ink con retícula de puntos tenue (K.dotGrid) o papel (K.paper); paper («arena») y umber como fondos alternativos; acento sodium con moderación; rojo solo en REVELACIÓN.
+- Colores de los referentes → paleta de Atril: arena y beige → paper; naranja → sodium; marrón muy oscuro → umber; azul → sodium (la paleta no tiene azul); blanco → bone (blanco puro solo en destellos y velos).
+- Impacto en Archivo 800–900 en mayúsculas; etiquetas, fechas, cifras y sellos en Courier Prime 700; HUD en las esquinas en Courier Prime ("FILE 03 / THE ENDOWMENT", TC). Única excepción a las dos familias: el ciclo de estilos (efecto 141), que dura menos de 5 s y termina en Archivo.
+- Interfaces y marcas, siempre genéricas: K.ui, monogramas o íconos. Nunca el logo, el nombre, los colores ni la distribución fiel de un producto real (por ejemplo, la barra de un chat de IA o el logo de un editor de video).
 - Barra de censura (K.redact) como firma: descubre el dato clave; una por pieza como máximo.
 - Tablero de evidencia = K.network sobre inkRaised, solo con vínculos documentados (montos con fecha); nunca corcho con hilo rojo.
 - Extracto de documento: tarjeta paper con "EXCERPT · SOURCE [n]"; como texto, solo las palabras literales del guion; el resto en bloques grises o barras; sin membrete, logotipo, sello ni firma de la entidad.
 - Mapas: agua ink, tierra inkRaised con bordes en ash al 50–70 % (que se vean: contraste de al menos 3:1 con el fondo), la región clave en sodium, alfileres en bone; la cámara entra a la ciudad.
 - Cada cifra o afirmación sobre alguien real lleva su línea de fuente dentro de la pieza (Courier Prime 24–28 px, en una esquina).
-- Movimiento: entradas de 0,4–0,8 s con expo.out o power3.out; salidas más rápidas (expo.in); rebote (back.out) solo en el acento principal; escalonados de 0,03–0,08 s. Acercarse = intimidad o revelación; alejarse = contexto o aislamiento; lateral = recorrido o tiempo; subir = poder.
+- Movimiento: entradas de 0,4–0,8 s con expo.out o power3.out; golpes y transiciones rápidas de 0,2–0,5 s; salidas más rápidas (expo.in); rebote (back.out) solo en el acento principal; escalonados de 0,03–0,08 s. Acercarse = intimidad o revelación; alejarse = contexto o aislamiento; lateral = recorrido o tiempo; subir = poder o "siguiente".
 - Zonas: nada importante en los 240 px inferiores (subtítulos) ni a menos de 96 px de los lados y 64 px de arriba.
 - Íconos: usa los provistos (K.icon) para personas, dinero, edificios, tiempo, teléfonos o policías; si falta uno, dibuja una figura simple, nunca una persona realista.
+
+### Secuencias de referencia (ilustrativas: combina y varía; no copies una entera)
+Coordenadas de planos en unidades cartesianas (y hacia arriba), tal como las recibe K.plane. Entre paréntesis, el efecto del catálogo y su sonido.
+
+**S0 · Cifra que se transforma.** Un recuadro central con la cifra se inclina hacia atrás (17) → salen copias arriba y abajo, cada vez más transparentes (15), y todo se desplaza en diagonal mientras la cámara se acerca (27) → un círculo entra desde la izquierda y cubre la escena (39, whoosh) → una flecha curva se dibuja y el color corre por ella (89) → un núcleo suelta figuras que giran y se transforman (3, 13; pop) → un patrón entra, ondula y se apaga menos una figura (4, 71) → recién aquí entra el texto y la palabra clave se resalta (114) → una barra lo tapa y sigue de largo (43) → un ícono de dinero se dibuja (6) → flecha de crecimiento con su cifra → la cámara entra a su punta → láminas izquierda, derecha, izquierda con los datos (78) → apagón (54, sub drop).
+
+**S1 · App que despierta en un plano inclinado (8–11 s).** (1) Fondo ink; una app genérica apagada en el plano (0;0) (10;3) (13;−3) (3;−6): botones, textos e íconos en la misma perspectiva (122, K.ui dentro de K.plane). (2) Despierta en pasos de 0,3–0,45 s: el menú se enciende, el botón toma color, el título se escribe, los valores aparecen, la tabla vacía se llena y el gráfico crece (126; un click o pop en cada paso, con los tiempos que devuelve awaken). (3) El plano gira hacia la derecha y pasa a (0;0) (0;6) (10;8) (10;2) (123, whoosh). (4) Un cursor recorre la app con foco que lo sigue: lo cercano se enfoca y lo que deja atrás vuelve a desenfocarse; pulsa el botón (127, 128; click). (5) La pantalla se apaga y aparece la marca del canal o un monograma neutro con un impacto suave; se sostiene 2–3 s.
+
+**S2 · Arena, rodillo y capas (dos piezas de 12–20 s).** Pieza A: (1) fondo paper con retícula gris tenue; una bola sodium rebota con sombra, se aparta a la izquierda encogiéndose y aparece una flecha de crecimiento hacia arriba a la derecha con la cifra debajo (148; thud por rebote, whoosh, pop). (2) Las letras caen al fondo y rebotan a su sitio (145, thud); una imagen se encoge y crece de inmediato en < 0,5 s (160, pop). (3) Fondo ink, números bone 1→4 que suben uno tras otro (144, click cada uno); del 4 sale una línea blanca con un círculo en la punta y, al tocar el borde derecho, el círculo crece hasta ser el fondo nuevo (149, whoosh). (4) Un selector genérico de tres opciones; el cursor elige una (129, click) y todo el plano sube fuera del cuadro en < 0,5 s (131, swoosh). (5) Texto con una caja de dato debajo; se separan y entre ellos entra un texto sodium girado ~20° (146, pop); el plano se minimiza y desaparece (125). Pieza B: (6) vuelve el número 2 dentro de un círculo sodium y de él sale una circunferencia que crece rápido (150, pop). (7) Caja con onda de audio: divisor sodium, barras ink a la izquierda y grises a la derecha (151). (8) Fondo umber: la intensidad cae de golpe (137, sub drop), entra texto grande bone con la palabra clave mayor y en sodium, y una línea la cruza en diagonal con pendiente 4/10, como de (0;0) a (10;4) (135, hit). (9) Dos marcas neutras unidas por una línea que se mueve y desaparece varias veces (152, swoosh suave). (10) Capas cardinales: el plano (0;0) (8;2) (10;−6) (2;−5) replicado en 5+ capas, una delante y las demás detrás, con imagen, marca, texto y fondo, que se separan y se juntan (130, whoosh).
+
+**S3 · Velo, palabra en ciclo y ruptura (dos piezas de 12–18 s).** Pieza A: (1) paisaje con velo blanco; círculos negros al ~50 % crecen sobre todo en la franja media, más transparentes cuanto más arriba o abajo (154). (2) Texto blanco con una palabra dentro de un botón; un cursor triangular la pulsa y la palabra se agranda hasta ocupar casi todo el cuadro (140, click). (3) La palabra cambia de tipografía, contenedor y fondo cada vez más rápido durante menos de 5 s, con un tic que se acelera a la par; una palabra final corta el ciclo (141; click en cada cambio, impact al cortar). (4) Fondo paper, texto ink: la cámara sigue a la frase que se escribe en una línea larga (142, typewriter); al llegar al límite las letras caen, la cámara se fija en una (las demás, más pequeñas y desenfocadas, siguen cayendo) y entra en ella hasta el negro (143, whoosh y sub drop). Pieza B: (5) sobre negro, un cursor blanco cruza de abajo-izquierda a arriba-derecha en < 0,5 s; en ese instante el fondo pasa a paper con texto ink y el cursor rompe el texto: las palabras salen en todas direcciones, unas crecen hacia la cámara y otras se alejan, se desenfocan rápido y sigue una cámara lenta de 2–3 s (134, 132, 133; swoosh e impact). (6) El plano se va a la izquierda y entra desde la derecha un fondo nuevo con texto (49); 20+ imágenes surgen desde transparencia total, crecen y se dispersan, y una crece hasta tapar el cuadro en < 0,5 s (155–157; whoosh, hit). (7) Caja central con texto e ícono e imágenes en los bordes de distintos tamaños, la mayor desenfocada y las medianas nítidas (158); al final una caja blanca pasa de 100 % a 0 % de transparencia (167).
+
+**S4 · Sujeto recortado (portada de capítulo, 3–5 s).** Fondo → texto enorme → la persona u objeto recortado delante (159). Solo si en la Biblioteca hay un recorte PNG con transparencia de ese mismo sujeto (ATRIL no recorta solo) y siempre dentro de Integridad (nunca una persona real generada). Sin recorte: el texto enorme detrás de un objeto o ícono que lo tapa en parte, o entre dos capas de K.stack.
+
+**S5 · La ruptura sirve para todo.** Repite la ruptura de S3 con tarjetas, íconos o imágenes (132, pasando la lista de elementos), siempre con el tiempo detenido después del golpe (133). Una ruptura por pieza como máximo.
+
+**S6 · Pincel y cintas opuestas (8–12 s).** (1) Un cursor deja un trazo de pincel que deja ver la imagen escondida bajo una capa de color; no es un borrador: lo de atrás se vuelve a cubrir, pero el trazo crece hasta revelar la imagen entera, y la cámara entra por el hueco (138, 139; swoosh). (2) Una imagen a pantalla completa se reduce y deja ver un fondo con retícula; dos filas de texto corren en sentidos opuestos, arriba paper y abajo umber (168); sobre la imagen reducida, una palabra en una tipografía poco común (la del ciclo, una sola vez).
+
+**S7 · Transiciones (una por cambio de escena).** Destellos blancos cada vez más transparentes (162) · paneles de vidrio líquido sobre imágenes (163) · imágenes curvas como monitor curvo, con la curvatura invertida, en carrusel de abajo-derecha a arriba-izquierda, cada una empieza y termina un poco más arriba (164) · líneas verticales y horizontales con letras que llenan las celdas hasta formar una palabra (165) · cuadrados que se tocan por las esquinas en la diagonal y se extienden a ambos lados (166) · texto gigante que se reduce al centro en < 0,5 s y se sostiene 2–3 s antes de que el siguiente haga lo mismo (147) · match cuts (50).
+
+**S8 · Celda, símbolos y ramas (15–25 s).** (1) Fondo ink, dos líneas blancas horizontales muy juntas; dos «/» en medio se separan en < 0,3 s y se reemplazan por dos verticales de lado a lado: queda una celda donde entra un texto corto (169; swoosh, pop). (2) Alrededor aparecen símbolos (><, /, -, ( )) con un sonido y en < 0,2 s se dispersan, se aclaran y se desenfocan (136, glitch corto). (3) Textos de varios tamaños rodean la celda; los más pequeños, desenfocados (161). (4) Pantalla blanca y glitch: el texto central cambia y los de alrededor desaparecen (170, glitch). (5) Un círculo sodium suelta hacia la derecha una línea fina ondulada durante ~1 s; en < 0,5 s salen otras 5 curvas, cada una terminada en un ícono con su palabra (153; pop por rama). (6) La cámara visita rápido los extremos de dos ramas, luego de otras dos y luego la última en 0,3 s, y vuelve al plano general, que se sostiene ~2 s (171; whoosh en cada visita). (7) Cada ícono suelta un círculo blanco pequeño; los círculos se agrupan formando la silueta de un círculo mayor, sin unirse, con una palabra con glitch al centro (172, impact suave).
 
 ### Recetas de 3–5 escenas (combínalas y varíalas)
 - Cifra enorme: patrón de figuras (K.pattern) → casi todas se apagan menos las que representan el dato (.dim) → contador que aterriza (K.counter) → sello (K.slam) → apagón (K.blackout).
 - Flujo de dinero: red que se construye (K.network .build) → el color corre por los vínculos (K.arrow .flow) → foco en el actor clave (.focus) → la cámara entra al monto → láminas con fechas (K.slabs).
 - Cronología: línea que avanza con cabeza lectora → pines que caen → la cámara sigue a la cabeza → la fecha clave se descifra (K.reveal 'scramble') → golpe en rojo si es la revelación.
-- Contradicción: pantalla dividida (declaración pública frente a registro) → tachado de la versión oficial → barra que descubre la palabra del registro (K.redact 'reveal') → rojo.
+- Contradicción: pantalla dividida (declaración pública frente a registro) → corte diagonal sobre la versión oficial (K.cut) → barra que descubre la palabra del registro (K.redact 'reveal') → rojo.
 - Escala humana: un ícono de persona → se multiplica en una rejilla (K.pattern) → se apagan todos menos las víctimas documentadas → foco (K.spotlight) → silencio visual.
 - Lugar: vuelo de mapa a la ciudad → región revelada → lugar y fecha mecanografiados → la cámara se aleja hasta el edificio (ícono) → cortina circular hacia la siguiente escena.
+- Sistema que se activa: plano inclinado con app genérica → despierta con clics → gira → cursor con foco → apagón y monograma (S1).
+- Quiebre: palabra en botón → clic → ciclo que se acelera → ruptura con tiempo detenido → galería que estalla → una imagen tapa el cuadro (S3).
 
-### Catálogo de efectos (121)
+### Catálogo de efectos (172)
 Formato: nombre — lo que se ve — cómo (kit K.* de ATRIL o GSAP) — cuándo. Usa 6–12 por pieza y no repitas la misma combinación en el mismo video.
 
 **A. Nacimientos y entradas**
@@ -263,6 +305,69 @@ Formato: nombre — lo que se ve — cómo (kit K.* de ATRIL o GSAP) — cuándo
 119. Composición final sostenida — imagen quieta que respira (1 → 1,015) durante ≥ 0,8 s — tween lento de escala — cerrar la idea.
 120. Eco de apertura — la última escena repite la composición de la primera, con otro sentido — misma composición, otro contenido — callback visual.
 121. Fundido a ink — todo se oscurece salvo un detalle que se apaga al final — K.spotlight con off — final de capítulo.
+
+**N. Planos, capas e interfaces**
+122. Plano inclinado — una pantalla, imagen o tarjeta proyectada en un cuadrilátero; todo lo de dentro comparte la perspectiva — K.plane({quad:[[0,0],[10,3],[13,-3],[3,-6]]}) — mostrar un sistema o un documento con profundidad.
+123. Plano que se reorienta — el plano gira y viaja a otro cuadrilátero sin cortar — pl.to({quad:[[0,0],[0,6],[10,8],[10,2]]}) — cambiar de punto de vista.
+124. Plano al frente — de inclinado a plano y de frente — pl.to({front:true}) — entrar a la pantalla.
+125. Plano que se minimiza — se encoge hacia un punto y se desvanece — pl.to con un cuadrilátero pequeño + opacidad — cerrar un tema.
+126. Interfaz que despierta — una app genérica apagada; el menú, el botón, el título, los valores, la tabla y el gráfico se encienden en pasos de 0,3–0,45 s — K.ui .awaken (devuelve los tiempos para los clics) — un sistema que se activa.
+127. Cursor guía — el puntero recorre una ruta y pulsa con un anillo — K.cursor .path .click — una decisión, "aquí".
+128. Foco que sigue al cursor — lo cercano al cursor se enfoca y lo que deja atrás vuelve a desenfocarse — K.focus({cursor}) — guiar la mirada en pantallas densas.
+129. Selector elegido — una barra con tres opciones; el cursor pulsa una y se enciende — caja + K.cursor .click + color — elegir un camino.
+130. Capas cardinales — el mismo plano replicado en 5+ capas en profundidad (imagen, marca, texto, fondo) que se separan y se juntan — K.stack({quad:[[0,0],[8,2],[10,-6],[2,-5]]}) .spread .collapse — anatomía de algo.
+131. Todo sube — el plano entero sale hacia arriba en < 0,5 s y deja ver el siguiente — K.swap({fx:'slide', dir:'up'}) — "siguiente".
+
+**O. Ruptura, tiempo y cortes**
+132. Ruptura — texto, tarjetas, íconos o imágenes salen expulsados en todas direcciones, unos hacia la cámara (crecen) y otros al fondo (se encogen), girando y desenfocándose — K.explode — quiebre.
+133. Tiempo detenido — tras el golpe todo casi se congela 1–3 s y luego termina de salir — K.explode({freeze:{len, speed}}) o K.warp — dejar que el golpe pese.
+134. Cursor detonante — un cursor cruza en diagonal en < 0,5 s y en ese instante cambia el fondo y empieza la ruptura — K.cursor .move + tl.set — causa visible del quiebre.
+135. Corte diagonal — una línea de luz cruza la palabra con pendiente 4/10 y la parte en dos mitades que se separan — K.cut — cancelar, borrar, desmentir.
+136. Dispersión de símbolos — símbolos (><, /, -, ( )) alrededor de un centro se dispersan en < 0,2 s, aclarándose y desenfocándose — K.explode({freeze:false, dur:0.25}) — energía técnica.
+137. Caída de intensidad — la onda o el movimiento cae de golpe casi a cero y entra la idea — tween de p.level a 0,05 en 0,2 s — silencio que da paso a la frase clave.
+
+**P. Revelados y tipografía cinética**
+138. Pincel que revela — un cursor pinta un trazo que deja ver la imagen bajo una capa de color; lo de atrás se vuelve a cubrir y al final el trazo crece hasta revelarla entera — K.brush .play — descubrir algo escondido.
+139. Entrar por el hueco — tras el revelado, la cámara entra en la imagen — cam.to({zoom:3}) — pasar a la escena revelada.
+140. Palabra en botón — en una frase, una palabra está dentro de un botón; el cursor la pulsa y crece hasta ocupar el cuadro — K.cursor .click + escala o cam.to — el concepto central.
+141. Ciclo de estilos — la misma palabra cambia de tipografía, contenedor y fondo cada vez más rápido (< 5 s) con un tic que se acelera; una palabra lo corta — K.cycle — saturación, obsesión.
+142. Escritura con cámara — la cámara sigue al texto que se escribe en una línea larga — K.typeline .type — pensamiento en curso.
+143. Letras que caen — al llegar al límite las letras caen; la cámara se fija en una y entra hasta el negro — K.typeline .fall — colapso, transición a negro.
+144. Rodillo — 1, 2, 3, 4 suben uno tras otro en una ventana — K.roll .run — pasos, conteo.
+145. Rebote de letras — las letras caen al fondo y rebotan a su lugar — keyframes y −420 → +420 → 0 con back.out, escalonado 0,035 — títulos con energía física.
+146. Inserto girado — un texto y una caja se separan y entre ellos entra un texto de otro color girado ~20° — tweens de y + rotation — remate o aclaración.
+147. Texto gigante que se asienta — un texto enorme se reduce al centro en < 0,5 s y se sostiene 2–3 s; luego el siguiente — fromTo scale 6 → 1 con expo.out — ideas en serie con fuerza.
+
+**Q. Datos, audio y conexiones**
+148. Bola que inicia una tendencia — una bola con sombra rebota, se aparta encogiéndose y aparece una flecha de crecimiento con su cifra — K.dot + K.drop + K.arrow + K.counter — el comienzo de un crecimiento.
+149. Línea que se vuelve fondo — del último número sale una línea con un círculo; al tocar el borde, el círculo crece hasta ser el fondo nuevo — DrawSVG + K.cover({from:[x,y]}) — transición que nace del dato.
+150. Número que regresa — el número vuelve dentro de un círculo y de él sale una circunferencia que crece rápido — escala + anillo (radio ↑, opacidad ↓) — retomar un punto.
+151. Onda de audio — caja con onda viva: barras oscuras a la izquierda, grises a la derecha y un divisor de acento que avanza — K.wave (p.split) — voz, grabación, testimonio.
+152. Marcas conectadas — dos marcas neutras unidas por una línea que se dibuja, viaja y desaparece varias veces — K.arrow .draw + .flow — relación entre dos actores.
+153. Ramas con íconos — un círculo suelta una línea ondulada (~1 s); en < 0,5 s salen 5 curvas que terminan en íconos con su palabra — K.waveD + K.arrow + K.icon — una causa, varias consecuencias.
+
+**R. Imágenes y profundidad**
+154. Velo con manchas — paisaje con velo blanco; círculos negros al 50 % crecen en la franja media y son más transparentes hacia arriba y abajo — K.scatter .grow .drift — atmósfera, multitud, contaminación.
+155. Galería que aparece — 20+ imágenes surgen desde transparencia total — K.gallery .fadeIn — volumen, archivo.
+156. Galería que estalla — las imágenes crecen y se dispersan con profundidad (las grandes, desenfocadas) — K.gallery .burst — expansión.
+157. Una tapa el cuadro — una imagen de la galería crece y cubre todo en < 0,5 s — K.gallery .cover — entrar a un caso concreto.
+158. Bordes con profundidad — caja central con texto e ícono e imágenes en los bordes de distintos tamaños (la mayor desenfocada, las medianas nítidas) — K.image + blur según tamaño — composición con profundidad de campo.
+159. Sujeto recortado — la persona u objeto separado del fondo y un texto enorme entre ambos — fondo + texto + recorte PNG — portada de capítulo; solo con recorte en la Biblioteca (S4).
+160. Pulso de imagen — la imagen se encoge un poco y crece de inmediato (< 0,5 s) — scale 1 → 0,92 → 1 — acento sin cambiar de escena.
+161. Constelación de textos — palabras de varios tamaños alrededor de la idea central; las pequeñas, desenfocadas — K.text + blur según tamaño — contexto alrededor del concepto.
+
+**S. Transiciones y cierres nuevos**
+162. Destellos decrecientes — 2–4 destellos blancos, cada uno más transparente — K.flicker — transición nerviosa.
+163. Vidrio líquido — paneles translúcidos que desenfocan la imagen de atrás, con un reflejo que pasa — K.glass .shine — datos sobre una foto.
+164. Carrusel curvo — imágenes curvadas como un monitor que cruzan de abajo-derecha a arriba-izquierda, cada una más alta — K.carousel({inverse:true}) — recorrido de ejemplos.
+165. Rejilla de letras — líneas verticales y horizontales forman celdas y las letras las llenan hasta formar una palabra — DrawSVG + escalonado de letras — títulos de capítulo.
+166. Mosaico diagonal — cuadrados que se tocan por las esquinas en la diagonal y se extienden a ambos lados; detrás cambia la escena — K.tiles — cambio geométrico.
+167. Velo que se cierra — una caja blanca pasa de 100 % a 0 % de transparencia — tween de opacity — final suave de una sección.
+168. Cintas opuestas — dos filas de texto corren en sentidos contrarios (arriba claro, abajo oscuro) — dos K.marquee, una con dir:'right' — tensión, dos versiones.
+169. Celda que se abre — dos líneas horizontales; dos «/» en medio se separan en < 0,3 s y se vuelven verticales de lado a lado: queda una celda donde entra un texto corto — DrawSVG + tweens — enmarcar un concepto.
+170. Blanco con glitch — pantalla blanca, glitch, y el texto central cambia mientras los de alrededor desaparecen — K.flash + K.glitch — cambio de concepto.
+171. Foco por pares — la cámara visita rápido dos extremos, otros dos y el último en 0,3 s, y vuelve al plano general 2 s — cam.to en pasos — recorrer opciones.
+172. Puntos que forman un círculo — cada ícono suelta un círculo pequeño y todos se agrupan en la silueta de un círculo mayor, sin unirse, con una palabra con glitch al centro — tweens hacia puntos de una circunferencia + K.glitch — convergencia, síntesis.
 
 ## Miniatura [miniatura]
 - Un sujeto focal (objeto, lugar o documento simbólico; nunca una persona real generada), una zona libre para 0–4 palabras, alto contraste y acento sodium; rojo solo si el sujeto es el objeto de la revelación documentada.

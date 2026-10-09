@@ -36,6 +36,13 @@ unidas por transiciones rápidas: destello, barrido de color, glitch, deslizamie
 - Siempre hay algo en movimiento (flotación suave, deriva de cámara, código de tiempo): nunca un cuadro congelado.
 - Un glitch o destello breve como mucho una vez por secuencia, en el momento de mayor impacto.
 
+## Dinamismo y sonido (ATRIL 2.5)
+- Rápido y quieto: el movimiento clave dura 0,2–0,5 s y luego se sostiene 1–3 s.
+- Cada escena nace de la anterior (una línea cuyo círculo se vuelve el fondo, un plano que sube y deja ver el siguiente, match cuts).
+- Profundidad: planos en perspectiva, capas, desenfoque por distancia; piezas que vuelan hacia la cámara o hacia el fondo.
+- Un cursor que pulsa, pinta o rompe; repeticiones que se aceleran y una palabra que las corta; tras una ruptura, 1–3 s de cámara lenta.
+- Un sonido por movimiento clave: clic en cada clic, pop en cada aparición, whoosh en los movimientos rápidos, impacto en las rupturas.
+
 ## Evitar
 - Plantillas genéricas de PowerPoint, sombras exageradas, degradados arcoíris.
 - Más de dos familias tipográficas (más la mono).

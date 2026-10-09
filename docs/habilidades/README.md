@@ -32,7 +32,8 @@ JetBrains Mono, Oswald, Playfair Display, Poppins, Source Serif 4.
 - `atril-referentes.md` → **Textual**, nombre «Atril · Referentes»: técnicas de los canales de referencia y límites
   para no copiar (sus secciones visuales llegan solas a las etapas visuales).
 - `atril-visual.md` → **Visual**, nombre «Atril · Visual»: identidad visual, plan, imágenes, retoques, animaciones
-  (regla de impacto visual y catálogo de 121 efectos) y miniatura.
+  (regla de impacto visual, dinamismo, sonido sincronizado, 9 secuencias de referencia y catálogo de 172 efectos) y
+  miniatura. Las secuencias de referencia usan piezas de ATRIL 2.5.
 
 ## Plantillas genéricas
 
