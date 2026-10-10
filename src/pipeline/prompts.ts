@@ -178,13 +178,15 @@ export const PACKAGE_SCHEMA = obj({
     background_asset_id: str("Id of the listed video image to use as background, or empty"),
     layout: en(["left", "right", "center"], "Where the text goes"),
   })),
+  tiktok_caption_en: str("Short TikTok caption (max 120 characters) that hooks the viewer and says what the series is about"),
+  tiktok_hashtags: arr(str("Hashtag starting with #, no spaces"), "5-8 hashtags for the TikTok series cut from this video: 2-3 broad + the rest specific to the topic"),
   synthetic_media: bool("true if the video contains realistic AI-generated scenes that viewers could mistake for real footage"),
   synthetic_reason_es: str(),
   skills_check_es: SKILLS_CHECK,
 });
 
 export function packagePrompt(o: { skills: string; script: unknown; verify: unknown; params: unknown; count: number; photorealistic: boolean; images?: { id: string; description: string }[] }) {
-  return `Create the YouTube packaging for this video: 3 title options, description body, 10-20 tags and ${o.count} thumbnail concepts.${wrapSkills(o.skills)}
+  return `Create the YouTube packaging for this video: 3 title options, description body, 10-20 tags, ${o.count} thumbnail concepts, and a TikTok caption with 5-8 hashtags (the video is also posted on TikTok as a series of ~1:30 parts).${wrapSkills(o.skills)}
 
 THUMBNAIL PARAMETERS: ${JSON.stringify(o.params)}
 The visuals of this video are ${o.photorealistic ? "photorealistic AI images" : "stylized / non-photorealistic illustrations, archival images and text cards"}.

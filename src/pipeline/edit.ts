@@ -110,16 +110,23 @@ export function assetProvenance(a: Asset): Provenance {
   };
 }
 
+/** Coincidencias en la biblioteca para una toma (todas sus búsquedas). */
+async function libraryHits(sh: Shot, kind: ReturnType<typeof kindFor>, exclude: Set<string>): Promise<Asset[]> {
+  const found = new Map<string, Asset>();
+  for (const q of fallbackQueries(sh.query_en ?? "", sh.alt_queries_en ?? []))
+    for (const h of await searchLibrary(q, kind, 5, { excludeIds: [...exclude], minDur: kind === "video" ? 1 : undefined })) found.set(h.id, h);
+  return [...found.values()];
+}
+
 /** Busca candidatos para una toma: primero la biblioteca, luego las fuentes en línea. */
 async function huntShot(ctx: Ctx, sh: Shot, exclude: Set<string>): Promise<{ candidates: Asset[]; downloaded: Asset[] }> {
   const v = ctx.video; const m = getSettings().media;
   const kind = kindFor(sh);
   const queries = fallbackQueries(sh.query_en ?? "", sh.alt_queries_en ?? []);
   const found = new Map<string, Asset>();
-  if (m.libraryFirst) {
-    for (const q of queries.slice(0, 2)) for (const h of await searchLibrary(q, kind, 5, { excludeIds: [...exclude], minDur: kind === "video" ? 1 : undefined })) found.set(h.id, h);
-    if (found.size) await activity(v.id, "assets", "search", `Biblioteca: «${queries[0]}» → ${found.size} coincidencia(s)`);
-  }
+  // Siempre primero la biblioteca, con todas las búsquedas de la toma; internet solo si no basta
+  for (const h of await libraryHits(sh, kind, exclude)) found.set(h.id, h);
+  await activity(v.id, "assets", "search", `Biblioteca: «${queries[0]}» → ${found.size} coincidencia(s)`);
   const downloaded: Asset[] = [];
   const goodLocal = [...found.values()].filter((a) => a.described_at && a.quality >= 3).length;
   if (goodLocal < 2) {
@@ -309,6 +316,9 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
   // 2) Tomas pensadas para IA: se crean primero (si falla, se busca material como una foto)
   for (const sh of media.filter((x) => x.visual === "ai_image" && !x.path)) {
     checkCancel(ctx);
+    // Antes de crear (y pagar) una imagen, se mira si la biblioteca ya tiene una buena para esta toma
+    const good = (await libraryHits({ ...sh, query_en: sh.query_en || keywordsQuery(narr(sh)) }, "image", chosen)).filter((a) => a.described_at && a.quality >= 4 && a.usable !== 0 && !a.real_person);
+    if (good.length) { sh.visual = "photo"; await activity(v.id, "assets", "search", `${sh.id}: la biblioteca ya tiene ${good.length} imagen(es) adecuada(s); no se crea con IA`); continue; }
     if (!(await generate(sh, "pedida en el storyboard"))) sh.visual = "photo";
   }
   const toHunt = media.filter((x) => !x.path);
@@ -575,7 +585,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const fix = async (m: MotionItem, code: { css: string; html: string; js: string }, problems: string[]) => {
     await activity(v.id, "motion", "motion", `Opus corrige la animación ${m.id}`, problems.join("\n"));
     const r = await claudeRun<{ compositions: { id: string; css: string; html: string; js: string; libs: ("map" | "d3")[]; sfx?: MotionSfxRaw[] }[] }>({
-      stage: "motion", activityStage: "motion", label: `Corrección de animación ${m.id}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
+      stage: "fix", activityStage: "motion", label: `Corrección de animación ${m.id}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
       prompt: P2.motionFixPrompt({ item: { id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "" }, code, problems, skills }),
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
     });

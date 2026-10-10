@@ -157,6 +157,7 @@ pub fn run() {
             files::disk_free,
             files::app_paths,
             files::update_install,
+            files::wav_duration,
             net::http_request,
             net::http_download,
             net::update_probe,

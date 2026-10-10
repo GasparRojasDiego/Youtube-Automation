@@ -65,16 +65,16 @@ export function SettingsPage() {
     <div className="space-y-5">
       <ProfileHeader />
       <ErrorReport />
-      <div className="grid grid-cols-12 gap-4 items-stretch">
-        <ClaudeTile className="col-span-7" />
+      <div className="grid grid-cols-12 gap-4 grid-flow-row-dense">
+        <ClaudeTile className="col-span-7 row-span-2" />
         <VoiceTile className="col-span-5" />
+        <MotionTile className="col-span-5" />
         <KeysTile className="col-span-6" />
         <MediaTile className="col-span-6" />
-        <MotionTile className="col-span-4" />
         <ProductionTile className="col-span-4" />
         <MontageTile className="col-span-4" />
-        <MusicTile className="col-span-8" />
         <AboutTile className="col-span-4" />
+        <MusicTile className="col-span-12" />
       </div>
     </div>
   );
@@ -86,7 +86,6 @@ function ProfileHeader() {
   const [name, setName] = useState(s.profile.name);
   const [copied, setCopied] = useState(false);
   useEffect(() => { setName(s.profile.name); }, [s.profile.name]);
-  useEffect(() => { if (!s.profile.name) void appPaths().then((p) => { const n = baseName(p.home); if (n && !getSettings().profile.name) void set("profile.name", n); }); }, []);
   const dark = isDark(s.theme);
   const pickPhoto = async () => {
     const f = await openDialog({ filters: [{ name: "Imagen", extensions: ["png", "jpg", "jpeg", "webp"] }] });
@@ -115,7 +114,7 @@ function ProfileHeader() {
         <div className="min-w-0 flex-1">
           <input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== s.profile.name && void set("profile.name", name.trim())}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} aria-label="Nombre de usuario"
-            className="w-full max-w-md bg-transparent text-[22px] font-bold tracking-tight outline-none rounded-md px-1 -mx-1 border border-transparent hover:border-border focus:border-primary/60" />
+            className="block w-full max-w-md bg-transparent text-[22px] font-bold tracking-tight outline-none rounded-md px-1 -mx-1 border border-transparent hover:border-border focus:border-primary/60" />
           <button className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-muted-foreground hover:text-foreground" title="Copiar ID"
             onClick={async () => { await navigator.clipboard.writeText(s.profile.id); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
             ID · <span className="tracking-[0.12em]">{s.profile.id}</span>{copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
@@ -153,8 +152,8 @@ function ErrorReport() {
 }
 
 // ---------- Claude ----------
-const STAGE_LABEL: [StageModelKey, string][] = [["research", "Investigación"], ["script", "Guion"], ["verify", "Revisión de datos"], ["storyboard", "Storyboard"], ["vision", "Visión de imágenes"],
-  ["polish", "Retoques"], ["motion", "Animaciones"], ["critique", "Revisión visual"], ["package", "Metadatos"], ["topics", "Temas"], ["analysis", "Instrucciones con IA"]];
+const STAGE_LABEL: [StageModelKey, string][] = [["research", "Investigación"], ["script", "Guion"], ["verify", "Datos"], ["storyboard", "Storyboard"], ["vision", "Visión"],
+  ["polish", "Retoques"], ["motion", "Animaciones"], ["critique", "Revisión visual"], ["package", "Metadatos"], ["topics", "Temas"], ["analysis", "Instrucciones IA"]];
 const MODELS: [string, string][] = [["opus", "Opus"], ["sonnet", "Sonnet"], ["haiku", "Haiku"]];
 const EFFORTS: [string, string][] = [["low", "Bajo"], ["medium", "Medio"], ["high", "Alto"], ["xhigh", "Muy alto"], ["max", "Máximo"]];
 
@@ -183,10 +182,10 @@ function ClaudeTile({ className }: { className: string }) {
       <div className="label mb-1.5">Modelo y esfuerzo por etapa</div>
       <div className="grid grid-cols-2 gap-x-5">
         {STAGE_LABEL.map(([k, l]) => (
-          <div key={k} className="grid grid-cols-[1fr_88px_96px] items-center gap-1.5 py-1">
+          <div key={k} className="grid grid-cols-[minmax(0,1fr)_88px_92px] items-center gap-1.5 py-1">
             <span className="text-[12.5px] truncate">{l}</span>
-            <select className="input h-8 py-0 text-xs" value={s.claude.models[k]} onChange={(e) => void set(`claude.models.${k}`, e.target.value)}>{MODELS.map(([id, x]) => <option key={id} value={id}>{x}</option>)}</select>
-            <select className="input h-8 py-0 text-xs" value={s.claude.effort[k] || ""} onChange={(e) => void set(`claude.effort.${k}`, e.target.value)}><option value="">Por defecto</option>{EFFORTS.map(([id, x]) => <option key={id} value={id}>{x}</option>)}</select>
+            <select className="input select-sm h-8 py-0 text-xs" value={s.claude.models[k]} onChange={(e) => void set(`claude.models.${k}`, e.target.value)}>{MODELS.map(([id, x]) => <option key={id} value={id}>{x}</option>)}</select>
+            <select className="input select-sm h-8 py-0 text-xs" value={s.claude.effort[k] || ""} onChange={(e) => void set(`claude.effort.${k}`, e.target.value)}><option value="">Auto</option>{EFFORTS.map(([id, x]) => <option key={id} value={id}>{x}</option>)}</select>
           </div>
         ))}
       </div>
@@ -391,7 +390,7 @@ function MusicTile({ className }: { className: string }) {
       {list.length === 0 ? <div className="text-sm text-muted-foreground py-4 text-center">Sin pistas propias.</div> : (
         <div className="max-h-64 overflow-y-auto -mx-1 px-1 space-y-1.5">
           {list.map((t) => (
-            <div key={t.id} className="grid grid-cols-[auto_1.3fr_1fr_1fr_auto] gap-2 items-center">
+            <div key={t.id} className="grid grid-cols-[auto_1.4fr_1fr_1.4fr_auto] gap-2 items-center">
               <Toggle checked={!!t.enabled} onChange={(v) => void updateTrack(t.id, { enabled: v ? 1 : 0 })} />
               <input className="input h-8 py-1 text-xs" defaultValue={t.title} onBlur={(e) => void updateTrack(t.id, { title: e.target.value })} />
               <input className="input h-8 py-1 text-xs" defaultValue={t.mood} placeholder="Ambiente" onBlur={(e) => void updateTrack(t.id, { mood: e.target.value })} />

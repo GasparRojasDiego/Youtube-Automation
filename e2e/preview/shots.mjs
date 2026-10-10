@@ -4,7 +4,7 @@ const { chromium } = await import(process.env.PW ?? "playwright");
 const OUT = process.env.SHOTS ?? "/tmp/claude-0/shots";
 const pages = process.argv.slice(2);
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: process.env.SCHEME ?? "dark" });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: Number(process.env.H ?? 900) }, deviceScaleFactor: 1, colorScheme: process.env.SCHEME ?? "dark" });
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
@@ -14,7 +14,7 @@ await page.waitForTimeout(1200);
 for (const p of pages.length ? pages : ["Inicio"]) {
   const [label, action] = p.split(":");
   if (label !== "Inicio" || action) {
-    const btn = page.locator("aside").getByText(label, { exact: true }).first();
+    const btn = label === "Ajustes" ? page.locator('aside button[title*="Ajustes"]').first() : page.locator("aside").getByText(label, { exact: true }).first();
     if (await btn.count()) await btn.click(); else { const any = page.getByText(label, { exact: true }).first(); if (await any.count()) await any.click(); }
     await page.waitForTimeout(900);
   }

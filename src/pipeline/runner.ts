@@ -11,6 +11,7 @@ import * as St from "./stages";
 import * as Ed from "./edit";
 import { activity, setLive } from "../lib/activity";
 import type { VerifyOut, ScriptOut } from "./types";
+import { downloadVideo } from "./tiktok";
 
 interface Running { videoId: string; jobId: string; cancelled: boolean; stage: StageId | null }
 let current: Running | null = null;
@@ -58,7 +59,13 @@ async function runOnce(r: Running) {
     const stage = next.stage;
     r.stage = stage;
     await updateVideo(video.id, { stage });
-    if (stage === "final") { await setStage(video.id, "final", { status: "review", progress: "Lista para tu revisión final" }); notifyReview(video.id, "Video listo para la revisión final."); return; }
+    if (stage === "final") {
+      // Video terminado: se copia solo a Descargas
+      const dest = await downloadVideo(video).catch(async (e) => { await logError(e, video.id, "Descarga del video"); return null; });
+      await setStage(video.id, "final", { status: "review", progress: "Lista para tu revisión final" });
+      notifyReview(video.id, dest ? `Video terminado y guardado en Descargas: ${dest.split(/[\\/]/).pop()}` : "Video listo para la revisión final.");
+      return;
+    }
     if (stage === "publish" && video.status !== "approved" && video.status !== "scheduled") return;
 
     await setStage(video.id, stage, { status: "running", error: null, startedNow: true, bumpAttempt: true, progress: "Iniciando…" });

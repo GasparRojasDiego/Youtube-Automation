@@ -176,3 +176,38 @@ pub fn update_install(app: tauri::AppHandle, installer: String) -> Result<(), St
         Err("La actualización automática solo funciona en Windows.".into())
     }
 }
+
+/// Duración exacta de un WAV PCM leyendo su cabecera (bytes de audio ÷ bytes por segundo).
+#[tauri::command]
+pub fn wav_duration(path: String) -> Result<f64, String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let mut head = [0u8; 12];
+    f.read_exact(&mut head).map_err(|e| e.to_string())?;
+    if &head[0..4] != b"RIFF" || &head[8..12] != b"WAVE" {
+        return Err("No es un WAV".into());
+    }
+    let (mut rate, mut data) = (0u32, 0u64);
+    let len = f.metadata().map_err(|e| e.to_string())?.len();
+    loop {
+        let mut ch = [0u8; 8];
+        if f.read_exact(&mut ch).is_err() { break; }
+        let size = u32::from_le_bytes([ch[4], ch[5], ch[6], ch[7]]) as u64;
+        if &ch[0..4] == b"fmt " {
+            let mut fmt = [0u8; 16];
+            f.read_exact(&mut fmt).map_err(|e| e.to_string())?;
+            rate = u32::from_le_bytes([fmt[8], fmt[9], fmt[10], fmt[11]]);
+            f.seek(SeekFrom::Current(size as i64 - 16 + (size as i64 & 1))).map_err(|e| e.to_string())?;
+        } else if &ch[0..4] == b"data" {
+            // Algunos programas dejan el tamaño en 0 o en el máximo al escribir en flujo: se usa lo que queda del archivo
+            let pos = f.stream_position().map_err(|e| e.to_string())?;
+            data = if size == 0 || size == u32::MAX as u64 || pos + size > len { len - pos } else { size };
+            break;
+        } else {
+            f.seek(SeekFrom::Current(size as i64 + (size as i64 & 1))).map_err(|e| e.to_string())?;
+        }
+    }
+    if rate == 0 { return Err("WAV sin formato".into()); }
+    Ok(data as f64 / rate as f64)
+}
+

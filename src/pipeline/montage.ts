@@ -9,11 +9,13 @@ export interface EncoderSpec { name: "libx264" | "h264_qsv" | "h264_mf"; quality
 export interface Frame { width: number; height: number; fps: number }
 export const FRAME_1080: Frame = { width: 1920, height: 1080, fps: 30 };
 
+/** Codificador H.264 con un fotograma clave por segundo (-g 30): permite recortar para TikTok copiando, sin recodificar. */
 export function encoderArgs(e: EncoderSpec): string[] {
+  const gop = ["-g", "30"];
   switch (e.name) {
-    case "h264_qsv": return ["-c:v", "h264_qsv", "-preset", "medium", "-global_quality", String(e.quality), "-look_ahead", "0"];
-    case "h264_mf": return ["-c:v", "h264_mf", "-rate_control", "quality", "-quality", String(Math.max(40, 100 - e.quality * 2)), "-b:v", "10M"];
-    default: return ["-c:v", "libx264", "-preset", "veryfast", "-crf", String(e.quality), "-profile:v", "high"];
+    case "h264_qsv": return ["-c:v", "h264_qsv", "-preset", "medium", "-global_quality", String(e.quality), "-look_ahead", "0", ...gop];
+    case "h264_mf": return ["-c:v", "h264_mf", "-rate_control", "quality", "-quality", String(Math.max(40, 100 - e.quality * 2)), "-b:v", "10M", ...gop];
+    default: return ["-c:v", "libx264", "-preset", "veryfast", "-crf", String(e.quality), "-profile:v", "high", ...gop];
   }
 }
 

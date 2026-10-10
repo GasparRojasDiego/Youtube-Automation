@@ -70,6 +70,10 @@ export const proc = {
     listen<{ id: string; stream: string; line: string }>("proc-line", (ev) => cb(ev.payload)),
 };
 
+export const media = {
+  wavDuration: (path: string) => invoke<number>("wav_duration", { path }),
+};
+
 export const secrets = {
   set: (key: string, value: string) => invoke<void>("secret_set", { key, value }),
   get: (key: string) => invoke<string | null>("secret_get", { key }),

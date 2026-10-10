@@ -24,7 +24,8 @@ import "@fontsource/jetbrains-mono/600.css";
 import "./styles/index.css";
 import App from "./App";
 import { migrate } from "./lib/schema";
-import { loadSettings } from "./lib/settings";
+import { loadSettings, saveSettings, isDark } from "./lib/settings";
+import { appPaths } from "./lib/ipc";
 import { recoverOnStartup } from "./pipeline/runner";
 import { logError } from "./lib/events";
 
@@ -33,7 +34,9 @@ async function boot() {
   try {
     await migrate();
     const s = await loadSettings();
-    document.documentElement.classList.toggle("dark", s.theme === "dark");
+    document.documentElement.classList.toggle("dark", isDark(s.theme));
+    // Nombre de usuario por defecto: el de la cuenta de Windows (editable en Ajustes)
+    if (!s.profile.name) { const n = (await appPaths()).home.split(/[\\/]/).filter(Boolean).pop(); if (n) await saveSettings((x) => ({ ...x, profile: { ...x.profile, name: n } })); }
     root.render(<React.StrictMode><App /></React.StrictMode>);
     await recoverOnStartup();
   } catch (e) {

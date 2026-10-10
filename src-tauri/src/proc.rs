@@ -1,4 +1,4 @@
-//! Procesos externos (Claude Code CLI, ffmpeg, ffprobe).
+//! Procesos externos (Claude Code CLI y ffmpeg).
 //! Se ejecutan sin ventana de consola, con stdin opcional (los prompts largos
 //! van por stdin para evitar el límite de 32 KB de la línea de comandos de
 //! Windows) y cancelables por id.

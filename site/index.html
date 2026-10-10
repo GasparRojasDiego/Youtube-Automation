@@ -2,13 +2,20 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src https://api.github.com; base-uri 'none'; form-action 'none'; object-src 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATRIL — De la idea al video</title>
 <meta name="description" content="ATRIL es una app de escritorio para Windows que convierte una idea en un video de YouTube terminado: guion, voz, imágenes, animaciones y montaje. Solo revisas el final.">
 <link rel="icon" href="logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+@font-face{font-family:Poppins;font-style:normal;font-weight:400;font-display:swap;src:url(fonts/poppins-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:Poppins;font-style:normal;font-weight:500;font-display:swap;src:url(fonts/poppins-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:Poppins;font-style:normal;font-weight:600;font-display:swap;src:url(fonts/poppins-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:Poppins;font-style:normal;font-weight:700;font-display:swap;src:url(fonts/poppins-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:Poppins;font-style:normal;font-weight:800;font-display:swap;src:url(fonts/poppins-latin-800-normal.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/jetbrains-mono-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/jetbrains-mono-latin-500-normal.woff2) format('woff2')}
 :root{--bg:#f3efe6;--fg:#1a1c22;--card:#fbf9f4;--line:#e0dacd;--p:#5b78ef;--pf:#fff;--m:#5f6370;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#0d0e12;--fg:#eef0f7;--card:#14161b;--line:#23262e;--p:#7591ff;--pf:#0d0f18;--m:#9a9fae;color-scheme:dark}}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
@@ -31,13 +38,8 @@ nav .links a:hover{color:var(--fg)}
 .btn-g:hover{border-color:color-mix(in srgb,var(--p) 50%,var(--line))}
 .hero{position:relative;overflow:hidden;padding:110px 0 120px;isolation:isolate}
 .hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:160px;background:linear-gradient(transparent,var(--bg));z-index:-1;pointer-events:none}
-.hero canvas,.hero svg.flow{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
-.hero svg.flow{-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+.hero canvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
 .glow{position:absolute;width:680px;height:680px;border-radius:50%;filter:blur(80px);z-index:-2;background:color-mix(in srgb,var(--p) 18%,transparent)}
-.echo{position:absolute;left:0;right:0;top:46%;white-space:nowrap;font-weight:800;font-size:150px;line-height:1;color:transparent;-webkit-text-stroke:1px color-mix(in srgb,var(--p) 18%,transparent);z-index:-1;animation:drift 70s linear infinite;user-select:none}
-@keyframes drift{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@keyframes flow{from{transform:translateX(0)}to{transform:translateX(calc(-1*var(--s)))}}
-.flow g{animation:flow linear infinite}
 h1{font-size:clamp(44px,7vw,84px);line-height:1.02;letter-spacing:-.035em;margin:18px 0 0;font-weight:800}
 h1 .acc{background:linear-gradient(90deg,var(--p),color-mix(in srgb,var(--p) 55%,var(--fg)));-webkit-background-clip:text;background-clip:text;color:transparent}
 .lead{font-size:19px;color:var(--m);max-width:620px;margin:22px 0 0}
@@ -65,8 +67,7 @@ footer .links{margin-left:auto;display:flex;gap:18px}
 footer a:hover{color:var(--fg)}
 .reveal{opacity:0;transform:translateY(16px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
 .reveal.on{opacity:1;transform:none}
-@media (max-width:860px){.grid,.steps,.install{grid-template-columns:1fr}nav .links{display:none}.echo{font-size:90px}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+@media (max-width:860px){.grid,.steps,.install{grid-template-columns:1fr}nav .links{display:none}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -80,18 +81,16 @@ footer a:hover{color:var(--fg)}
   <div class="glow" style="top:-260px;left:-200px"></div>
   <div class="glow" style="bottom:-320px;right:-220px;opacity:.7"></div>
   <canvas id="stars"></canvas>
-  <svg class="flow" id="flow" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
-  <div class="echo" aria-hidden="true">IDEA · GUION · VOZ · MOTION · VIDEO · IDEA · GUION · VOZ · MOTION · VIDEO · IDEA · GUION · VOZ · MOTION · VIDEO · IDEA · GUION · VOZ · MOTION · VIDEO ·</div>
   <div class="wrap">
     <div class="k">VT Asvent · Para Windows</div>
     <h1><span id="t1">De la idea</span><br><span class="acc" id="t2">al video.</span></h1>
     <p class="lead">Escribes de qué trata. ATRIL investiga, escribe el guion, narra, busca y crea imágenes, anima y monta. Tú solo revisas el final antes de publicar.</p>
     <div class="cta">
-      <a class="btn btn-p" id="dl" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">
+      <a class="btn btn-p" id="dl" rel="noopener noreferrer" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
         <span id="dlt">Descargar ATRIL</span>
       </a>
-      <a class="btn btn-g" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest" id="notes">Notas de versión</a>
+      <a class="btn btn-g" rel="noopener noreferrer" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest" id="notes">Notas de versión</a>
     </div>
     <div class="meta mono" id="meta">Windows 10/11 · 64 bits · Se actualiza con un clic</div>
   </div>
@@ -104,8 +103,8 @@ footer a:hover{color:var(--fg)}
     <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg></div><h3>Guion con Claude</h3><p>Investigación, gancho, estructura y ritmo según tus habilidades. Lo dudoso se corrige solo.</p></div>
     <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/></svg></div><h3>Imágenes libres y con IA</h3><p>Material con licencia apta para monetizar y, cuando no existe, imágenes creadas con IA.</p></div>
     <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></div><h3>Motion design</h3><p>Secuencias animadas al estilo de un reel profesional: tipografía, contadores, diagramas y transiciones.</p></div>
-    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg></div><h3>Voz, música y efectos</h3><p>Narración natural, música de fondo y efectos de sonido sincronizados en cada transición.</p></div>
-    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></div><h3>Listo para TikTok</h3><p>Divide cada video en partes de 1:30, en vertical, con los hashtags sugeridos.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></svg></div><h3>Voz, música y efectos</h3><p>Narración natural, música de fondo y efectos de sonido sincronizados con cada movimiento de las animaciones.</p></div>
+    <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></div><h3>Listo para TikTok</h3><p>Cada video se guarda solo en Descargas y se recorta en partes de 1:30 en segundos, con su texto y hashtags.</p></div>
     <div class="card reveal"><div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div><h3>Tú decides qué se publica</h3><p>Nada sale a YouTube sin tu aprobación en la revisión final.</p></div>
   </div>
 </div></section>
@@ -131,7 +130,7 @@ footer a:hover{color:var(--fg)}
         <li>Abre ATRIL y sigue los pasos de bienvenida.</li>
         <li>Las próximas versiones se instalan desde la app con <b>un clic</b>.</li>
       </ol>
-      <div class="cta" style="margin-top:22px"><a class="btn btn-p" id="dl2" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">Descargar instalador</a><a class="btn btn-g" id="zip" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">Versión portátil (.zip)</a></div>
+      <div class="cta" style="margin-top:22px"><a class="btn btn-p" id="dl2" rel="noopener noreferrer" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">Descargar instalador</a><a class="btn btn-g" id="zip" rel="noopener noreferrer" href="https://github.com/GasparRojasDiego/Youtube-Automation/releases/latest">Versión portátil (.zip)</a></div>
     </div>
     <div class="reveal">
       <div class="card"><b>Requisitos</b>
@@ -142,7 +141,8 @@ footer a:hover{color:var(--fg)}
           <li>Opcional: claves de Google (voz), OpenAI o Gemini (imágenes), Pixabay y Freesound (gratis)</li>
         </ol>
       </div>
-      <p class="note">Tus claves se guardan cifradas en el Administrador de credenciales de Windows. ATRIL no tiene servidor: todo queda en tu equipo.</p>
+      <p class="note">Tus claves se guardan cifradas en el Administrador de credenciales de Windows y nunca salen de tu equipo: ATRIL no tiene servidor. Cada versión publica su huella SHA-256 y un certificado de procedencia de GitHub; la app verifica la huella antes de instalar una actualización.</p>
+      <p class="note mono" id="sha" style="word-break:break-all"></p>
     </div>
   </div>
 </div></section>
@@ -156,49 +156,9 @@ footer a:hover{color:var(--fg)}
 <footer><div class="wrap">
   <span>© 2026 VT Asvent · ATRIL</span>
   <span class="mono" id="ver"></span>
-  <div class="links"><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a><a href="mailto:gr.diegofz17@gmail.com">Contacto</a></div>
+  <div class="links"><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a><a rel="noopener noreferrer" href="https://github.com/GasparRojasDiego/Youtube-Automation/security/policy" rel="noopener noreferrer">Seguridad</a><a href="mailto:gr.diegofz17@gmail.com">Contacto</a></div>
 </div></footer>
 
-<script>
-(function(){
-  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var css = getComputedStyle(document.documentElement);
-  function primary(){ return css.getPropertyValue('--p').trim() || '#7591ff'; }
-  function hexA(h,a){ var n=parseInt(h.replace('#',''),16); return 'rgba('+(n>>16)+','+((n>>8)&255)+','+(n&255)+','+a+')'; }
-  // Constelación
-  var c=document.getElementById('stars'), x=c.getContext('2d'), W=0,H=0,P=[],mx=0,my=0,tx=0,ty=0;
-  function size(){ var d=Math.min(2,devicePixelRatio||1); W=c.clientWidth; H=c.clientHeight; c.width=W*d; c.height=H*d; x.setTransform(d,0,0,d,0,0);
-    var n=Math.min(90,Math.floor(W*H/16000)); P=[]; for(var i=0;i<n;i++)P.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.35,vy:(Math.random()-.5)*.35,r:.8+Math.random()*1.4,d:.3+Math.random()*.7}); }
-  addEventListener('mousemove',function(e){ tx=(e.clientX/innerWidth-.5)*30; ty=(e.clientY/innerHeight-.5)*30; });
-  function draw(){ var col=primary(); mx+=(tx-mx)*.06; my+=(ty-my)*.06; x.clearRect(0,0,W,H);
-    for(var i=0;i<P.length;i++){var p=P[i]; if(!reduce){p.x+=p.vx;p.y+=p.vy; if(p.x<0||p.x>W)p.vx*=-1; if(p.y<0||p.y>H)p.vy*=-1;}}
-    x.lineWidth=.6;
-    for(var i=0;i<P.length;i++)for(var j=i+1;j<P.length;j++){var a=P[i],b=P[j],ax=a.x+mx*a.d,ay=a.y+my*a.d,bx=b.x+mx*b.d,by=b.y+my*b.d,d=Math.hypot(ax-bx,ay-by); if(d<140){x.strokeStyle=hexA(col,(1-d/140)*.3); x.beginPath(); x.moveTo(ax,ay); x.lineTo(bx,by); x.stroke();}}
-    x.fillStyle=hexA(col,.65); for(var i=0;i<P.length;i++){var p=P[i]; x.beginPath(); x.arc(p.x+mx*p.d,p.y+my*p.d,p.r,0,6.283); x.fill();}
-    requestAnimationFrame(draw); }
-  size(); addEventListener('resize',size); draw();
-  // Líneas curvas que fluyen
-  var svg=document.getElementById('flow'), NS='http://www.w3.org/2000/svg', html='';
-  for(var i=0;i<7;i++){ var y=900*(.18+i/6*.68), amp=18+(i*37)%50, per=520+(i*131)%380, ph=(i*97)%300, sh=per*Math.max(1,Math.round(800/per)), d='M '+(-per+ph)+' '+y;
-    for(var k=-1;k<Math.ceil((1600+sh+per)/per)+1;k++){ var x0=k*per+ph; d+=' C '+(x0+per*.25)+' '+(y-amp)+', '+(x0+per*.25)+' '+(y-amp)+', '+(x0+per*.5)+' '+y+' S '+(x0+per*.75)+' '+(y+amp)+', '+(x0+per)+' '+y; }
-    html+='<g style="--s:'+sh+'px;animation-duration:'+(46+(i*17)%40)+'s;animation-direction:'+(i%2?'reverse':'normal')+'"><path d="'+d+'" fill="none" stroke="'+primary()+'" stroke-opacity="'+(0.08+((i*13)%9)/100)+'" stroke-width="'+(i%3?0.8:1.2)+'" vector-effect="non-scaling-stroke"/></g>'; }
-  svg.innerHTML=html;
-  // Texto que se descifra
-  var G='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  function scramble(el,delay){ var t=el.textContent, t0=0; if(reduce)return; function f(ts){ if(!t0)t0=ts+delay; var k=Math.max(0,Math.min(1,(ts-t0)/700)), r=Math.floor(k*t.length), s=''; for(var i=0;i<t.length;i++) s+= i<r||t[i]===' '||t[i]==='.' ? t[i] : G[(Math.floor(ts/40)+i*7)%G.length]; el.textContent=s; if(k<1)requestAnimationFrame(f); } requestAnimationFrame(f); }
-  scramble(document.getElementById('t1'),0); scramble(document.getElementById('t2'),250);
-  // Aparición al hacer scroll
-  var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('on'); io.unobserve(e.target);} }); },{threshold:.12});
-  document.querySelectorAll('.reveal').forEach(function(el,i){ el.style.transitionDelay=(i%3)*80+'ms'; io.observe(el); });
-  // Última versión publicada
-  fetch('https://api.github.com/repos/GasparRojasDiego/Youtube-Automation/releases/latest').then(function(r){return r.json();}).then(function(rel){
-    var v=(rel.tag_name||'').replace(/^v/,''); var a=(rel.assets||[]).find(function(x){return /_instalador_x64\.exe$/i.test(x.name);}); var z=(rel.assets||[]).find(function(x){return /_portable_x64\.zip$/i.test(x.name);});
-    if(a){ var mb=Math.round(a.size/1048576); ['dl','dl2'].forEach(function(id){ document.getElementById(id).href=a.browser_download_url; }); document.getElementById('dlt').textContent='Descargar ATRIL '+v; document.getElementById('meta').textContent='Versión '+v+' · Windows 10/11 · 64 bits · '+mb+' MB · Se actualiza con un clic'; }
-    if(z) document.getElementById('zip').href=z.browser_download_url;
-    if(rel.html_url) document.getElementById('notes').href=rel.html_url;
-    if(v) document.getElementById('ver').textContent='v'+v;
-  }).catch(function(){});
-})();
-</script>
+<script src="app.js" defer></script>
 </body>
 </html>

@@ -50,7 +50,6 @@ export interface AppSettings {
     libraryDir: string;                 // vacío = Documentos\ATRIL\Biblioteca
     sources: Record<"openverse" | "pexels" | "pixabay" | "wikimedia" | "nasa" | "met" | "freesound", boolean>;
     candidatesPerBeat: number;          // candidatos descargados por toma cuando la biblioteca no basta
-    libraryFirst: boolean;              // reutilizar lo ya descargado antes de buscar en internet
     allowGenerated: boolean;            // permitir imágenes generadas (con costo) cuando no hay material libre
     visionBatch: number;                // imágenes por llamada de visión
     maxClipSeconds: number;
@@ -62,7 +61,7 @@ export interface AppSettings {
     critique: boolean;                  // revisión visual de cada animación (Sonnet) y una corrección (Opus)
     perCall: number;                    // composiciones por llamada a Opus
   };
-  ffmpeg: { path: string; ffprobePath: string; encoder: "auto" | "h264_qsv" | "h264_mf" | "libx264"; quality: number };
+  ffmpeg: { path: string; encoder: "auto" | "h264_qsv" | "h264_mf" | "libx264"; quality: number };
 }
 
 export const SETTINGS_VERSION = 23;
@@ -114,13 +113,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     libraryDir: "",
     sources: { openverse: true, pexels: true, pixabay: true, wikimedia: true, nasa: true, met: true, freesound: true },
     candidatesPerBeat: 3,
-    libraryFirst: true,
     allowGenerated: true,
     visionBatch: 10,
     maxClipSeconds: 5,
   },
   motion: { enabled: true, browserPath: "", perVideo: 10, critique: true, perCall: 2 },
-  ffmpeg: { path: "", ffprobePath: "", encoder: "auto", quality: 21 },
+  ffmpeg: { path: "", encoder: "auto", quality: 21 },
 };
 
 function deepMerge<T>(base: T, over: any): T {

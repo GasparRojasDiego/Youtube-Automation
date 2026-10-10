@@ -22,7 +22,19 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' asset: http://asset.localhost data: blob:",
+        "media-src": "'self' asset: http://asset.localhost blob:",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "frame-src": "'none'",
+        "form-action": "'none'"
+      },
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -31,7 +43,8 @@
           ],
           "requireLiteralLeadingDot": false
         }
-      }
+      },
+      "freezePrototype": true
     }
   },
   "bundle": {
@@ -45,8 +58,7 @@
     "category": "Video",
     "shortDescription": "Estudio de producción asistida para YouTube",
     "externalBin": [
-      "binaries/ffmpeg",
-      "binaries/ffprobe"
+      "binaries/ffmpeg"
     ],
     "icon": [
       "icons/32x32.png",

@@ -1,43 +1,62 @@
-// TikTok: divide un video terminado en partes de ~1:30 (cortando en la pausa
-// entre frases más cercana), las pasa a vertical 9:16 y las guarda en
-// Descargas/<título>/parte 1.mp4 … parte final.mp4.
-import { fs, appPaths, resourcePath } from "../lib/ipc";
-import { updateVideo, getStages, type Video } from "../lib/repo";
+// TikTok y descargas: cada video terminado se copia solo a Descargas; «Recortar»
+// lo parte en piezas de ~1:30 sin recodificar (copia directa, segundos), con cada
+// corte en un fotograma clave que cae, si es posible, en la pausa entre dos frases.
+import { fs, appPaths } from "../lib/ipc";
+import { updateVideo, getStages, getVideo, type Video } from "../lib/repo";
 import { skillParams, MONTAGE_DEFAULTS } from "../lib/skills";
-import { claudeRun } from "../providers/claude";
 import { ffmpeg } from "../providers/ffmpeg";
 import { joinPath } from "../lib/util";
 import { segInfos, segmentOffsets } from "./timeline";
-import { obj, arr, str } from "./prompts";
 import type { ScriptOut, VoiceOut, PackageOut, RenderOut } from "./types";
 
 export interface Part { start: number; end: number }
-export interface TikTokData { parts: Part[]; hashtags: string[]; caption: string; vertical: boolean; label: boolean; exportedTo?: string; exportedAt?: number }
+export interface TikTokData { parts: Part[]; exportedTo?: string; exportedAt?: number }
+type Pause = number | { start: number; end: number };
+
+const mid = (p: Pause) => (typeof p === "number" ? p : (p.start + p.end) / 2);
+const inside = (t: number, p: Pause, tol = 0.05) => (typeof p === "number" ? Math.abs(t - p) <= tol : t >= p.start - tol && t <= p.end + tol);
 
 /**
- * Cortes cada `target` s; cada corte se mueve a la pausa más cercana (±`snap` s).
- * Si la última parte dura menos de `target`, se une a la anterior.
+ * Cortes cada `target` s. Sin fotogramas clave, el corte va a la pausa más
+ * cercana (±`snap` s). Con fotogramas clave (copia sin recodificar), el corte
+ * es un fotograma clave: primero uno dentro de una pausa, luego el más cercano
+ * a una pausa, y si no hay, el más cercano al punto ideal. Si la última parte
+ * dura menos de `target`, se une a la anterior.
  */
-export function splitPlan(total: number, pauses: number[], target = 90, snap = 6): Part[] {
+export function splitPlan(total: number, pauses: Pause[], keys?: number[] | null, target = 90, snap = 8): Part[] {
   if (total <= target) return [{ start: 0, end: total }];
   const cuts: number[] = [];
   let t = 0;
+  const pick = (ideal: number, lo: number): number => {
+    if (!keys?.length) {
+      const near = pauses.map(mid).filter((p) => p > lo && p < total && Math.abs(p - ideal) <= snap).sort((a, b) => Math.abs(a - ideal) - Math.abs(b - ideal))[0];
+      return near ?? ideal;
+    }
+    for (const w of [snap, snap * 2]) {
+      const cand = keys.filter((k) => k > lo && k < total - 1 && Math.abs(k - ideal) <= w);
+      if (!cand.length) continue;
+      const byIdeal = (a: number, b: number) => Math.abs(a - ideal) - Math.abs(b - ideal);
+      const inPause = cand.filter((k) => pauses.some((p) => inside(k, p))).sort(byIdeal)[0];
+      if (inPause != null) return inPause;
+      const dist = (k: number) => Math.min(...pauses.map((p) => Math.abs(k - mid(p))), Infinity);
+      return [...cand].sort((a, b) => dist(a) - dist(b) || byIdeal(a, b))[0];
+    }
+    return ideal;
+  };
   while (total - t > target) {
-    const ideal = t + target;
-    const near = pauses.filter((p) => p > t + target / 2 && p < total && Math.abs(p - ideal) <= snap).sort((a, b) => Math.abs(a - ideal) - Math.abs(b - ideal))[0];
-    const c = Math.round((near ?? ideal) * 100) / 100;
+    const c = Math.round(pick(t + target, t + target / 2) * 1000) / 1000;
     cuts.push(c); t = c;
   }
   if (cuts.length && total - cuts[cuts.length - 1] < target) cuts.pop();
   const edges = [0, ...cuts, total];
-  return edges.slice(0, -1).map((s, i) => ({ start: s, end: Math.round(edges[i + 1] * 100) / 100 }));
+  return edges.slice(0, -1).map((s, i) => ({ start: s, end: Math.round(edges[i + 1] * 1000) / 1000 }));
 }
 
 /** Nombre de archivo de cada parte. */
 export const partName = (i: number, n: number) => (n > 1 && i === n - 1 ? "parte final" : `parte ${i + 1}`);
 
-/** Pausas entre frases (segundos globales del video final). */
-export async function sentencePauses(v: Video): Promise<number[]> {
+/** Pausas entre frases y entre segmentos (segundos globales del video final). */
+export async function pauseIntervals(v: Video): Promise<{ start: number; end: number }[]> {
   const st = await getStages(v.id);
   const script = st.find((s) => s.stage === "script")?.output as ScriptOut | undefined;
   const voice = st.find((s) => s.stage === "voice")?.output as VoiceOut | undefined;
@@ -45,75 +64,74 @@ export async function sentencePauses(v: Video): Promise<number[]> {
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
   const segs = segInfos(script, voice);
   const off = segmentOffsets(segs, montage.pauseBetweenSegments);
-  const out: number[] = [];
+  const out: { start: number; end: number }[] = [];
   for (const s of segs) {
     for (let i = 0; i < s.spans.length; i++) {
       const next = s.spans[i + 1];
-      out.push(off[s.id] + (next ? (s.spans[i].end + next.start) / 2 : s.narration + montage.pauseBetweenSegments / 2));
+      out.push(next ? { start: off[s.id] + s.spans[i].end, end: off[s.id] + next.start } : { start: off[s.id] + s.spans[i].end, end: off[s.id] + s.narration + montage.pauseBetweenSegments });
     }
   }
   return out;
 }
 
-export async function planParts(v: Video): Promise<Part[]> {
-  const render = (await getStages(v.id)).find((s) => s.stage === "render")?.output as RenderOut | undefined;
-  if (!render) throw new Error("El video aún no está montado.");
-  return splitPlan(render.duration, await sentencePauses(v));
+/** Tiempos de los fotogramas clave (solo se decodifican esos: unos segundos). */
+export async function keyframes(file: string): Promise<number[]> {
+  const log = await ffmpeg(["-hide_banner", "-nostats", "-skip_frame", "nokey", "-i", file, "-map", "0:v:0", "-vf", "showinfo", "-f", "null", "-"], { timeoutS: 600 });
+  return [...log.matchAll(/pts_time:\s*([\d.]+)/g)].map((m) => Number(m[1])).filter((x) => isFinite(x)).sort((a, b) => a - b);
 }
 
-const HASHTAG_SCHEMA = obj({ hashtags: arr(str("Hashtag starting with #, no spaces"), "5-8 hashtags: 2-3 broad + the rest specific to the topic"), caption_en: str("Short TikTok caption (max 120 characters) that hooks the viewer") });
-
-/** Hashtags y texto sugerido para publicar en TikTok (Sonnet, barato). */
-export async function suggestHashtags(v: Video): Promise<{ hashtags: string[]; caption: string }> {
-  const pkg = (await getStages(v.id)).find((s) => s.stage === "package")?.output as PackageOut | undefined;
-  const fallback = () => ({ hashtags: ["#fyp", "#history", ...(pkg?.tags ?? []).slice(0, 5).map((t) => `#${t.replace(/[^a-z0-9]/gi, "")}`)].filter((t) => t.length > 2), caption: v.title });
-  try {
-    const r = await claudeRun<{ hashtags: string[]; caption_en: string }>({
-      stage: "package", label: "Hashtags de TikTok", system: "You are a TikTok growth expert for educational/storytelling content in English (US audience).", schema: HASHTAG_SCHEMA, quiet: true,
-      prompt: `Suggest hashtags and a caption for a multi-part TikTok series cut from this YouTube video.\nTitle: ${pkg?.chosen_title ?? v.title}\nDescription: ${(pkg?.description_body_en ?? "").slice(0, 800)}\nTags: ${(pkg?.tags ?? []).join(", ")}`,
-      videoId: v.id, channelId: v.channel_id,
-    });
-    const tags = (r.data.hashtags ?? []).map((t) => `#${t.replace(/^#/, "").replace(/\s+/g, "")}`).filter((t) => t.length > 2).slice(0, 8);
-    return tags.length ? { hashtags: tags, caption: r.data.caption_en || v.title } : fallback();
-  } catch { return fallback(); }
-}
-
-export async function saveTikTok(v: Video, data: TikTokData) {
-  await updateVideo(v.id, { data: { tiktok: data } });
+/** Texto y hashtags para TikTok: los del paquete del video (sin llamadas extra a Claude). */
+export function tiktokText(v: Video, pkg?: PackageOut | null): { caption: string; hashtags: string[] } {
+  const tag = (t: string) => `#${t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "")}`;
+  const fromPkg = (pkg?.tiktok_hashtags ?? []).map(tag).filter((t) => t.length > 2);
+  const hashtags = fromPkg.length ? fromPkg.slice(0, 8) : ["#fyp", ...(pkg?.tags ?? []).slice(0, 6).map(tag)].filter((t, i, a) => t.length > 2 && a.indexOf(t) === i);
+  const first = (pkg?.description_body_en ?? "").split(/(?<=[.!?])\s/)[0] ?? "";
+  return { caption: pkg?.tiktok_caption_en || (first.length > 20 && first.length <= 150 ? first : pkg?.chosen_title || v.title), hashtags };
 }
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "video";
 
-/** Argumentos de ffmpeg de una parte (vertical con fondo desenfocado, o tal cual). */
-export function partArgs(o: { input: string; start: number; dur: number; out: string; vertical: boolean; label: string | null; font: string }): string[] {
-  const head = ["-y", "-hide_banner", "-loglevel", "error", "-ss", o.start.toFixed(3), "-t", o.dur.toFixed(3), "-i", o.input];
-  const enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", o.out];
-  const text = o.label ? `,drawtext=fontfile=${o.font}:text='${o.label.replace(/'/g, "")}':x=(w-tw)/2:y=${o.vertical ? 250 : 60}:fontsize=${o.vertical ? 76 : 54}:fontcolor=white:borderw=5:bordercolor=black@0.55` : "";
-  if (!o.vertical) return [...head, ...(text ? ["-vf", text.slice(1)] : []), ...enc];
-  const f = `[0:v]split[a][b];[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=28:2,eq=brightness=-0.10:saturation=1.1[bg];[b]scale=1080:-2[fg];[bg][fg]overlay=0:(H-h)/2${text}[v]`;
-  return [...head, "-filter_complex", f, "-map", "[v]", "-map", "0:a?", ...enc];
+async function finished(v: Video): Promise<{ render: RenderOut; title: string }> {
+  const st = await getStages(v.id);
+  const render = st.find((s) => s.stage === "render")?.output as RenderOut | undefined;
+  if (!render || !(await fs.exists(render.file))) throw new Error("No encuentro el video final: vuelve a ejecutar el montaje.");
+  const pkg = st.find((s) => s.stage === "package")?.output as PackageOut | undefined;
+  return { render, title: pkg?.chosen_title || v.title };
 }
 
-/** Exporta las partes a Descargas/<título>/. Devuelve la carpeta. */
-export async function exportParts(v: Video, data: TikTokData, onProgress: (text: string) => void): Promise<string> {
-  const render = (await getStages(v.id)).find((s) => s.stage === "render")?.output as RenderOut | undefined;
-  if (!render || !(await fs.exists(render.file))) throw new Error("No encuentro el video final.");
-  const dir = joinPath((await appPaths()).downloads, safeName(v.title));
+/** Copia el video terminado a Descargas (lo reemplaza si ya estaba). */
+export async function downloadVideo(v: Video): Promise<string> {
+  const { render, title } = await finished(v);
+  const dest = joinPath((await appPaths()).downloads, `${safeName(title)}.mp4`);
+  await fs.copy(render.file, dest);
+  await updateVideo(v.id, { data: { download: dest } });
+  return dest;
+}
+
+/** El video en Descargas; si se borró, se vuelve a descargar. */
+export async function ensureDownloaded(v: Video): Promise<string> {
+  const fresh = (await getVideo(v.id)) ?? v;
+  const p = fresh.data.download as string | undefined;
+  return p && (await fs.exists(p)) ? p : downloadVideo(fresh);
+}
+
+/** Recorta el video descargado en partes de ~1:30 dentro de Descargas/<título>/. Devuelve la carpeta. */
+export async function cutParts(v: Video, onProgress: (text: string) => void): Promise<string> {
+  const src = await ensureDownloaded(v);
+  const { render, title } = await finished(v);
+  onProgress("Buscando los puntos de corte…");
+  const keys = await keyframes(src).catch(() => null);
+  const parts = splitPlan(render.duration, await pauseIntervals(v), keys);
+  const dir = joinPath((await appPaths()).downloads, safeName(title));
   await fs.mkdir(dir);
-  const font = "_fuente.ttf";
-  await fs.copy(joinPath(await resourcePath("fonts"), "Poppins-Bold.ttf"), joinPath(dir, font));
-  const n = data.parts.length;
-  try {
-    for (const [i, p] of data.parts.entries()) {
-      const name = partName(i, n);
-      onProgress(`Exportando ${name} (${i + 1}/${n})…`);
-      const label = data.label && n > 1 ? (i === n - 1 ? "Parte final" : `Parte ${i + 1}`) : null;
-      await ffmpeg(partArgs({ input: render.file, start: p.start, dur: p.end - p.start, out: `${name}.mp4`, vertical: data.vertical, label, font }), {
-        cwd: dir, timeoutS: 1800,
-        onSeconds: (sec) => onProgress(`Exportando ${name} (${i + 1}/${n}) · ${Math.min(100, Math.round((sec / (p.end - p.start)) * 100))} %`),
-      });
-    }
-  } finally { await fs.remove(joinPath(dir, font)).catch(() => null); }
-  await saveTikTok(v, { ...data, exportedTo: dir, exportedAt: Date.now() });
+  for (const f of await fs.list(dir)) if (/^parte .+\.mp4$/i.test(f.name)) await fs.remove(f.path);
+  for (const [i, p] of parts.entries()) {
+    onProgress(`Copiando ${partName(i, parts.length)} (${i + 1}/${parts.length})…`);
+    // Copia directa: entra en el fotograma clave del corte y no recodifica nada
+    await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (i ? p.start + 0.02 : 0).toFixed(3), "-i", src, "-t", (p.end - p.start).toFixed(3),
+      "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", `${partName(i, parts.length)}.mp4`], { cwd: dir, timeoutS: 600 });
+  }
+  const data: TikTokData = { parts, exportedTo: dir, exportedAt: Date.now() };
+  await updateVideo(v.id, { data: { tiktok: data } });
   return dir;
 }

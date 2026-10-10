@@ -58,9 +58,17 @@ const ipc: Plugin = {
   },
 };
 
+// Con PREVIEW_STRICT=1 la página corre con la misma política de seguridad que la app (CSP y prototipos congelados)
+const strict: Plugin = {
+  name: "atril-preview-strict",
+  transformIndexHtml: (html) => process.env.PREVIEW_STRICT
+    ? html.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' ws:; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'"><script>Object.freeze(Object.prototype);Object.freeze(Array.prototype);</script>`)
+    : html,
+};
+
 export default defineConfig({
   root: ROOT,
-  plugins: [react(), ipc],
+  plugins: [react(), ipc, strict],
   resolve: {
     alias: {
       "@tauri-apps/api/core": path.join(here, "shim-core.ts"),

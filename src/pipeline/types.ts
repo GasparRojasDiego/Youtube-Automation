@@ -56,6 +56,8 @@ export interface PackageOut {
   chosen_thumbnail: number;
   synthetic_media: boolean;
   synthetic_reason_es: string;
+  tiktok_caption_en?: string;
+  tiktok_hashtags?: string[];
   chapters: { t: number; title: string }[];
   srt: string;
   motion_count?: number;
