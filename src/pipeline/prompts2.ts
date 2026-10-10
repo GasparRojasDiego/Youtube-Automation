@@ -23,6 +23,7 @@ export const STORYBOARD_SCHEMA = obj({
       card_text: str("title/quote/text cards: exact short text (from the narration). Empty otherwise"),
       source_id: str("source_card: the source id. Empty otherwise"),
       motion_brief_en: str("motion/map: the sequence, scene by scene, as visual actions (shapes, icons, diagram, camera, transitions) plus the few key numbers/words (≤ 6 per scene). Empty otherwise"),
+      user_file_id: str("photo/clip: id of an operator file (USER FILES) to show in this shot; empty otherwise"),
     }), "1-3 shots that share the beat time, in order"),
     sfx: arr(obj({ at: en(["start", "end"]), type: str(`One of: ${SFX_TYPES}`), query_en: str("Freesound-style query, e.g. 'cinematic whoosh short'") }), "0-2 sound effects (every motion sequence, transition and reveal gets one)"),
   })),
@@ -35,6 +36,7 @@ export const STORYBOARD_SCHEMA = obj({
 export function storyboardPrompt(o: {
   skills: string; visual: unknown; shotSeconds: [number, number]; motionBudget: number; minutes: number; aiImages: boolean; maxClip: number; humor: boolean;
   segments: { id: string; title: string; sentences: { i: number; text: string; dur: number }[]; on_screen_sources: string[] }[]; sources: unknown;
+  userFiles?: { id: string; kind: string; description: string }[]; onlyUserFiles?: boolean;
 }) {
   const minMotion = Math.max(1, Math.ceil(o.minutes));
   return `You are the editor building the first cut of this video: a storyboard that covers every sentence with strong visuals, plus sound design. The goal is a high-retention, premium-looking YouTube video.${wrapSkills(o.skills)}
@@ -60,7 +62,12 @@ Rules:
 - Sound design is part of the edit: every motion sequence starts with an effect (whoosh, riser, impact or glitch), reveals get an impact or pop, scene changes a whoosh/swoosh, documents a typewriter or paper sound, photos a camera shutter. About 1 effect every 10–20 s overall.
 - Music: one soft instrumental bed per group of chapters, matching the mood; give a search query.
 
-SOURCES: ${JSON.stringify(o.sources)}
+${o.userFiles?.length ? `USER FILES (provided by the operator — they have priority: show each one at least once, where it fits best, by setting visual "photo" for images or "clip" for videos and user_file_id to its id):
+${o.userFiles.map((f) => `- ${f.id} (${f.kind}): ${f.description}`).join("\n")}
+
+` : ""}${o.onlyUserFiles ? `ONLY OPERATOR MATERIAL: do not use photo/archival/clip/meme/ai_image shots except with a user_file_id from USER FILES. Everything else must be motion, map or cards (you may repeat a user file with different framing).
+
+` : ""}SOURCES: ${JSON.stringify(o.sources)}
 
 SEGMENTS:
 ${o.segments.map((s) => `## ${s.id} — ${s.title}${s.on_screen_sources.length ? ` (on-screen sources: ${s.on_screen_sources.join(", ")})` : ""}\n${s.sentences.map((t) => `[${t.i}] (${t.dur.toFixed(1)} s) ${t.text}`).join("\n")}`).join("\n\n")}`;
@@ -204,22 +211,43 @@ export const MOTION_SCHEMA = obj({
   })),
 });
 
-export function motionPrompt(o: { skills: string; palette: unknown; items: { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string }[]; icons: string[] }[] }) {
-  return `Create these ${o.items.length} animation(s). Return one composition per item with the same id. Fullscreen items are multi-scene motion-design sequences; overlays are short, clean graphics over footage.${wrapSkills(o.skills)}
+/**
+ * System prompt de las animaciones de UN video: contrato + reglas del canal +
+ * paleta. Es idéntico en todas sus llamadas (diseño y correcciones), así que
+ * Claude lo guarda en caché y las llamadas en paralelo no lo vuelven a pagar.
+ */
+export function motionSystem(o: { skills: string; palette: unknown }) {
+  return `${MOTION_SYSTEM}${wrapSkills(o.skills)}
 
-Brand palette and fonts: ${JSON.stringify(o.palette)}
+Brand palette and fonts: ${JSON.stringify(o.palette)}`;
+}
 
-${o.items.map((it) => `### ${it.id} — ${it.kind === "overlay" ? "OVERLAY (transparent background, over footage)" : "FULLSCREEN (opaque, replaces footage)"} — exactly ${it.duration.toFixed(2)} s
+export interface MotionBrief { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string }[]; icons: string[] }
+
+export function motionPrompt(it: MotionBrief) {
+  return `Create this animation. Return exactly one composition with id "${it.id}". Fullscreen items are multi-scene motion-design sequences; overlays are short, clean graphics over footage.
+
+### ${it.id} — ${it.kind === "overlay" ? "OVERLAY (transparent background, over footage)" : "FULLSCREEN (opaque, replaces footage)"} — exactly ${it.duration.toFixed(2)} s
 Brief: ${it.brief}
 On-screen text (verbatim): ${it.text || "(none)"}
 Narration at that moment: "${it.context}"
 Libraries: ${it.libs.join(", ") || "none"}
 Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a.description}`).join("; ") : "none"}
-Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}`).join("\n\n")}`;
+Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}`;
 }
 
-export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[]; skills?: string }) {
-  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the full corrected composition (same id) through the structured output only — no explanations. Keep what works. If a listed problem asks for something that breaks a channel rule below, keep the rule and ignore that problem.${o.skills ? wrapSkills(o.skills) : ""}
+const codeBlock = (code: { css: string; html: string; js: string }) => `<css>
+${code.css}
+</css>
+<html>
+${code.html}
+</html>
+<js>
+${code.js}
+</js>`;
+
+export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[] }) {
+  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the full corrected composition (same id) through the structured output only — no explanations. Keep what works. If a listed problem asks for something that breaks a channel rule, keep the rule and ignore that problem.
 
 Brief: ${o.item.brief}
 Text: ${o.item.text || "(none)"}
@@ -228,15 +256,46 @@ PROBLEMS:
 ${o.problems.map((p) => `- ${p}`).join("\n")}
 
 CURRENT CODE:
-<css>
-${o.code.css}
-</css>
-<html>
-${o.code.html}
-</html>
-<js>
-${o.code.js}
-</js>`;
+${codeBlock(o.code)}`;
+}
+
+// ---------- Corrección por parches (rápida: solo devuelve los cambios) ----------
+export const PATCH_SCHEMA = obj({
+  rewrite: bool("true only if the fix needs restructuring most of the code; then edits must be empty and a full rewrite will be requested"),
+  edits: arr(obj({
+    part: en(["css", "html", "js"]),
+    find: str("Exact substring copied verbatim from the CURRENT code of that part, unique in it, as short as possible (1–6 lines)"),
+    replace: str("Replacement text"),
+  }), "Minimal search/replace edits, applied in order"),
+  sfx_changed: bool("true if the timing of the key movements changed"),
+  sfx: arr(obj({ at: num(), type: str(`One of: ${SFX_TYPES}`), query_en: str() }), "Only when sfx_changed: the full new list of synced sound effects"),
+});
+
+export function motionPatchPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[] }) {
+  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them with MINIMAL search/replace edits — do not rewrite the composition. Each "find" must be copied character-for-character from the current code of its part and appear exactly once there. Keep everything that works. If a listed problem asks for something that breaks a channel rule, keep the rule and ignore that problem. Only if the problems truly require restructuring most of the code, return rewrite=true with no edits.
+
+Brief: ${o.item.brief}
+Text: ${o.item.text || "(none)"}
+
+PROBLEMS:
+${o.problems.map((p) => `- ${p}`).join("\n")}
+
+CURRENT CODE:
+${codeBlock(o.code)}`;
+}
+
+/** Aplica los parches; devuelve null si alguno no encaja (entonces se pide la versión completa). */
+export function applyPatch(code: { css: string; html: string; js: string }, edits: { part: "css" | "html" | "js"; find: string; replace: string }[]): { css: string; html: string; js: string } | null {
+  if (!edits.length) return null;
+  const out = { ...code };
+  for (const e of edits) {
+    const src = out[e.part];
+    if (typeof src !== "string" || !e.find) return null;
+    const at = src.indexOf(e.find);
+    if (at < 0 || src.indexOf(e.find, at + 1) >= 0) return null;   // no está o es ambiguo
+    out[e.part] = src.slice(0, at) + e.replace + src.slice(at + e.find.length);
+  }
+  return out;
 }
 
 // ---------- Revisión visual de una animación (Sonnet) ----------
@@ -246,16 +305,20 @@ export const CRITIQUE_SCHEMA = obj({
   severity: en(["none", "minor", "major"]),
 });
 
-export function critiquePrompt(o: { kind: string; brief: string; text: string; skills?: string }) {
-  return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a documentary.
-Brief: ${o.brief}
-Expected text (verbatim): ${o.text || "(none)"}
-Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.kind === "overlay" ? "" : `
-Also a defect (severity "major"): the piece is dominated by text — in 4 or more of the 6 frames the main content is text on a plain background — or it is visually static (one element, nothing building or transforming). Name what visual should replace the text.`}${o.skills ? `
+/** System prompt de la revisión visual: igual para todas las animaciones del video (se guarda en caché). */
+export function critiqueSystem(skills: string) {
+  return `You are a strict broadcast design reviewer.${skills ? `
 
-CHANNEL RULES (they override the brief): following them is correct even where the brief says otherwise (e.g. a colour the brief asks for but a rule forbids) — never report that as a defect. Breaking one of them is a defect.${o.kind === "overlay" ? " This is an overlay: rules for fullscreen scenes (visual protagonist, text budget) do not apply to it." : ""}
+CHANNEL RULES (they override the brief): following them is correct even where the brief says otherwise (e.g. a colour the brief asks for but a rule forbids) — never report that as a defect. Breaking one of them is a defect. For overlays, rules about fullscreen scenes (visual protagonist, text budget) do not apply.
 <channel_rules>
-${o.skills.slice(0, 12000)}
+${skills.slice(0, 12000)}
 </channel_rules>` : ""}`;
 }
 
+export function critiquePrompt(o: { kind: string; brief: string; text: string }) {
+  return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a documentary.
+Brief: ${o.brief}
+Expected text (verbatim): ${o.text || "(none)"}
+Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.kind === "overlay" ? " This is an overlay." : `
+Also a defect (severity "major"): the piece is dominated by text — in 4 or more of the 6 frames the main content is text on a plain background — or it is visually static (one element, nothing building or transforming). Name what visual should replace the text.`}`;
+}

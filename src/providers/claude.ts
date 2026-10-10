@@ -174,7 +174,8 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
     args.push("--input-format", "stream-json");
     stdin = JSON.stringify({ type: "user", message: { role: "user", content } }) + "\n";
   }
-  const runId = c.jobId ?? uid("p_");
+  // Id propio por llamada (varias corren en paralelo); «Detener» mata todas las de la tarea por el prefijo
+  const runId = c.jobId ? `${c.jobId}:${uid("c")}` : uid("p_");
   const stage = c.activityStage ?? c.stage;
   const model = cfg.models[c.stage] || "sonnet";
   const startedAt = Date.now();

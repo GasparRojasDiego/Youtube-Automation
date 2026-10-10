@@ -71,7 +71,7 @@ export const proc = {
     cp.on("error", (e) => { err += String(e); });
     if (r.stdin != null) cp.stdin!.end(r.stdin); else cp.stdin!.end();
   }),
-  kill: async (id: string) => { const c = running.get(id); if (c) c.kill("SIGKILL"); return !!c; },
+  kill: async (id: string) => { let any = false; for (const [k, c] of running) if (k === id || k.startsWith(`${id}:`)) { c.kill("SIGKILL"); any = true; } return any; },
   which: async (program: string) => {
     if (path.isAbsolute(program)) return nfs.existsSync(program) ? program : null;
     for (const d of (process.env.PATH ?? "").split(":")) { const f = path.join(d, program); if (nfs.existsSync(f)) return f; }

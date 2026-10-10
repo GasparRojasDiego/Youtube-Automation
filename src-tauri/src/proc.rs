@@ -184,11 +184,18 @@ pub async fn proc_run(app: tauri::AppHandle, procs: tauri::State<'_, Procs>, req
 
 #[tauri::command]
 pub fn proc_kill(procs: tauri::State<'_, Procs>, id: String) -> bool {
-    let pid = procs.0.lock().unwrap().remove(&id);
-    match pid {
-        Some(pid) => kill_tree(pid),
-        None => false,
+    // Mata el proceso con ese id y todos los de la misma tarea («id:…»), que corren en paralelo
+    let prefix = format!("{id}:");
+    let pids: Vec<u32> = {
+        let mut map = procs.0.lock().unwrap();
+        let keys: Vec<String> = map.keys().filter(|k| **k == id || k.starts_with(&prefix)).cloned().collect();
+        keys.iter().filter_map(|k| map.remove(k)).collect()
+    };
+    let mut any = false;
+    for pid in pids {
+        any |= kill_tree(pid);
     }
+    any
 }
 
 fn kill_tree(pid: u32) -> bool {

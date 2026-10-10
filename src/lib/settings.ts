@@ -58,13 +58,16 @@ export interface AppSettings {
     enabled: boolean;
     browserPath: string;                // vacío = Microsoft Edge o Google Chrome detectados
     perVideo: number;
-    critique: boolean;                  // revisión visual de cada animación (Sonnet) y una corrección (Opus)
-    perCall: number;                    // composiciones por llamada a Opus
+    critique: boolean;                  // revisión visual de cada animación y su corrección
+    parallel: number;                   // animaciones que Claude diseña a la vez
+    renders: number;                    // animaciones que el navegador renderiza a la vez (memoria)
+    maxFixes: number;                   // correcciones como máximo por animación
   };
+  assets: { parallel: number };         // tomas que se buscan y descargan a la vez
   ffmpeg: { path: string; encoder: "auto" | "h264_qsv" | "h264_mf" | "libx264"; quality: number };
 }
 
-export const SETTINGS_VERSION = 23;
+export const SETTINGS_VERSION = 24;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: SETTINGS_VERSION,
@@ -117,7 +120,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     visionBatch: 10,
     maxClipSeconds: 5,
   },
-  motion: { enabled: true, browserPath: "", perVideo: 10, critique: true, perCall: 2 },
+  motion: { enabled: true, browserPath: "", perVideo: 10, critique: true, parallel: 4, renders: 2, maxFixes: 2 },
+  assets: { parallel: 4 },
   ffmpeg: { path: "", encoder: "auto", quality: 21 },
 };
 
@@ -164,6 +168,7 @@ async function migrateSettings(s: AppSettings, from: number): Promise<AppSetting
     if (!s.claude.models.fix) { s.claude.models.fix = s.claude.models.motion || "opus"; s.claude.effort.fix = s.claude.effort.motion || "high"; }
     for (const k of ["budget", "review", "ui"]) delete (s as any)[k];
   }
+  if (from < 24) delete (s.motion as any).perCall;   // ahora cada animación va en su propia llamada, en paralelo
   s.settingsVersion = SETTINGS_VERSION;
   await db.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('app',?)", [JSON.stringify(s)]);
   return s;

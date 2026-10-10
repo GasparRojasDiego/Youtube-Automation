@@ -12,7 +12,7 @@ async function bin(): Promise<string> {
 }
 
 export async function ffmpeg(args: string[], opts: { jobId?: string; onSeconds?: (s: number) => void; timeoutS?: number; cwd?: string } = {}): Promise<string> {
-  const id = opts.jobId ?? uid("ff_");
+  const id = opts.jobId ? `${opts.jobId}:${uid("f")}` : uid("ff_");
   let off: (() => void) | null = null;
   if (opts.onSeconds) off = await proc.onLine((e) => { if (e.id === id) { const s = parseProgressSeconds(e.line); if (s != null) opts.onSeconds!(s); } });
   try {

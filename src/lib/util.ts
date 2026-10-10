@@ -6,6 +6,23 @@ export const uid = (prefix = "") =>
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Limita cuántas tareas corren a la vez; las demás esperan su turno en orden (el turno pasa directo al siguiente). */
+export function limiter(n: number) {
+  const max = Math.max(1, Math.floor(n) || 1);
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (active < max) active++; else await new Promise<void>((r) => waiting.push(r));
+    try { return await fn(); } finally { const next = waiting.shift(); if (next) next(); else active--; }
+  };
+}
+
+/** Aplica fn a cada elemento con hasta n a la vez; los resultados quedan en el orden original. */
+export const mapLimit = <T, R>(items: T[], n: number, fn: (x: T, i: number) => Promise<R>): Promise<R[]> => {
+  const run = limiter(n);
+  return Promise.all(items.map((x, i) => run(() => fn(x, i))));
+};
+
 export function safeJson<T>(text: string | null | undefined, fallback: T): T {
   if (!text) return fallback;
   try { return JSON.parse(text) as T; } catch { return fallback; }

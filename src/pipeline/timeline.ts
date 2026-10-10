@@ -23,7 +23,7 @@ export function segInfos(script: ScriptOut, voice: { segments: { segment_id: str
   });
 }
 
-interface RawShot { visual: string; query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string; card_text?: string; source_id?: string; motion_brief_en?: string; image_prompt_en?: string }
+interface RawShot { visual: string; query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string; card_text?: string; source_id?: string; motion_brief_en?: string; image_prompt_en?: string; user_file_id?: string }
 interface RawBeat { segment_id: string; from: number; to: number; shots: RawShot[]; sfx?: { at: "start" | "end"; type: string; query_en: string }[] }
 
 const VISUAL_TYPES: VisualType[] = ["photo", "archival", "clip", "meme", "ai_image", "motion", "map", "source_card", "quote_card", "title_card", "text_card"];
@@ -95,7 +95,7 @@ export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: 
           id: `s${String(++n).padStart(3, "0")}`, segment_id: seg.id, beat: beatN, from: b.from, to: b.to, visual,
           query_en: query || undefined, alt_queries_en: (r.alt_queries_en ?? []).filter(Boolean).slice(0, 3),
           must_show_es: r.must_show_es ?? "", avoid_es: r.avoid_es ?? "", card_text: r.card_text?.trim() || undefined,
-          source_id: r.source_id || undefined, motion_brief_en: brief || undefined,
+          source_id: r.source_id || undefined, motion_brief_en: brief || undefined, user_file_id: r.user_file_id || undefined,
           image_prompt_en: visual === "ai_image" ? (r.image_prompt_en?.trim() || query) : r.image_prompt_en?.trim() || undefined,
         };
         if ((visual === "title_card" || visual === "quote_card" || visual === "text_card") && !sh.card_text) sh.card_text = visual === "title_card" ? seg.title : shortPhrase(seg.sentences[b.from]);

@@ -8,6 +8,7 @@ import { claudeRun } from "../providers/claude";
 import { activity } from "../lib/activity";
 import { emit } from "../lib/bus";
 import { db } from "../lib/ipc";
+import { mapLimit } from "../lib/util";
 import { visionProxy, saveDescription, type Asset } from "./library";
 
 export const VISION_SYSTEM = `You are the visual librarian of a documentary studio. You look at media files once and write a precise catalogue entry so that nobody ever needs to look at them again.
@@ -47,14 +48,15 @@ export async function describeAssets(assets: Asset[], ctx: { videoId?: string | 
   const todo = assets.filter((a) => (a.kind === "image" || a.kind === "video") && !a.described_at);
   const size = Math.max(1, getSettings().media.visionBatch);
   let done = 0;
-  for (let i = 0; i < todo.length; i += size) {
-    const batch = todo.slice(i, i + size);
+  const batches = Array.from({ length: Math.ceil(todo.length / size) }, (_, i) => todo.slice(i * size, (i + 1) * size));
+  // Varios lotes a la vez: cada uno es una llamada independiente que espera sobre todo a la red
+  await mapLimit(batches, 3, async (batch) => {
     const images: { label: string; path: string }[] = [];
     for (const a of batch) {
       try { images.push({ label: `File id: ${a.id} (${a.kind === "video" ? `video clip, ${Math.round(a.duration ?? 0)} s, contact sheet` : "image"}; source title: "${a.title.slice(0, 120)}")`, path: await visionProxy(a) }); }
       catch { /* archivo ilegible: se omite */ }
     }
-    if (!images.length) continue;
+    if (!images.length) return;
     await activity(ctx.videoId, ctx.stage ?? "assets", "read", `Describiendo ${images.length} archivo(s)`, batch.map((a) => a.title).join(" · "));
     const r = await claudeRun<{ items: any[] }>({
       stage: "vision", label: `Visión: ${images.length} archivos`, system: VISION_SYSTEM, schema: VISION_SCHEMA, images, quiet: true,
@@ -69,7 +71,7 @@ export async function describeAssets(assets: Asset[], ctx: { videoId?: string | 
       await activity(ctx.videoId, ctx.stage ?? "assets", "asset", it.caption_en || a.title, it.description_es, a.thumb);
     }
     emit("assets");
-  }
+  });
   return done;
 }
 

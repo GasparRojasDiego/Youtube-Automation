@@ -3,11 +3,11 @@
 // motion) → montaje por capas. Todo reanudable y visible en el Estudio en vivo.
 import { fs, db, fileUrl, appPaths, secrets } from "../lib/ipc";
 import { getSettings, SECRET } from "../lib/settings";
-import { composeSkills, skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS } from "../lib/skills";
+import { skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS } from "../lib/skills";
 import { listMusic, updateVideo } from "../lib/repo";
 import { UserError, log } from "../lib/events";
 import { activity, setLive } from "../lib/activity";
-import { joinPath, sha256, now, uid } from "../lib/util";
+import { joinPath, sha256, now, uid, limiter, mapLimit, sleep } from "../lib/util";
 import { claudeRun } from "../providers/claude";
 import { generateImage, imageProvider, type Provenance } from "../providers/images";
 import { ffmpeg, probeDuration, pickEncoder, filterScriptModern } from "../providers/ffmpeg";
@@ -17,13 +17,13 @@ import { searchSources, rankCandidates, sourceReady, SOURCE_LABEL, type AssetKin
 import { synthSfx, sfxKind } from "../media/sfx";
 import { elevenSoundEffect } from "../providers/tts";
 import { describeAssets } from "../media/vision";
-import { launchBrowser, closeBrowser, renderComposition, MotionError, EngineError, type Browser } from "../motion/engine";
+import { launchBrowser, closeBrowser, renderComposition, previewComposition, MotionError, EngineError, type Browser } from "../motion/engine";
 import { tauriHost, requireBrowser, motionResources } from "../motion/host";
 import type { Composition } from "../motion/page";
 import { renderSourceCard, renderTitleCard, renderQuoteCard, renderTextCard } from "./cards";
 import { out, need, checkCancel, type Ctx } from "./stages";
 import * as P2 from "./prompts2";
-import { SYSTEM_BASE } from "./prompts";
+import { personalOf, systemFor, skillsFor } from "./personal";
 import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, iconKey, motionCues, type MotionSfxRaw, type SegInfo, type PolishRaw } from "./timeline";
 import { segmentV2Args, finalMixV2Args, withFilterScript, segmentV2Duration, type LayerShot, type LayerOverlay } from "./montage2";
 import { concatList } from "./montage";
@@ -72,23 +72,34 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const segs = segInfos(script, voice);
   const narrTotal = segs.reduce((a, s) => a + s.narration, 0);
   const budget = await motionBudget(narrTotal);
-  const sbSkills = await composeSkills(v.channel_id, ["visuals", "montage"]);
-  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION]));
+  const sbSkills = await skillsFor(v, ["visuals", "montage"]);
+  // Archivos del usuario (modo Personal): se describen con visión y el storyboard los reparte
+  const personal = personalOf(v);
+  const userAssets = personal ? [...(await getAssets(personal.files.map((f) => f.asset_id ?? "").filter(Boolean))).values()].filter((a) => a.kind === "image" || a.kind === "video") : [];
+  if (userAssets.some((a) => !a.described_at)) {
+    await ctx.progress("Mirando tus archivos…");
+    await describeAssets(userAssets, { videoId: v.id, channelId: v.channel_id, stage: "storyboard", jobId: ctx.jobId });
+  }
+  const userFiles = [...(await getAssets(userAssets.map((a) => a.id))).values()].map((a) => ({ id: a.id, kind: a.kind === "video" ? `video, ${Math.round(a.duration ?? 0)} s` : "image", description: (a.description || a.tags.split(",")[0] || a.title).slice(0, 300) }));
+  const onlyUser = !!personal && !personal.useLibrary;
+  const aiOk = !onlyUser && (await aiImagesReady());
+  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION, userFiles.map((f) => f.id), onlyUser]));
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
 
   await ctx.progress("Armando el storyboard…");
   const r = await claudeRun<{ beats: any[]; music: any[]; emphasis: { segment_id: string; words: string[] }[]; notes_es: string; skills_check_es?: string[] }>({
-    stage: "storyboard", activityStage: "storyboard", label: "Storyboard", system: SYSTEM_BASE, schema: P2.STORYBOARD_SCHEMA,
+    stage: "storyboard", activityStage: "storyboard", label: "Storyboard", system: systemFor(v), schema: P2.STORYBOARD_SCHEMA,
     prompt: P2.storyboardPrompt({
       skills: sbSkills,
-      visual, shotSeconds: montage.shotSeconds, motionBudget: budget, minutes: narrTotal / 60, aiImages: await aiImagesReady(), maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor,
+      visual, shotSeconds: montage.shotSeconds, motionBudget: budget, minutes: narrTotal / 60, aiImages: aiOk, maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor && !personal,
+      userFiles, onlyUserFiles: onlyUser,
       segments: segs.map((s) => ({ id: s.id, title: s.title, on_screen_sources: script.segments.find((x) => x.id === s.id)?.on_screen_sources ?? [],
         sentences: s.sentences.map((t, i) => ({ i, text: t, dur: Math.max(0.3, (s.spans[i]?.end ?? 0) - (s.spans[i]?.start ?? 0)) })) })),
       sources: research.sources.map((x) => ({ id: x.id, title: x.title, publisher: x.publisher })),
     }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
   });
-  const { shots: raw, beatSfx } = repairStoryboard(r.data.beats ?? [], segs, budget, new Set(research.sources.map((x) => x.id)), { aiImages: await aiImagesReady(), maxCards: P2.MAX_CARDS });
+  const { shots: raw, beatSfx } = repairStoryboard(r.data.beats ?? [], segs, budget, new Set(research.sources.map((x) => x.id)), { aiImages: aiOk, maxCards: P2.MAX_CARDS });
   const shots = layoutShots(raw, segs, montage.pauseBetweenSegments);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
   const sfx = beatSfxToCues(beatSfx, shots, offsets);
@@ -156,13 +167,14 @@ async function huntShot(ctx: Ctx, sh: Shot, exclude: Set<string>): Promise<{ can
  * Efectos de sonido: para cada uno, la biblioteca → Freesound → ElevenLabs
  * (si está activado) → síntesis propia con ffmpeg. Nunca se omite un efecto.
  */
-async function resolveSfx(ctx: Ctx, cues: SfxCue[], stage = "assets"): Promise<SfxCue[]> {
+async function resolveSfx(ctx: Ctx, cues: SfxCue[], stage = "assets", synthOnly = false): Promise<SfxCue[]> {
   const st = getSettings();
   const v = ctx.video;
   const cacheDir = joinPath((await appPaths()).data, "efectos");
   await fs.mkdir(cacheDir);
-  const elKey = st.sfx.elevenlabs ? await secrets.get(SECRET.elevenlabsApiKey) : null;
-  const freesound = await sourceReady("freesound");
+  // «Solo mis archivos»: los efectos se sintetizan aquí (nada descargado ni de la biblioteca)
+  const elKey = st.sfx.elevenlabs && !synthOnly ? await secrets.get(SECRET.elevenlabsApiKey) : null;
+  const freesound = !synthOnly && (await sourceReady("freesound"));
   const found = new Map<string, { path: string; duration?: number; origin: NonNullable<SfxCue["origin"]>; asset_id?: string | null; offset: number }>();
   const outCues: SfxCue[] = [];
   const count: Record<string, number> = {};
@@ -174,7 +186,7 @@ async function resolveSfx(ctx: Ctx, cues: SfxCue[], stage = "assets"): Promise<S
     const q = (c.query_en || c.type).toLowerCase().trim();
     const lead = kind === "riser" ? -1.8 : kind === "whoosh" ? -0.35 : kind === "swoosh" ? -0.2 : 0; // el pico cae en el corte
     let hit = found.get(q) ?? null;
-    if (!hit) {
+    if (!hit && !synthOnly) {
       const lib = (await searchLibrary(q, "sfx", 1))[0] ?? (await searchLibrary(kind, "sfx", 1))[0];
       if (lib) hit = { path: lib.path, duration: lib.duration ?? undefined, origin: "library", asset_id: lib.id, offset: lead };
     }
@@ -214,12 +226,20 @@ async function resolveSfx(ctx: Ctx, cues: SfxCue[], stage = "assets"): Promise<S
 
 const words = (s: string) => new Set(s.toLowerCase().match(/[a-z]{3,}/g) ?? []);
 
-async function resolveMusic(ctx: Ctx, beds: MusicBed[]): Promise<MusicBed[]> {
+async function resolveMusic(ctx: Ctx, beds: MusicBed[], userAudio: string[] = [], onlyOwn = false): Promise<MusicBed[]> {
   const tracks = (await listMusic()).filter((t) => t.enabled);
   const usedTrack = new Set<string>();
   const outBeds: MusicBed[] = [];
-  for (const b of beds) {
+  const mine = [...(await getAssets(userAudio)).values()];
+  for (const [i, b] of beds.entries()) {
     if (b.path && (await fs.exists(b.path))) { outBeds.push(b); continue; }
+    // 0) audio que subió el usuario para este video
+    if (mine.length) {
+      const a = mine[i % mine.length];
+      outBeds.push({ ...b, asset_id: a.id, path: a.path, title: a.title });
+      await activity(ctx.video.id, "assets", "audio", `Música: tu archivo «${a.title}»`);
+      continue;
+    }
     const want = words(b.mood_en);
     // 1) pistas propias (p. ej. Biblioteca de audio de YouTube), las más seguras para monetizar
     const own = tracks.map((t) => ({ t, s: [...words(`${t.mood} ${t.title}`)].filter((w) => want.has(w)).length - (usedTrack.has(t.id) ? 0.5 : 0) }))
@@ -230,6 +250,7 @@ async function resolveMusic(ctx: Ctx, beds: MusicBed[]): Promise<MusicBed[]> {
       await activity(ctx.video.id, "assets", "audio", `Música: «${own.t.title}» (${b.mood_en})`);
       continue;
     }
+    if (onlyOwn) { outBeds.push({ ...b, path: null }); continue; }
     // 2) biblioteca y 3) fuentes libres
     let a: Asset | null = (await searchLibrary(b.mood_en, "music", 1, { minDur: 40 }))[0] ?? null;
     if (!a) {
@@ -281,22 +302,25 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
   const pool = new Map<string, Asset[]>();
   const chosen = new Set<string>();
   const narr = (sh: Shot) => shotNarration(sh, segs.find((x) => x.id === sh.segment_id)!);
-  const aiReady = await aiImagesReady();
+  const personal = personalOf(v);
+  const onlyUser = !!personal && !personal.useLibrary;
+  const aiReady = !onlyUser && (await aiImagesReady());
   const aiCap = s.images.perVideo;
   let aiUsed = 0;
 
   // Imagen con IA para una toma (respeta el tope por video)
   const generate = async (sh: Shot, why: string): Promise<boolean> => {
     if (!aiReady || aiUsed >= aiCap) return false;
+    aiUsed++;   // se reserva antes de esperar: varias se crean a la vez sin pasar el tope
     try {
       await ctx.progress(`Creando imagen con IA para ${sh.id}…`);
       const r = await generateImage({ prompt: imagePromptFor(sh, narr(sh), visualP.imageStyle), outBase: joinPath(dir, `${sh.id}-ia-${Date.now().toString(36)}`), videoId: v.id, channelId: v.channel_id, label: `toma ${sh.id}` });
-      aiUsed++;
       Object.assign(sh, { path: r.path, media: "image", provenance: r.provenance, asset_id: null, error: null, focus_x: 0.5, focus_y: 0.45 });
       await activity(v.id, "assets", "asset", `${sh.id}: imagen con IA (${why})`, r.provenance.provider, r.path);
       setLive(v.id, { frame: r.path, caption: `Imagen con IA: ${sh.id}` });
       return true;
     } catch (e) {
+      aiUsed--;
       await activity(v.id, "assets", "warn", `${sh.id}: no se pudo crear la imagen con IA`, e instanceof UserError ? `${e.userMessage}\n${e.detail.slice(0, 400)}` : String(e));
       return false;
     }
@@ -313,24 +337,46 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
       reused++;
     }
   }
+  // 1b) Archivos del usuario: los elegidos en el storyboard; con «solo lo mío», también el resto de tomas
+  const userAssets = personal ? [...(await getAssets(personal.files.map((f) => f.asset_id ?? "").filter(Boolean))).values()].filter((a) => a.kind === "image" || a.kind === "video") : [];
+  const useFile = (sh: Shot, a: Asset, alt = 0) => {
+    Object.assign(sh, { asset_id: a.id, path: a.path, media: a.kind === "video" ? "video" : "image", provenance: assetProvenance(a), error: null,
+      focus_x: alt % 2 ? 0.35 : 0.5, focus_y: 0.45, clip_in: a.kind === "video" ? 0 : undefined, visual: a.kind === "video" ? "clip" : sh.visual === "clip" ? "photo" : sh.visual,
+      motion: alt % 2 ? "pan_left" : undefined });
+    chosen.add(a.id);
+  };
+  for (const sh of media.filter((x) => !x.path && x.user_file_id)) {
+    const a = userAssets.find((u) => u.id === sh.user_file_id);
+    if (a) { useFile(sh, a); await activity(v.id, "assets", "decision", `${sh.id}: tu archivo «${a.title}»`, "", a.thumb); }
+  }
+  if (onlyUser) {
+    let k = 0;
+    for (const sh of media.filter((x) => !x.path)) {
+      if (userAssets.length) { useFile(sh, userAssets[k % userAssets.length], Math.floor(k / userAssets.length)); k++; continue; }
+      sh.visual = "text_card"; sh.card_text = shortPhrase(narr(sh));   // sin archivos propios: tarjeta (se dibuja en el paso 6)
+    }
+  }
   // 2) Tomas pensadas para IA: se crean primero (si falla, se busca material como una foto)
-  for (const sh of media.filter((x) => x.visual === "ai_image" && !x.path)) {
+  // (en paralelo: las imágenes con IA y las búsquedas esperan sobre todo a la red)
+  const par = Math.max(1, s.assets.parallel);
+  await mapLimit(media.filter((x) => x.visual === "ai_image" && !x.path), Math.min(3, par), async (sh) => {
     checkCancel(ctx);
     // Antes de crear (y pagar) una imagen, se mira si la biblioteca ya tiene una buena para esta toma
     const good = (await libraryHits({ ...sh, query_en: sh.query_en || keywordsQuery(narr(sh)) }, "image", chosen)).filter((a) => a.described_at && a.quality >= 4 && a.usable !== 0 && !a.real_person);
-    if (good.length) { sh.visual = "photo"; await activity(v.id, "assets", "search", `${sh.id}: la biblioteca ya tiene ${good.length} imagen(es) adecuada(s); no se crea con IA`); continue; }
+    if (good.length) { sh.visual = "photo"; await activity(v.id, "assets", "search", `${sh.id}: la biblioteca ya tiene ${good.length} imagen(es) adecuada(s); no se crea con IA`); return; }
     if (!(await generate(sh, "pedida en el storyboard"))) sh.visual = "photo";
-  }
+  });
   const toHunt = media.filter((x) => !x.path);
-  for (const [i, sh] of toHunt.entries()) {
+  let hunted = 0;
+  await mapLimit(toHunt, par, async (sh) => {
     checkCancel(ctx);
-    await ctx.progress(`Buscando material ${i + 1}/${toHunt.length}: ${sh.query_en}`);
     const r = await huntShot(ctx, sh, chosen);
     pool.set(sh.id, r.candidates);
     sh.candidates = r.candidates.map((a) => a.id);
     downloaded += r.downloaded.length;
     allNew.push(...r.downloaded);
-  }
+    await ctx.progress(`Buscando material: ${++hunted}/${toHunt.length}`);
+  });
   // 3) Visión: describir una sola vez lo descargado (en lotes)
   const toDescribe = [...new Map([...allNew, ...[...pool.values()].flat()].filter((a) => !a.described_at).map((a) => [a.id, a])).values()];
   let described = 0;
@@ -347,7 +393,7 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
       const chunk = pending.slice(i, i + 30);
       await ctx.progress(`Eligiendo material (${Math.min(i + 30, pending.length)}/${pending.length})…`);
       const r = await claudeRun<{ picks: { shot_id: string; asset_id: string; focus_x: number; focus_y: number; clip_in: number; note_es: string }[] }>({
-        stage: "storyboard", activityStage: "assets", label: "Casting de material", system: SYSTEM_BASE, schema: P2.CASTING_SCHEMA, quiet: true,
+        stage: "storyboard", activityStage: "assets", label: "Casting de material", system: systemFor(v), schema: P2.CASTING_SCHEMA, quiet: true,
         prompt: P2.castingPrompt({ shots: chunk.map((sh) => ({
           id: sh.id, narration: narr(sh), visual: sh.visual, must_show_es: sh.must_show_es ?? "", avoid_es: sh.avoid_es ?? "", dur: sh.dur ?? 3,
           candidates: pool.get(sh.id)!.map((a) => fresh.get(a.id) ?? a).filter((a) => a.usable).map((a) => ({
@@ -369,10 +415,11 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
     }
   }
   // 5) Tomas sin material: imagen con IA → material de la biblioteca relacionado → imagen ya usada en el capítulo → (último recurso) tarjeta
-  for (const sh of media.filter((x) => !x.path)) {
+  const missing = media.filter((x) => !x.path);
+  fallbacks = missing.length;
+  await mapLimit(missing.filter((x) => x.visual !== "clip"), Math.min(3, par), (sh) => generate(sh, "sin material libre adecuado"));
+  for (const sh of missing.filter((x) => !x.path)) {
     checkCancel(ctx);
-    fallbacks++;
-    if (sh.visual !== "clip" && (await generate(sh, "sin material libre adecuado"))) continue;
     const related = (await searchLibrary(keywordsQuery(narr(sh)) || sh.query_en || "", "image", 6, { excludeIds: [...chosen] })).filter((a) => a.usable !== 0 && !a.real_person)[0];
     if (related) {
       Object.assign(sh, { asset_id: related.id, path: related.path, media: "image", focus_x: 0.5, focus_y: 0.5, provenance: assetProvenance(related), visual: sh.visual === "clip" ? "photo" : sh.visual });
@@ -406,8 +453,8 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
   }
   // 7) Sonido: efectos y camas musicales
   await ctx.progress("Efectos de sonido y música…");
-  const sfx = await resolveSfx(ctx, sb.sfx);
-  const music = await resolveMusic(ctx, sb.music);
+  const sfx = await resolveSfx(ctx, sb.sfx, "assets", onlyUser);
+  const music = await resolveMusic(ctx, sb.music, personal ? personal.files.filter((f) => f.kind === "audio" && f.asset_id).map((f) => f.asset_id!) : [], onlyUser);
   await markUsed(shots.map((x) => x.asset_id).filter(Boolean) as string[]);
   const cards = shots.filter((x) => x.provenance?.kind === "card" && x.visual !== "motion" && x.visual !== "map").length;
   await activity(v.id, "assets", "decision", `Medios: ${downloaded} descargados · ${aiUsed} con IA · ${cards} tarjeta(s) · ${sfx.length} efectos`);
@@ -427,7 +474,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
   const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const captions = await skillParams(v.channel_id, "subtitulos", CAPTION_DEFAULTS);
-  const polishSkills = await composeSkills(v.channel_id, ["montage", "edit"]);
+  const polishSkills = await skillsFor(v, ["montage", "edit"]);
   const key = `${assets.key}:${(await sha256(JSON.stringify([polishSkills, montage, visual, captions.enabled]))).slice(0, 16)}`;
   if (prev && prev.key === key && !prev.skipped) return prev;
   const segs = segInfos(script, voice);
@@ -445,7 +492,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   await ctx.progress("Opus pule la edición…");
   await activity(v.id, "polish", "think", "Opus revisa el corte");
   const r = await claudeRun<PolishRaw>({
-    stage: "polish", activityStage: "polish", label: "Retoques de edición", system: SYSTEM_BASE, schema: P2.POLISH_SCHEMA,
+    stage: "polish", activityStage: "polish", label: "Retoques de edición", system: systemFor(v), schema: P2.POLISH_SCHEMA,
     prompt: P2.polishPrompt({ skills: polishSkills,
       motionBudget: budget, edl, captions: captions.enabled, palette: { background: visual.background, foreground: visual.foreground, accent: visual.accent, muted: visual.muted, fontTitle: visual.fontTitle, fontBody: visual.fontBody } }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
@@ -482,7 +529,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
 }
 
 // ======================= 8. Animaciones (Opus + motor) =======================
-async function contactSheet(samples: string[], outPath: string, transparent: boolean) {
+export async function contactSheet(samples: string[], outPath: string, transparent: boolean) {
   const args = ["-y", "-hide_banner", "-loglevel", "error"];
   samples.forEach((s) => args.push("-i", s));
   const n = samples.length;
@@ -502,7 +549,8 @@ async function resolveMotionSfx(ctx: Ctx, items: MotionItem[]) {
   if (!pending.length) return;
   // Se desplazan 10 s para que el adelanto de un whoosh (su pico cae en el golpe) pueda quedar antes del inicio de la animación
   const all = pending.flatMap((m) => (m.sfx ?? []).map((c) => ({ ...c, id: `${m.id}|${c.id}`, at: c.at + 10 })));
-  const done = await resolveSfx(ctx, all, "motion");
+  const p = personalOf(ctx.video);
+  const done = await resolveSfx(ctx, all, "motion", !!p && !p.useLibrary);
   for (const m of pending) m.sfx = done.filter((c) => c.id.startsWith(`${m.id}|`)).map((c) => ({ ...c, id: c.id.slice(m.id.length + 1), at: Math.round((c.at - 10) * 100) / 100 }));
 }
 
@@ -518,12 +566,12 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const segs = segInfos(script, voice);
   const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
   const palette = { background: visual.background, foreground: visual.foreground, muted: visual.muted, accent: visual.accent, fontTitle: visual.fontTitle, fontBody: visual.fontBody, fontMono: visual.fontMono };
-  const skills = await composeSkills(v.channel_id, ["motion"]);
+  const skills = await skillsFor(v, ["motion"]);
   const dir = joinPath(v.dir, "motion");
   await fs.mkdir(dir);
   const assetMap = await getAssets([...new Set(items.flatMap((m) => m.asset_ids ?? []))]);
   const skillsKey = (await sha256(skills)).slice(0, 12);
-  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette, skillsKey]));
+  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette, skillsKey, m.revise_en ?? ""]));
   // Reutilizar lo ya renderizado
   for (const m of items) {
     const old = prev?.items.find((p) => p.hash === m.hash && p.file);
@@ -558,112 +606,156 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     icons: iconsFor(m),
   });
 
-  const render = async (m: MotionItem, comp: Composition) => {
-    const ext = comp.transparent ? "mov" : "mp4";
-    const file = joinPath(dir, `${m.id}-${m.hash!.slice(0, 8)}.${ext}`);
-    const r = await renderComposition(browser!, comp, {
-      ...res, workDir: joinPath(work, m.id), out: file, samples: [0.12, 0.3, 0.5, 0.7, 0.85, 0.98],
-      cancelled: () => ctx.cancelled(),
-      onFrame: (i, n, pv) => {
-        if (i % 15 === 0 || i === n) void ctx.progress(`Animación ${m.id}: cuadro ${i}/${n}`);
-        if (pv) setLive(v.id, { frame: `data:${pv.mime};base64,${pv.b64}`, caption: `Renderizando animación ${m.id} · cuadro ${i}/${n}`, progress: i / n });
-      },
-    });
-    return r;
+  // Cada animación avanza sola: diseño → vista previa (6 cuadros) → revisión → corrección por parches → render completo.
+  // Claude trabaja en varias a la vez; el navegador renderiza pocas a la vez para no agotar la memoria.
+  const sys = P2.motionSystem({ skills, palette });
+  const critSys = P2.critiqueSystem(skills);
+  const SAMPLES = [0.12, 0.3, 0.5, 0.7, 0.85, 0.98];
+  const maxFixes = Math.max(0, cfg.maxFixes);
+  const claudeSlot = limiter(cfg.parallel);
+  const renderSlot = limiter(cfg.renders);
+  let engineFail: string | null = null;
+  const stopped = () => ctx.cancelled() || !!engineFail;
+  // La primera llamada va sola unos segundos: deja el system prompt en caché y las demás lo leen de ahí (menos tokens)
+  let warm: Promise<unknown> | null = null;
+  const ask = <T>(fn: () => Promise<T>) => claudeSlot(async () => {
+    if (engineFail) throw new EngineError(engineFail);
+    checkCancel(ctx);
+    if (!warm) warm = sleep(12_000); else await warm;
+    return fn();
+  });
+  const state = new Map<string, string>();
+  const report = (id: string, st: string) => {
+    state.set(id, st);
+    const n = (k: string) => [...state.values()].filter((x) => x === k).length;
+    const parts = [["diseñando", "diseñando"], ["revisando", "en revisión"], ["corrigiendo", "corrigiéndose"], ["renderizando", "renderizándose"]].map(([k, l]) => (n(k) ? `${n(k)} ${l}` : "")).filter(Boolean);
+    void ctx.progress(`Animaciones: ${n("lista")}/${todo.length} listas${parts.length ? ` · ${parts.join(" · ")}` : ""}`);
+  };
+  type Code = { id?: string; css: string; html: string; js: string; libs: ("map" | "d3")[]; sfx?: MotionSfxRaw[] };
+  const brief = (m: MotionItem) => ({ id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "" });
+  const run = <T>(o: { stage: "motion" | "fix" | "critique"; label: string; system: string; schema: object; prompt: string; images?: { label: string; path: string }[] }) =>
+    ask(() => claudeRun<T>({ ...o, activityStage: "motion", quiet: true, videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId }));
+
+  const compose = async (m: MotionItem): Promise<Code | null> => {
+    const r = await run<{ compositions: Code[] }>({ stage: "motion", label: `Animación ${m.id}`, system: sys, schema: P2.MOTION_SCHEMA,
+      prompt: P2.motionPrompt({ ...brief(m), libs: m.libs ?? [], context: contextOf(m), icons: Object.keys(iconsFor(m)),
+        assets: assetsFor(m).map((x) => ({ key: x.key, description: (x.a!.tags.split(",")[0] || x.a!.title).slice(0, 120) })) }) });
+    const cs = r.data.compositions ?? [];
+    return cs.find((x) => x.id === m.id) ?? cs[0] ?? null;
   };
 
-  const compose = async (batch: MotionItem[]) => {
-    const r = await claudeRun<{ compositions: { id: string; title: string; duration: number; css: string; html: string; js: string; libs: ("map" | "d3")[]; sfx?: MotionSfxRaw[] }[] }>({
-      stage: "motion", activityStage: "motion", label: `Animaciones ${batch.map((x) => x.id).join(", ")}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
-      prompt: P2.motionPrompt({ skills, palette, items: batch.map((m) => ({ id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "", libs: m.libs ?? [], context: contextOf(m),
-        assets: assetsFor(m).map((x) => ({ key: x.key, description: (x.a!.tags.split(",")[0] || x.a!.title).slice(0, 120) })), icons: Object.keys(iconsFor(m)) })) }),
-      videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
-    });
-    return r.data.compositions ?? [];
-  };
-
-  const fix = async (m: MotionItem, code: { css: string; html: string; js: string }, problems: string[]) => {
-    await activity(v.id, "motion", "motion", `Opus corrige la animación ${m.id}`, problems.join("\n"));
-    const r = await claudeRun<{ compositions: { id: string; css: string; html: string; js: string; libs: ("map" | "d3")[]; sfx?: MotionSfxRaw[] }[] }>({
-      stage: "fix", activityStage: "motion", label: `Corrección de animación ${m.id}`, system: P2.MOTION_SYSTEM, schema: P2.MOTION_SCHEMA,
-      prompt: P2.motionFixPrompt({ item: { id: m.id, kind: m.kind, duration: m.duration, brief: m.brief_en, text: m.text ?? "" }, code, problems, skills }),
-      videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
-    });
-    return r.data.compositions?.[0] ?? null;
+  // Corrección: primero solo los cambios (rápida); si no encajan, la versión completa
+  const fix = async (m: MotionItem, c: Code, problems: string[]): Promise<Code | null> => {
+    report(m.id, "corrigiendo");
+    await activity(v.id, "motion", "motion", `Claude corrige la animación ${m.id}`, problems.join("\n"));
+    const r = await run<{ rewrite: boolean; edits: { part: "css" | "html" | "js"; find: string; replace: string }[]; sfx_changed: boolean; sfx: MotionSfxRaw[] }>({
+      stage: "fix", label: `Corrección de ${m.id}`, system: sys, schema: P2.PATCH_SCHEMA, prompt: P2.motionPatchPrompt({ item: brief(m), code: c, problems }) });
+    const patched = r.data.rewrite ? null : P2.applyPatch(c, r.data.edits ?? []);
+    if (patched) {
+      await activity(v.id, "motion", "decision", `Corrección de ${m.id}: ${r.data.edits.length} cambio(s) puntual(es)`);
+      return { ...c, ...patched, sfx: r.data.sfx_changed && r.data.sfx?.length ? r.data.sfx : c.sfx };
+    }
+    await activity(v.id, "motion", "warn", r.data.rewrite ? `${m.id}: la corrección necesita rehacer el código` : `${m.id}: los cambios no encajaron; se pide la versión completa`);
+    const full = await run<{ compositions: Code[] }>({ stage: "fix", label: `Corrección completa de ${m.id}`, system: sys, schema: P2.MOTION_SCHEMA,
+      prompt: P2.motionFixPrompt({ item: brief(m), code: c, problems }) });
+    const f = full.data.compositions?.[0];
+    return f ? { ...c, ...f } : null;
   };
 
   const critique = async (m: MotionItem, samples: string[]): Promise<{ ok: boolean; problems: string[] }> => {
     const sheet = joinPath(work, m.id, "hoja.jpg");
     await contactSheet(samples, sheet, m.kind === "overlay");
     setLive(v.id, { frame: sheet, caption: `Revisión visual de la animación ${m.id}` });
-    const r = await claudeRun<{ ok: boolean; problems_en: string[]; severity: string }>({
-      stage: "critique", activityStage: "motion", label: `Revisión visual ${m.id}`, system: "You are a strict broadcast design reviewer.", schema: P2.CRITIQUE_SCHEMA, quiet: true,
-      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "", skills }), images: [{ label: "Frames:", path: sheet }],
-      videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
-    });
+    const r = await run<{ ok: boolean; problems_en: string[]; severity: string }>({
+      stage: "critique", label: `Revisión visual ${m.id}`, system: critSys, schema: P2.CRITIQUE_SCHEMA,
+      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "" }), images: [{ label: "Frames:", path: sheet }] });
     const ok = r.data.ok || r.data.severity !== "major";
     await activity(v.id, "motion", ok ? "done" : "warn", `Revisión de ${m.id}: ${ok ? "aprobada" : "con defectos"}`, (r.data.problems_en ?? []).join("\n"));
     return { ok, problems: r.data.problems_en ?? [] };
   };
 
-  let failed = 0;
-  let engineFail: string | null = null;
-  try {
-    await activity(v.id, "motion", "stage", "Abriendo el motor de animaciones");
-    browser = await launchBrowser(tauriHost, browserPath, work);
-    outer: for (let i = 0; i < todo.length; i += Math.max(1, cfg.perCall)) {
-      checkCancel(ctx);
-      const batch = todo.slice(i, i + Math.max(1, cfg.perCall));
-      await ctx.progress(`Opus diseña ${batch.length === 1 ? "la animación" : "las animaciones"} ${batch.map((x) => x.id).join(", ")}…`);
-      let comps: Awaited<ReturnType<typeof compose>> = [];
-      try { comps = await compose(batch); }
-      catch (e) { for (const m of batch) { m.error = e instanceof Error ? e.message : String(e); failed++; } continue; }
-      for (const m of batch) {
-        checkCancel(ctx);
-        let c = comps.find((x) => x.id === m.id) ?? comps[batch.indexOf(m)];
-        if (!c) { m.error = "Opus no devolvió esta animación"; failed++; continue; }
-        m.attempts = 0;
-        for (;;) {
-          m.attempts++;
-          try {
-            const comp = toComp(m, c);
-            const r = await render(m, comp);
-            const problems = [...r.errors, ...r.consoleErrors.filter((x) => !/favicon/i.test(x))];
-            if (problems.length && m.attempts < 3) { const f = await fix(m, c, problems); if (f) { c = { ...c, ...f }; continue; } }
-            if (cfg.critique && m.attempts < 3) {
-              const cr = await critique(m, r.samples);
-              m.critique_es = cr.problems.join(" · ");
-              if (!cr.ok) { const f = await fix(m, c, cr.problems); if (f) { c = { ...c, ...f }; continue; } }
-            }
-            m.file = r.file; m.error = null;
-            m.code = { css: c.css, html: c.html, js: c.js, libs: c.libs ?? [], duration: m.duration };
-            m.sfx = motionCues(m, c.sfx);
-            // Cuadro de muestra persistente (la carpeta de trabajo se borra al terminar)
-            m.poster = r.file.replace(/\.(mp4|mov)$/i, ".jpg");
-            try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (r.duration * 0.6).toFixed(2), "-i", r.file, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", m.poster]); }
-            catch { m.poster = null; }
-            await activity(v.id, "motion", "render", `Animación ${m.id} lista (${r.frames} cuadros)`, m.brief_en, m.poster);
-            break;
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            // Un fallo del motor afecta a todas: no se gasta Opus intentando "corregir" el código
-            if (e instanceof EngineError) { engineFail = msg; m.error = msg; failed++; break outer; }
-            if (e instanceof MotionError && m.attempts < 3) { const f = await fix(m, c, [msg]); if (f) { c = { ...c, ...f }; continue; } }
-            m.error = msg; failed++;
-            await activity(v.id, "motion", "warn", `La animación ${m.id} falló; se mantiene la toma original`, msg);
-            break;
-          }
-        }
+  const preview = (m: MotionItem, c: Code) => renderSlot(() => {
+    report(m.id, "revisando");
+    return previewComposition(browser!, toComp(m, c), { ...res, workDir: joinPath(work, m.id, "vista"), samples: SAMPLES, cancelled: stopped });
+  });
+  const renderFull = (m: MotionItem, c: Code) => renderSlot(() => {
+    report(m.id, "renderizando");
+    return renderComposition(browser!, toComp(m, c), {
+      ...res, workDir: joinPath(work, m.id, "cuadros"), out: joinPath(dir, `${m.id}-${m.hash!.slice(0, 8)}.${m.kind === "overlay" ? "mov" : "mp4"}`), cancelled: stopped,
+      onFrame: (i, n, pv) => { if (pv) setLive(v.id, { frame: `data:${pv.mime};base64,${pv.b64}`, caption: `Renderizando animación ${m.id} · cuadro ${i}/${n}`, progress: i / n }); },
+    });
+  });
+  // Lo terminado se guarda al momento: si algo se interrumpe, no se vuelve a pagar
+  const saveProgress = () => db.execute("UPDATE stages SET output=? WHERE video_id=? AND stage='motion'", [JSON.stringify({ items, rendered: items.filter((x) => x.file).length, failed: 0 }), v.id]);
+
+  const worker = async (m: MotionItem) => {
+    try {
+      // Pedido de mejora continua sobre una animación ya hecha: se corrige su código en vez de rehacerla
+      const base = m.revise_en ? prev?.items.find((p) => p.id === m.id && p.code)?.code : null;
+      let c: Code | null;
+      if (base) {
+        c = await fix(m, { ...base, sfx: prev?.items.find((p) => p.id === m.id)?.sfx?.map((x) => ({ at: x.at, type: x.type, query_en: x.query_en })) }, [`The operator asked for this change: ${m.revise_en}`]);
+      } else {
+        report(m.id, "diseñando");
+        c = await compose(m);
       }
+      if (!c) throw new Error("Claude no devolvió esta animación");
+      let fixes = 0;
+      m.attempts = 0;
+      for (;;) {
+        if (stopped()) return;
+        m.attempts++;
+        let pv;
+        try { pv = await preview(m, c); }
+        catch (e) {
+          if (e instanceof MotionError && fixes < maxFixes) { fixes++; const f = await fix(m, c, [e.message]); if (f) { c = f; continue; } }
+          throw e;
+        }
+        const problems = [...pv.errors, ...pv.consoleErrors.filter((x) => !/favicon/i.test(x))];
+        if (problems.length && fixes < maxFixes) { fixes++; const f = await fix(m, c, problems); if (f) { c = f; continue; } }
+        if (cfg.critique && fixes < maxFixes) {
+          const cr = await critique(m, pv.samples);
+          m.critique_es = cr.problems.join(" · ");
+          if (!cr.ok) { fixes++; const f = await fix(m, c, cr.problems); if (f) { c = f; continue; } }
+        }
+        break;
+      }
+      const r = await renderFull(m, c);
+      m.file = r.file; m.error = null;
+      m.code = { css: c.css, html: c.html, js: c.js, libs: c.libs ?? [], duration: m.duration };
+      m.sfx = motionCues(m, c.sfx);
+      // Cuadro de muestra persistente (la carpeta de trabajo se borra al terminar)
+      m.poster = r.file.replace(/\.(mp4|mov)$/i, ".jpg");
+      try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (r.duration * 0.6).toFixed(2), "-i", r.file, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", m.poster]); }
+      catch { m.poster = null; }
+      report(m.id, "lista");
+      await activity(v.id, "motion", "render", `Animación ${m.id} lista (${r.frames} cuadros${fixes ? `, ${fixes} corrección(es)` : ""})`, m.brief_en, m.poster);
+      await saveProgress();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Un fallo del motor afecta a todas: se detienen las demás y no se gasta Claude "corrigiendo" código
+      if (e instanceof EngineError) engineFail = engineFail ?? msg;
+      if (ctx.cancelled()) return;
+      m.error = msg;
+      report(m.id, "falló");
+      if (!(e instanceof EngineError)) await activity(v.id, "motion", "warn", `La animación ${m.id} falló; se mantiene la toma original`, msg);
     }
+  };
+
+  try {
+    await activity(v.id, "motion", "stage", `Abriendo el motor de animaciones · ${todo.length} animación(es), ${Math.min(cfg.parallel, todo.length)} a la vez`);
+    browser = await launchBrowser(tauriHost, browserPath, work);
+    await Promise.allSettled(todo.map(worker));
+    checkCancel(ctx);
   } finally {
     if (browser) await closeBrowser(browser);
     try { await fs.remove(work); } catch { /* noop */ }
   }
+  const failed = items.filter((m) => !m.file && (m.error || engineFail)).length;
   if (engineFail) {
-    for (const m of items) if (!m.file && !m.error) { m.error = engineFail; failed++; }
+    for (const m of items) if (!m.file && !m.error) m.error = engineFail;
     await activity(v.id, "motion", "warn", "El motor de animaciones falló; el video sigue sin las animaciones que faltan", engineFail);
-    await log("error", "animaciones", "El motor de animaciones falló. Revisa Diagnóstico → Motor de animaciones.", engineFail, v.id, true);
+    await log("error", "animaciones", "El motor de animaciones falló. El detalle está en el informe de errores de Ajustes.", engineFail, v.id, true);
   }
   await resolveMotionSfx(ctx, items);
   return { items, rendered: items.filter((m) => m.file).length, failed };
@@ -703,7 +795,8 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
 
   const clips: string[] = []; const hashes: Record<string, string> = {}; const narration: { path: string; duration: number }[] = [];
   const totalAll = segs.reduce((a, s) => a + segmentLength(s, montage.pauseBetweenSegments), 0);
-  let done = 0;
+  // 1) Plan de cada segmento (rápido) · 2) montaje de los que cambiaron, dos a la vez
+  const jobs: { i: number; seg: SegInfo; spec: Parameters<typeof segmentV2Args>[0]; clip: string; segDur: number; layers: number; overlays: number }[] = [];
   for (const [i, seg] of segs.entries()) {
     checkCancel(ctx);
     const segShots = polish.shots.filter((x) => x.segment_id === seg.id);
@@ -743,36 +836,39 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
     hashes[seg.id] = h;
     const segDur = segmentV2Duration(layer);
     const reusable = prev?.segmentHashes?.[seg.id] === h && (await fs.exists(clip)) && Math.abs((await probeDuration(clip).catch(() => 0)) - segDur) < 0.25;
-    if (!reusable) {
-      const { args, filter } = segmentV2Args(spec);
-      const fpath = `${seg.id}.filtros.txt`;
-      await fs.writeText(joinPath(dir, fpath), filter);
-      await activity(v.id, "render", "render", `Montando «${seg.title}»: ${layer.length} tomas, ${overlays.length} capas animadas${capP.enabled ? ", subtítulos" : ""}`);
-      const base = done;
-      await ffmpeg(withFilterScript(args, fpath, modern), {
-        jobId: ctx.jobId, cwd: dir,
-        onSeconds: (sec) => { void ctx.progress(`Montando segmento ${i + 1}/${segs.length} · ${Math.min(100, Math.round(((base + sec) / totalAll) * 100))} %`); },
-      });
-      // Control: el clip debe durar lo mismo que su narración (si no, la imagen y la voz se desfasan)
-      const got = await probeDuration(clip);
-      if (Math.abs(got - segDur) > 0.25) {
-        await fs.remove(clip);
-        throw new UserError(`El segmento «${seg.title}» se montó con ${got.toFixed(2)} s en lugar de ${segDur.toFixed(2)} s.`, "Se borró el clip para no publicar un video desfasado. Reintenta; si se repite, revisa Diagnóstico y el registro de eventos.", "montaje");
-      }
-      // Vista previa en vivo: un cuadro del segmento recién montado
-      try {
-        const pv = joinPath(dir, `${seg.id}.preview.jpg`);
-        await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", String(Math.min(segDur / 2, 4)), "-i", clip, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", pv]);
-        setLive(v.id, { frame: pv, caption: `Segmento ${i + 1}/${segs.length} montado: ${seg.title}`, progress: (done + segDur) / totalAll });
-        await activity(v.id, "render", "render", `Segmento ${i + 1}/${segs.length} listo`, seg.title, pv);
-      } catch { /* sin vista previa */ }
-    }
-    done += segDur;
+    if (!reusable) jobs.push({ i, seg, spec, clip, segDur, layers: layer.length, overlays: overlays.length });
     clips.push(clip);
     const vs = voice.segments.find((x) => x.segment_id === seg.id);
     if (!vs) throw new UserError(`Falta la narración del segmento «${seg.title}».`, "", "montaje");
     narration.push({ path: vs.path, duration: segDur });
   }
+  const doneSec = new Map<string, number>(segs.map((x, i) => [x.id, jobs.some((j) => j.i === i) ? 0 : narration[i].duration]));
+  const pct = () => Math.min(100, Math.round(([...doneSec.values()].reduce((a, b) => a + b, 0) / totalAll) * 100));
+  await mapLimit(jobs, 2, async ({ i, seg, spec, clip, segDur, layers, overlays }) => {
+    checkCancel(ctx);
+    const { args, filter } = segmentV2Args(spec);
+    const fpath = `${seg.id}.filtros.txt`;
+    await fs.writeText(joinPath(dir, fpath), filter);
+    await activity(v.id, "render", "render", `Montando «${seg.title}»: ${layers} tomas, ${overlays} capas animadas${capP.enabled ? ", subtítulos" : ""}`);
+    await ffmpeg(withFilterScript(args, fpath, modern), {
+      jobId: ctx.jobId, cwd: dir,
+      onSeconds: (sec) => { doneSec.set(seg.id, Math.min(sec, segDur)); void ctx.progress(`Montando ${jobs.length} segmento(s) · ${pct()} %`); },
+    });
+    // Control: el clip debe durar lo mismo que su narración (si no, la imagen y la voz se desfasan)
+    const got = await probeDuration(clip);
+    if (Math.abs(got - segDur) > 0.25) {
+      await fs.remove(clip);
+      throw new UserError(`El segmento «${seg.title}» se montó con ${got.toFixed(2)} s en lugar de ${segDur.toFixed(2)} s.`, "Se borró el clip para no publicar un video desfasado. Reintenta; si se repite, copia el informe de errores de Ajustes.", "montaje");
+    }
+    doneSec.set(seg.id, segDur);
+    // Vista previa en vivo: un cuadro del segmento recién montado
+    try {
+      const pv = joinPath(dir, `${seg.id}.preview.jpg`);
+      await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", String(Math.min(segDur / 2, 4)), "-i", clip, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", pv]);
+      setLive(v.id, { frame: pv, caption: `Segmento ${i + 1}/${segs.length} montado: ${seg.title}`, progress: pct() / 100 });
+      await activity(v.id, "render", "render", `Segmento ${i + 1}/${segs.length} listo`, seg.title, pv);
+    } catch { /* sin vista previa */ }
+  });
   await ctx.progress("Mezcla final: voz, música, efectos…");
   await activity(v.id, "render", "audio", `Mezcla: ${polish.music.filter((b) => b.path).length} cama(s) musical(es), ${polish.sfx.length + motionDone.reduce((a, m) => a + (m.sfx ?? []).length, 0)} efectos`);
   const listPath = joinPath(dir, "list.txt");
@@ -824,6 +920,37 @@ export async function replaceShotAsset(videoId: string, shotId: string, assetId:
     await db.execute("UPDATE stages SET output=? WHERE video_id=? AND stage=?", [JSON.stringify(o), videoId, stage]);
   }
   if (asset) await markUsed([asset.id]);
+}
+
+/** Nueva imagen para una toma (mejora continua): con IA si hay instrucción y proveedor; si no, la mejor de la biblioteca o internet. */
+export async function reshootShot(ctx: Ctx, shotId: string, o: { query_en: string; image_prompt_en?: string }): Promise<string> {
+  const v = ctx.video;
+  const polish = await need<PolishOut>(v, "polish", "Retoques");
+  const sh = polish.shots.find((x) => x.id === shotId);
+  if (!sh) throw new UserError(`No existe la toma ${shotId}.`, "", "mejora");
+  const p = personalOf(v);
+  if (p && !p.useLibrary) throw new UserError("Este video usa solo tus archivos.", "Sube otro archivo o pide una tarjeta o una animación para esa parte.", "mejora", false);
+  if (o.image_prompt_en && (await aiImagesReady())) {
+    const r = await generateImage({ prompt: o.image_prompt_en, outBase: joinPath(v.dir, "cards", `${shotId}-ia-${Date.now().toString(36)}`), videoId: v.id, channelId: v.channel_id, label: `toma ${shotId}` });
+    await replaceShotAsset(v.id, shotId, null, { path: r.path, media: "image", provenance: r.provenance, visual: "ai_image", asset_id: null, error: null, image_prompt_en: o.image_prompt_en });
+    return `${shotId}: imagen nueva creada con IA`;
+  }
+  const r = await huntShot(ctx, { ...sh, visual: sh.visual === "clip" ? "clip" : "photo", query_en: o.query_en, alt_queries_en: [], path: null, asset_id: null },
+    new Set(polish.shots.map((x) => x.asset_id).filter(Boolean) as string[]));
+  await describeAssets(r.candidates, { videoId: v.id, channelId: v.channel_id, stage: "assets", jobId: ctx.jobId });
+  const best = [...(await getAssets(r.candidates.map((a) => a.id))).values()].filter((a) => a.usable !== 0 && !a.real_person).sort((a, b) => (b.quality || 0) - (a.quality || 0))[0];
+  if (!best) throw new UserError(`No encontré material para «${o.query_en}».`, "Prueba con otra descripción o pide una animación.", "mejora", false);
+  await replaceShotAsset(v.id, shotId, best.id, { query_en: o.query_en });
+  return `${shotId}: «${best.title}»`;
+}
+
+/** Música nueva para todo el video (mejora continua): busca con esa descripción sin rehacer las tomas. */
+export async function rescoreMusic(ctx: Ctx, mood: string): Promise<string> {
+  const polish = await need<PolishOut>(ctx.video, "polish", "Retoques");
+  const p = personalOf(ctx.video);
+  const beds = await resolveMusic(ctx, polish.music.map((b) => ({ ...b, mood_en: mood, path: null, asset_id: null })), [], !!p && !p.useLibrary);
+  for (const [i, b] of beds.entries()) await setBedTrack(ctx.video.id, i, b.path ? { path: b.path, title: b.title ?? mood, asset_id: b.asset_id } : null);
+  return beds.some((b) => b.path) ? `Música: ${[...new Set(beds.map((b) => b.title).filter(Boolean))].join(", ")}` : "No encontré música con esa descripción";
 }
 
 /** Convierte una toma en tarjeta de texto (sin archivo externo). */

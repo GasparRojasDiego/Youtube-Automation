@@ -12,8 +12,10 @@ import * as Ed from "./edit";
 import { activity, setLive } from "../lib/activity";
 import type { VerifyOut, ScriptOut } from "./types";
 import { downloadVideo } from "./tiktok";
+import { importUploads, personalOf, type PersonalSpec } from "./personal";
+import { finishRevision } from "./improve";
 
-interface Running { videoId: string; jobId: string; cancelled: boolean; stage: StageId | null }
+interface Running { videoId: string; jobId: string; cancelled: boolean; stage: StageId | null; prepackage?: Promise<void> }
 let current: Running | null = null;
 const queue: string[] = [];
 
@@ -61,8 +63,10 @@ async function runOnce(r: Running) {
     if (stage === "final") {
       // Video terminado: se copia solo a Descargas
       const dest = await downloadVideo(video).catch(async (e) => { await logError(e, video.id, "Descarga del video"); return null; });
-      await setStage(video.id, "final", { status: "review", progress: "Lista para tu revisión final" });
-      notifyReview(video.id, dest ? `Video terminado y guardado en Descargas: ${dest.split(/[\\/]/).pop()}` : "Video listo para la revisión final.");
+      const iterate = personalOf(video)?.iterate;
+      await finishRevision(video.id);
+      await setStage(video.id, "final", { status: "review", progress: iterate ? "Primera versión lista: pide mejoras o apruébala" : "Lista para tu revisión final" });
+      notifyReview(video.id, `${dest ? `Video terminado y guardado en Descargas: ${dest.split(/[\\/]/).pop()}` : "Video listo para la revisión final."}${iterate ? " Puedes pedir mejoras en Producción." : ""}`);
       return;
     }
     if (stage === "publish" && video.status !== "approved" && video.status !== "scheduled") return;
@@ -76,6 +80,9 @@ async function runOnce(r: Running) {
       progress: async (text) => { await db.execute("UPDATE stages SET progress=? WHERE video_id=? AND stage=?", [text, video.id, stage]); emit("stages"); },
       cancelled: () => r.cancelled,
     };
+    // Títulos, descripción y miniaturas no dependen de las animaciones: se preparan mientras se crean
+    if (stage === "motion" && !r.prepackage && !stages.find((x) => x.stage === "package")?.output) r.prepackage = prepackage(video, r);
+    if (stage === "package" && r.prepackage) { await ctx.progress("Terminando los metadatos preparados…"); await r.prepackage; }
     try {
       const t0 = Date.now();
       const output = await runStage(stage, ctx);
@@ -93,6 +100,18 @@ async function runOnce(r: Running) {
       if (!r.cancelled) await logError(e, video.id, `${STAGES.find((s) => s.id === stage)?.label}`);
       return;
     }
+  }
+}
+
+/** Prepara los metadatos en segundo plano; la etapa «package» luego solo completa créditos y capítulos. */
+async function prepackage(video: Awaited<ReturnType<typeof getVideo>> & object, r: Running): Promise<void> {
+  const ctx: St.Ctx = { video, jobId: r.jobId, cancelled: () => r.cancelled, progress: async () => { /* sin progreso propio: Motion muestra el suyo */ } };
+  try {
+    const out = await St.stagePackage(ctx);
+    await db.execute("UPDATE stages SET output=? WHERE video_id=? AND stage='package' AND output IS NULL", [JSON.stringify(out), video.id]);
+    await activity(video.id, "package", "done", "Títulos, descripción y miniaturas preparados mientras se creaban las animaciones");
+  } catch (e) {
+    if (!r.cancelled) await activity(video.id, "package", "warn", "No se pudieron preparar los metadatos en paralelo; se harán al final", errorText(e).message);
   }
 }
 
@@ -123,6 +142,10 @@ async function runStage(stage: StageId, ctx: St.Ctx): Promise<unknown> {
  * frases una vez y el video sigue. En modo «desactivada» no se revisa.
  */
 async function verifyAndFix(ctx: St.Ctx): Promise<VerifyOut> {
+  // Guion propio del usuario: no se reescribe (la corrección automática cambiaría sus palabras)
+  if (personalOf(ctx.video)?.script) {
+    return { overall_es: "Guion propio: se respeta tal cual, sin revisión automática.", title_checks: [], originality: { verdict: "ok", note_es: "" }, claims: [], unlinked: [], segment_glosses: [], rounds: 0 };
+  }
   if (getSettings().production.verifyMode === "off") {
     return { overall_es: "Revisión de datos desactivada en Ajustes.", title_checks: [], originality: { verdict: "ok", note_es: "" }, claims: [], unlinked: [], segment_glosses: [], rounds: 0 };
   }
@@ -249,6 +272,25 @@ export async function startFromPrompt(prompt: string): Promise<string | null> {
   const first = text.split(/\n/)[0].trim();
   const title = first.length > 90 ? `${first.slice(0, 87)}…` : first;
   const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
+  runVideo(v.id);
+  return v.id;
+}
+
+/** Video personal: brief, duración, idioma, archivos y guion propios. */
+export async function startPersonal(o: { prompt: string; description: string; minutes: number; language: "es" | "en"; useLibrary: boolean; iterate: boolean; files: string[]; script: string | null }): Promise<string | null> {
+  const ch = await activeChannel();
+  if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
+  const text = o.prompt.trim() || o.description.trim();
+  if (!text && !o.script) return null;
+  const first = (text.split(/\n/)[0] || "Video personal").trim();
+  const title = first.length > 90 ? `${first.slice(0, 87)}…` : first;
+  const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
+  const files = await importUploads(v, o.files);
+  const script = o.script ? (await importUploads(v, [o.script]))[0] ?? null : null;
+  const personal: PersonalSpec = { description: o.description.trim(), minutes: o.minutes, language: o.language, useLibrary: o.useLibrary, iterate: o.iterate, files, script: script ? { path: script.path, name: script.name } : null };
+  await updateVideo(v.id, { data: { personal } });
+  // Un video personal no se sube a YouTube: termina en tu revisión (y en Descargas)
+  await setStage(v.id, "publish", { status: "skipped" });
   runVideo(v.id);
   return v.id;
 }

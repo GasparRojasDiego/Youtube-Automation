@@ -2,10 +2,10 @@
 // pagado) se reutiliza comparando huellas (hash) de sus entradas.
 import { fs } from "../lib/ipc";
 import { getSettings } from "../lib/settings";
-import { composeSkills, skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS, THUMBNAIL_DEFAULTS, SCRIPT_DEFAULTS } from "../lib/skills";
+import { skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS, THUMBNAIL_DEFAULTS, SCRIPT_DEFAULTS } from "../lib/skills";
 import { getStage, saveArtifact, updateVideo, listMusic, type Video, type StageId } from "../lib/repo";
 import { UserError, log } from "../lib/events";
-import { joinPath, sha256, now, extName, splitSentences } from "../lib/util";
+import { joinPath, sha256, now, extName, splitSentences, mapLimit } from "../lib/util";
 import { claudeRun } from "../providers/claude";
 import { synthesize, chunkText, ttsProviderName, type VoiceOverride } from "../providers/tts";
 import { generateImage, imageProvider } from "../providers/images";
@@ -20,6 +20,7 @@ import { parseSilences, alignSentences } from "./align";
 import { segInfos, segmentOffsets, segmentLength } from "./timeline";
 import { getAssets } from "../media/library";
 import { activity } from "../lib/activity";
+import { personalOf, systemFor, skillsFor, documentsOf, extractText, voiceFor } from "./personal";
 import type { ResearchOut, ScriptOut, VerifyOut, VoiceOut, VoiceSegmentV2, PackageOut, RenderOut, PublishOut, PolishOut, MotionOut } from "./types";
 
 export interface Ctx {
@@ -43,21 +44,30 @@ export const checkCancel = (ctx: Ctx) => { if (ctx.cancelled()) throw new UserEr
 async function wordsTarget(v: Video): Promise<[number, number, number]> {
   const s = getSettings().production;
   const p = await skillParams(v.channel_id, "guion", SCRIPT_DEFAULTS);
-  const [lo, hi] = s.targetMinutes;
+  const personal = personalOf(v);
+  const [lo, hi] = personal ? [personal.minutes * 0.88, personal.minutes * 1.08] : s.targetMinutes;
   return [Math.round(lo * p.wordsPerMinute), Math.round(hi * p.wordsPerMinute), p.wordsPerMinute];
 }
 
 // ---------- 2. Investigación ----------
 export async function stageResearch(ctx: Ctx): Promise<ResearchOut> {
   const v = ctx.video; const topic = v.data.topic ?? { title: v.title };
+  const personal = personalOf(v);
+  // Guion propio: no hay nada que investigar (el guion es la base)
+  if (personal?.script) return { summary_es: "Guion propio del usuario: no se investiga.", angle_en: "", sources: [], facts: [], open_questions_es: [], risks: [] };
+  const docs = personal ? await documentsOf(personal) : { text: "", pdfs: [] };
+  const notes = [topic.notes ?? "", docs.text && `MATERIAL PROVIDED BY THE OPERATOR (trusted; base the video on it):\n${docs.text}`,
+    docs.pdfs.length ? `Also read these PDF files provided by the operator with the Read tool: ${docs.pdfs.join(" · ")}` : ""].filter(Boolean).join("\n\n");
   await ctx.progress("Investigando…");
   const r = await claudeRun<ResearchOut>({
-    stage: "research", label: "Investigación", system: P.SYSTEM_BASE, schema: P.RESEARCH_SCHEMA, tools: ["WebSearch", "WebFetch"],
-    prompt: P.researchPrompt({ skills: await composeSkills(v.channel_id, "research"), topic: topic.title, angle: topic.angle ?? "", notes: topic.notes ?? "", seedSources: topic.sources ?? [] }),
+    stage: "research", label: "Investigación", system: systemFor(v), schema: P.RESEARCH_SCHEMA, tools: docs.pdfs.length ? ["WebSearch", "WebFetch", "Read"] : ["WebSearch", "WebFetch"],
+    addDirs: docs.pdfs.length ? [joinPath(v.dir, "entregado")] : undefined,
+    prompt: P.researchPrompt({ skills: await skillsFor(v, "research"), topic: topic.title, angle: topic.angle ?? "", notes, seedSources: topic.sources ?? [], minutes: personal?.minutes ?? null }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId, timeoutMin: Math.max(getSettings().claude.timeoutMin, 45),
   });
   const d = r.data;
-  if (!d.sources?.length || !d.facts?.length) throw new UserError("La investigación no encontró fuentes o hechos suficientes.", "Revisa el tema o añade fuentes sugeridas y reintenta.", "investigación");
+  // Un video personal puede basarse solo en el material del usuario (sin fuentes web)
+  if ((!d.sources?.length || !d.facts?.length) && !(personal && (docs.text || docs.pdfs.length))) throw new UserError("La investigación no encontró fuentes o hechos suficientes.", "Revisa el tema o añade fuentes sugeridas y reintenta.", "investigación");
   await saveArtifact(v.id, "research", d);
   return d;
 }
@@ -66,28 +76,39 @@ export async function stageResearch(ctx: Ctx): Promise<ResearchOut> {
 export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes: string }): Promise<ScriptOut> {
   const v = ctx.video;
   const research = await need<ResearchOut>(v, "research", "Investigación");
-  const skills = await composeSkills(v.channel_id, "script");
+  const skills = await skillsFor(v, "script");
   const [minW, maxW] = await wordsTarget(v);
+  const personal = personalOf(v);
+  const system = systemFor(v);
   let script: ScriptOut;
-  if (revision) {
+  if (!revision && personal?.script) {
+    // Guion del usuario: se estructura en segmentos sin reescribirlo
+    await ctx.progress("Estructurando tu guion…");
+    const text = await extractText(personal.script.path);
+    script = (await claudeRun<ScriptOut>({ stage: "script", label: "Estructurar tu guion", system, schema: P.SCRIPT_SCHEMA,
+      tools: text ? undefined : ["Read"], addDirs: text ? undefined : [personal.script.path.replace(/[\\/][^\\/]+$/, "")],
+      prompt: P.structureScriptPrompt({ skills, text, path: text ? null : personal.script.path, maxWords: maxW }),
+      videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
+    script.version = 1;
+  } else if (revision) {
     const current = await need<ScriptOut>(v, "script", "Guion");
     await ctx.progress("Corrigiendo el guion…");
-    script = (await claudeRun<ScriptOut>({ stage: "script", label: "Corrección del guion", system: P.SYSTEM_BASE, schema: P.SCRIPT_SCHEMA,
+    script = (await claudeRun<ScriptOut>({ stage: "script", label: "Corrección del guion", system, schema: P.SCRIPT_SCHEMA,
       prompt: P.revisePrompt({ skills, research, script: current, issues: revision.issues, notes: revision.notes, minWords: minW, maxWords: maxW }),
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
     script.version = (current.version ?? 1) + 1;
   } else {
     await ctx.progress("Escribiendo el guion…");
-    script = (await claudeRun<ScriptOut>({ stage: "script", label: "Guion", system: P.SYSTEM_BASE, schema: P.SCRIPT_SCHEMA,
+    script = (await claudeRun<ScriptOut>({ stage: "script", label: "Guion", system, schema: P.SCRIPT_SCHEMA,
       prompt: P.scriptPrompt({ skills, topic: v.data.topic?.title ?? v.title, research, minWords: minW, maxWords: maxW }),
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
     script.version = 1;
-    const passes = getSettings().production.scriptPasses;
+    const passes = personal ? 1 : getSettings().production.scriptPasses;
     for (let i = 1; i < passes; i++) {
       checkCancel(ctx);
       await ctx.progress(`Pasada de mejora ${i + 1}/${passes}…`);
       const mech = L.checkScript(script, research);
-      script = (await claudeRun<ScriptOut>({ stage: "script", label: "Pasada de mejora del guion", system: P.SYSTEM_BASE, schema: P.SCRIPT_SCHEMA,
+      script = (await claudeRun<ScriptOut>({ stage: "script", label: "Pasada de mejora del guion", system, schema: P.SCRIPT_SCHEMA,
         prompt: P.revisePrompt({ skills, research, script, issues: mech, minWords: minW, maxWords: maxW,
           notes: "Second pass: sharpen the hook, tighten rhythm, deepen the original analysis, remove filler. Keep every claim sourced." }),
         videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
@@ -96,7 +117,7 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
   }
   if (!script.segments?.length) throw new UserError("El guion llegó vacío.", "", "guion");
   const words = L.scriptWords(script);
-  if (words < minW * 0.7) await log("warn", "guion", `El guion quedó corto (${words} palabras; objetivo ${minW}–${maxW}).`, "", v.id);
+  if (words < minW * 0.7 && !personal?.script) await log("warn", "guion", `El guion quedó corto (${words} palabras; objetivo ${minW}–${maxW}).`, "", v.id);
   await saveArtifact(v.id, "script", script, revision ? "corrección" : "inicial");
   const best = script.title_options?.[0]?.title;
   if (best) await updateVideo(v.id, { title: best });
@@ -112,8 +133,8 @@ export async function stageVerify(ctx: Ctx): Promise<VerifyOut> {
   const prev = await out<VerifyOut>(v, "verify");
   await ctx.progress("Verificando afirmaciones…");
   const r = await claudeRun<VerifyOut>({
-    stage: "verify", label: "Verificación", system: P.SYSTEM_BASE, schema: P.VERIFY_SCHEMA, tools: ["WebFetch"],
-    prompt: P.verifyPrompt({ skills: await composeSkills(v.channel_id, "verify"), research, script }),
+    stage: "verify", label: "Verificación", system: systemFor(v), schema: P.VERIFY_SCHEMA, tools: ["WebFetch"],
+    prompt: P.verifyPrompt({ skills: await skillsFor(v, "verify"), research, script }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
   });
   const merged = L.mergeVerification(r.data, script, L.checkScript(script, research));
@@ -135,28 +156,32 @@ export async function stageVoice(ctx: Ctx): Promise<VoiceOut> {
   const v = ctx.video;
   const script = await need<ScriptOut>(v, "script", "Guion");
   const prev = await out<VoiceOut>(v, "voice");
-  const override = await skillParams<VoiceOverride>(v.channel_id, "voz", {});
-  const provider = ttsProviderName(override);
+  const base = await skillParams<VoiceOverride>(v.channel_id, "voz", {});
+  const provider = ttsProviderName(base);
+  // Video personal en español: la misma voz de Google en su versión latinoamericana (Gemini y ElevenLabs ya son multilingües)
+  const override = provider === "google" ? { ...base, ...voiceFor(personalOf(v), base.voice || getSettings().tts.google.voice) } : base;
   const dir = joinPath(v.dir, "voice");
   await fs.mkdir(dir);
   const segments: VoiceOut["segments"] = [];
     const st = getSettings().tts;
     const voiceKey = JSON.stringify({ provider, g: st.google, ge: st.gemini, e: st.elevenlabs, override });
-    for (const [i, s] of script.segments.entries()) {
+    // Varios segmentos a la vez (cada uno espera a la red); el orden se conserva
+    let narrated = 0;
+    segments.push(...await mapLimit(script.segments, 3, async (s) => {
       checkCancel(ctx);
       const hash = await sha256(`${voiceKey}|${s.text_en}`);
       const outPath = joinPath(dir, `${s.id}.wav`);
       const old = prev?.segments.find((x) => x.segment_id === s.id);
-      if (old && old.hash === hash && (await fs.exists(outPath))) { segments.push(old); continue; }
-      await ctx.progress(`Narrando segmento ${i + 1}/${script.segments.length}: ${s.title}`);
+      if (old && old.hash === hash && (await fs.exists(outPath))) return old;
       const parts: string[] = [];
       for (const [j, chunk] of chunkText(s.text_en).entries()) {
         const r = await synthesize({ text: chunk, outPath: joinPath(dir, "parts", `${s.id}_${j}`), videoId: v.id, channelId: v.channel_id, override });
         parts.push(r.path);
       }
       await ffmpeg(joinAudioArgs(parts, outPath, 0.12));
-      segments.push({ segment_id: s.id, path: outPath, duration: await probeDuration(outPath), hash });
-    }
+      await ctx.progress(`Narración: ${++narrated} segmento(s) listos`);
+      return { segment_id: s.id, path: outPath, duration: await probeDuration(outPath), hash };
+    }));
     for (const seg of segments) await alignVoice(seg, script.segments.find((x) => x.id === seg.segment_id)!.text_en, v.id);
   return { provider, segments, total: segments.reduce((a, s) => a + s.duration, 0) };
 }
@@ -189,8 +214,8 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   } else {
     await ctx.progress("Títulos, descripción y miniaturas…");
     const r = await claudeRun<Omit<PackageOut, "chosen_title" | "description" | "chosen_thumbnail" | "chapters" | "srt">>({
-      stage: "package", label: "Miniatura y metadatos", system: P.SYSTEM_BASE, schema: P.PACKAGE_SCHEMA,
-      prompt: P.packagePrompt({ skills: await composeSkills(v.channel_id, ["thumbnail", "metadata"]),
+      stage: "package", label: "Miniatura y metadatos", system: systemFor(v), schema: P.PACKAGE_SCHEMA,
+      prompt: P.packagePrompt({ skills: await skillsFor(v, ["thumbnail", "metadata"]),
         script: { titles: script.title_options, segments: script.segments.map((x) => ({ title: x.title, text: x.text_en })) },
         verify: { overall: verify.overall_es, titles: verify.title_checks }, params: thumbP, count: s.images.thumbnailCandidates, photorealistic: visual.photorealistic,
         images: bgOptions.map((a) => ({ id: a.id, description: (a.tags.split(",")[0] || a.title).slice(0, 140) })) }),

@@ -70,15 +70,16 @@ export const RESEARCH_SCHEMA = obj({
   risks: arr(obj({ kind: en(["legal", "policy", "verification"]), note_es: str() })),
 });
 
-export function researchPrompt(o: { skills: string; topic: string; angle: string; notes: string; seedSources: string[] }) {
-  return `Research this topic for an engaging 10-15 minute YouTube video. The operator's request may be a topic, an idea or full instructions: follow it.
+export function researchPrompt(o: { skills: string; topic: string; angle: string; notes: string; seedSources: string[]; minutes?: number | null }) {
+  const short = !!o.minutes && o.minutes <= 4;
+  return `Research this topic for an engaging ${o.minutes ? `${o.minutes < 1 ? `${Math.round(o.minutes * 60)}-second` : `${o.minutes}-minute`}` : "10-15 minute YouTube"} video. The operator's request may be a topic, an idea or full instructions: follow it.
 
 TOPIC: ${o.topic}
 ${o.angle ? `ANGLE: ${o.angle}\n` : ""}${o.notes ? `OPERATOR NOTES: ${o.notes}\n` : ""}${o.seedSources.length ? `SUGGESTED STARTING SOURCES:\n${o.seedSources.map((s) => `- ${s}`).join("\n")}\n` : ""}${wrapSkills(o.skills)}
 
 Method (be efficient: good material, not an academic investigation):
 1. Search the web and open the pages you rely on. Reputable sources are enough: established media, official sites, encyclopedias, specialist sites.
-2. Collect 5-12 sources and 20-45 facts, prioritising surprising details, stories, numbers and examples that make a video compelling.
+2. Collect ${short ? "2-6 sources and 6-15 facts" : "5-12 sources and 20-45 facts"}, prioritising surprising details, stories, numbers and examples that make a video compelling. If the operator provided material, it is your main source: research only what it lacks.
 3. Add a short supporting excerpt (quote) when you have it; it can be brief.
 4. Flag facts about real, identifiable people (about_real_person = true) and keep them precise.
 5. Note real legal/policy risks briefly, if any.`;
@@ -100,8 +101,10 @@ export const SCRIPT_SCHEMA = obj({
   skills_check_es: SKILLS_CHECK,
 });
 
+/** Segmentos según la longitud (un video de 1 minuto no se parte en 8 capítulos). */
+export const segmentRange = (maxW: number) => (maxW < 250 ? "2-3" : maxW < 600 ? "3-5" : maxW < 1100 ? "4-7" : "6-10");
 const SCRIPT_RULES = (minW: number, maxW: number) => `Requirements:
-- Total narration between ${minW} and ${maxW} words, split into 6-10 segments. The first two sentences of segment 1 are a strong hook.
+- Total narration between ${minW} and ${maxW} words, split into ${segmentRange(maxW)} segments. The first two sentences of segment 1 are a strong hook.
 - Mark the key factual statements as claims (text_en = exact substring of the segment text) linked to research facts and sources. Specific numbers, dates and names must come from the research; general knowledge and storytelling need no claim.
 - Interpretations are welcome when phrased as such.
 - Statements about real people must be fair and never imply wrongdoing beyond what sources show.
@@ -118,6 +121,19 @@ ${SCRIPT_RULES(o.minWords, o.maxWords)}
 
 RESEARCH (your factual base):
 ${JSON.stringify(o.research)}`;
+}
+
+/** Guion escrito por el usuario: se estructura sin reescribirlo. */
+export function structureScriptPrompt(o: { skills: string; text: string | null; path: string | null; maxWords: number }) {
+  return `The operator wrote the narration script for this video. Structure it into segments WITHOUT rewriting it.${wrapSkills(o.skills)}
+
+Rules:
+- Keep the operator's words and their order exactly. You may only fix obvious typos, write numbers and symbols the way the narrator must say them, and drop headings, stage directions or notes that are not meant to be read aloud (a heading can become a segment title).
+- Split it into ${segmentRange(Math.max(o.maxWords, Math.round((o.text ?? "").split(/\s+/).length * 1.1)))} segments at natural breaks; give each a short title and its purpose.
+- Mark key factual statements as claims (text_en = exact substring of the segment text) with empty fact_ids and source_ids; on_screen_sources empty.
+- Propose 3 titles that the video delivers.
+
+${o.text ? `OPERATOR SCRIPT:\n<script>\n${o.text.slice(0, 60_000)}\n</script>` : `Read the operator's script with the Read tool: ${o.path}`}`;
 }
 
 export function revisePrompt(o: { skills: string; research: unknown; script: unknown; issues: unknown; notes: string; minWords: number; maxWords: number }) {

@@ -4,7 +4,7 @@ import { spawn, type ChildProcess, execFileSync } from "node:child_process";
 import * as nfs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { launchBrowser, closeBrowser, renderComposition, EngineError, type MotionHost } from "./engine";
+import { launchBrowser, closeBrowser, renderComposition, previewComposition, EngineError, type MotionHost } from "./engine";
 import { fileUrlOf, plainPath, type Composition } from "./page";
 
 describe("rutas de Windows", () => {
@@ -136,6 +136,31 @@ describe.skipIf(!CHROME || !hasFfmpeg)("motor de motion", () => {
         await expect(renderComposition(b2, OVERLAY, { resources: path.join(work, "no-existe"), fontsDir: path.join(ROOT, "fonts"), workDir: path.join(work, "s1"), out: path.join(work, "s1.mov") }))
           .rejects.toBeInstanceOf(EngineError);
       } finally { await closeBrowser(b2); }
+    } finally {
+      await closeBrowser(b);
+      nfs.rmSync(work, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("vista previa: solo los cuadros de muestra, varias a la vez en el mismo navegador y igual al render", async () => {
+    const host = nodeHost();
+    const work = nfs.mkdtempSync(path.join(os.tmpdir(), "atril-preview-"));
+    const b = await launchBrowser(host, CHROME!, work);
+    const opts = (id: string) => ({ resources: path.join(ROOT, "motion"), fontsDir: path.join(ROOT, "fonts"), workDir: path.join(work, id), samples: [0.12, 0.5, 0.98] });
+    try {
+      const t0 = Date.now();
+      const [p1, p2, p3] = await Promise.all([previewComposition(b, TITLE, opts("p1")), previewComposition(b, KIT, opts("p2")), previewComposition(b, OVERLAY, opts("p3"))]);
+      const ms = Date.now() - t0;
+      expect(p1.samples.length).toBe(3); expect(p2.samples.length).toBe(3); expect(p3.samples.length).toBe(3);
+      expect([...p1.errors, ...p1.consoleErrors, ...p2.errors, ...p2.consoleErrors]).toEqual([]);
+      expect(p1.duration).toBe(2);
+      // Sin render completo: ningún cuadro f_*.jpg en la carpeta
+      expect(nfs.readdirSync(path.join(work, "p1")).some((f) => f.startsWith("f_"))).toBe(false);
+      expect(ms).toBeLessThan(30_000);
+      // La muestra de la vista previa es el mismo cuadro que guarda el render completo
+      const r = await renderComposition(b, TITLE, { ...opts("r1"), out: path.join(work, "r1.mp4") });
+      expect(nfs.readFileSync(p1.samples[1]).equals(nfs.readFileSync(r.samples[1]))).toBe(true);
+      await expect(previewComposition(b, BROKEN, opts("x"))).rejects.toThrow(/undefinedFn/);
     } finally {
       await closeBrowser(b);
       nfs.rmSync(work, { recursive: true, force: true });

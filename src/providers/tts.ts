@@ -6,7 +6,7 @@ import { addCost, monthUnits } from "../lib/costs";
 import { requestJson, requireSecret, jsonHeaders } from "./net";
 import { UserError } from "../lib/events";
 
-export interface VoiceOverride { voice?: string; speakingRate?: number; style?: string; provider?: string }
+export interface VoiceOverride { voice?: string; languageCode?: string; speakingRate?: number; style?: string; provider?: string }
 
 export interface TtsJob { text: string; outPath: string; videoId?: string | null; channelId?: string | null; override?: VoiceOverride }
 export interface TtsResult { path: string; ext: string }
@@ -54,7 +54,7 @@ async function googleTts(job: TtsJob): Promise<TtsResult> {
   const voice = job.override?.voice || cfg.voice;
   const body: any = {
     input: { text: job.text },
-    voice: { languageCode: cfg.languageCode, name: voice },
+    voice: { languageCode: job.override?.languageCode || cfg.languageCode, name: voice },
     audioConfig: { audioEncoding: "LINEAR16", sampleRateHertz: 24000 },
   };
   const rate = job.override?.speakingRate ?? cfg.speakingRate;

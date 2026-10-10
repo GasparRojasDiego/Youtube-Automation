@@ -88,7 +88,7 @@ export interface Shot {
   from: number; to: number;            // oraciones del segmento que cubre la toma (rango del beat)
   visual: VisualType;
   query_en?: string; alt_queries_en?: string[]; must_show_es?: string; avoid_es?: string; image_prompt_en?: string;
-  card_text?: string; source_id?: string; motion_brief_en?: string;
+  card_text?: string; source_id?: string; motion_brief_en?: string; user_file_id?: string;
   // casting (assets)
   asset_id?: string | null; focus_x?: number; focus_y?: number; clip_in?: number; clip_audio_db?: number | null;
   candidates?: string[]; cast_note_es?: string;
@@ -121,6 +121,7 @@ export interface MotionItem {
   segment_id: string;
   brief_en: string; text?: string; data_es?: string; libs?: ("map" | "d3")[]; icons?: string[]; icon_ids?: string[];
   asset_ids?: string[];
+  revise_en?: string;        // pedidos de mejora continua: se aplican como corrección del código anterior
   // resultado
   file?: string | null; error?: string | null; attempts?: number; critique_es?: string; hash?: string;
   code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number };

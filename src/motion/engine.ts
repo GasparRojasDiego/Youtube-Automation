@@ -102,8 +102,11 @@ async function ensureKit(b: Browser, resources: string, fontsDir: string, files:
   }
 }
 
-/** Renderiza una composición a video. Lanza error si la página falla al cargar. */
-export async function renderComposition(b: Browser, c: Composition, o: RenderOpts): Promise<RenderResult> {
+type Send = (m: string, p?: Record<string, unknown>, t?: number) => Promise<any>;
+interface OpenPage { s: Send; duration: number; total: number; fps: number; fmt: "png" | "jpeg"; ext: string; consoleErrors: string[]; close: () => Promise<void> }
+
+/** Abre la composición en una pestaña nueva y espera a que esté lista. Lanza MotionError si su código falla. */
+async function openComposition(b: Browser, c: Composition, o: Pick<RenderOpts, "width" | "height" | "fps" | "resources" | "fontsDir" | "workDir">): Promise<OpenPage> {
   const W = o.width ?? 1920, H = o.height ?? 1080, fps = o.fps ?? 30;
   const host = b.host;
   await host.mkdir(o.workDir);
@@ -112,7 +115,7 @@ export async function renderComposition(b: Browser, c: Composition, o: RenderOpt
   await host.writeText(pagePath, buildPage(c, { width: W, height: H, code: b.code, fontBase: b.fontBase! }));
   const { targetId } = await b.cdp.send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await b.cdp.send("Target.attachToTarget", { targetId, flatten: true });
-  const s = (m: string, p: Record<string, unknown> = {}, t?: number) => b.cdp.send(m, p, sessionId, t);
+  const s: Send = (m, p = {}, t) => b.cdp.send(m, p, sessionId, t);
   const consoleErrors: string[] = [];
   const off = b.cdp.on((method, params, sid) => {
     if (sid !== sessionId) return;
@@ -120,6 +123,7 @@ export async function renderComposition(b: Browser, c: Composition, o: RenderOpt
     if (method === "Runtime.consoleAPICalled" && params?.type === "error") consoleErrors.push((params.args ?? []).map((a: any) => a.value ?? a.description ?? "").join(" ").slice(0, 500));
     if (method === "Log.entryAdded" && params?.entry?.level === "error" && !/favicon/.test(params.entry.url ?? "")) consoleErrors.push(`${params.entry.text} ${params.entry.url ?? ""}`.slice(0, 500));
   });
+  const close = async () => { off(); try { await b.cdp.send("Target.closeTarget", { targetId }); } catch { /* noop */ } };
   try {
     await s("Page.enable"); await s("Runtime.enable"); await s("Log.enable");
     await s("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: 1, mobile: false });
@@ -147,34 +151,64 @@ export async function renderComposition(b: Browser, c: Composition, o: RenderOpt
     }
     const durR = await s("Runtime.evaluate", { expression: "Number(ATRIL.duration)||0", returnByValue: true });
     const duration = Math.min(30, Math.max(0.5, Number(durR.result?.value) || c.duration));
-    const total = Math.max(1, Math.round(duration * fps));
     const fmt = c.transparent ? "png" : "jpeg";
-    const ext = c.transparent ? "png" : "jpg";
-    const sampleIdx = new Set((o.samples ?? []).map((f) => Math.min(total - 1, Math.max(0, Math.round(f * (total - 1))))));
+    return { s, duration, total: Math.max(1, Math.round(duration * fps)), fps, fmt, ext: c.transparent ? "png" : "jpg", consoleErrors, close };
+  } catch (e) { await close(); throw e; }
+}
+
+const capture = (p: OpenPage, i: number) => p.s("Runtime.evaluate", { expression: `ATRIL.seek(${(i / p.fps).toFixed(5)})`, returnByValue: true })
+  .then(() => p.s("Page.captureScreenshot", { format: p.fmt, ...(p.fmt === "jpeg" ? { quality: 94 } : {}), fromSurface: true, captureBeyondViewport: false, optimizeForSpeed: true }))
+  .then((shot) => shot.data as string);
+const lateErrors = async (p: OpenPage): Promise<string[]> => JSON.parse((await p.s("Runtime.evaluate", { expression: "JSON.stringify(ATRIL.errors||[])", returnByValue: true })).result?.value ?? "[]");
+const sampleFrames = (fractions: number[], total: number) => [...new Set(fractions.map((f) => Math.min(total - 1, Math.max(0, Math.round(f * (total - 1))))))];
+
+export interface PreviewResult { samples: string[]; duration: number; errors: string[]; consoleErrors: string[] }
+
+/**
+ * Vista previa: abre la composición y captura solo los cuadros de muestra (unos
+ * segundos). Sirve para revisar y corregir antes de pagar el render completo.
+ */
+export async function previewComposition(b: Browser, c: Composition, o: Omit<RenderOpts, "out" | "onFrame" | "previewEvery"> & { samples: number[] }): Promise<PreviewResult> {
+  const p = await openComposition(b, c, o);
+  try {
+    const samples: string[] = [];
+    for (const i of sampleFrames(o.samples, p.total)) {
+      if (o.cancelled?.()) throw new Error("Cancelado");
+      const f = b.host.join(o.workDir, `muestra_${String(i).padStart(5, "0")}.${p.ext}`);
+      await b.host.writeB64(f, await capture(p, i));
+      samples.push(f);
+    }
+    return { samples, duration: p.total / p.fps, errors: await lateErrors(p), consoleErrors: [...p.consoleErrors] };
+  } finally { await p.close(); }
+}
+
+/** Renderiza una composición a video. Lanza error si la página falla al cargar. */
+export async function renderComposition(b: Browser, c: Composition, o: RenderOpts): Promise<RenderResult> {
+  const host = b.host;
+  const p = await openComposition(b, c, o);
+  try {
+    const { total, fps, ext } = p;
+    const sampleIdx = new Set(sampleFrames(o.samples ?? [], total));
     const samples: string[] = [];
     for (let i = 0; i < total; i++) {
       if (o.cancelled?.()) throw new Error("Cancelado");
-      await s("Runtime.evaluate", { expression: `ATRIL.seek(${(i / fps).toFixed(5)})`, returnByValue: true });
-      const shot = await s("Page.captureScreenshot", { format: fmt, ...(fmt === "jpeg" ? { quality: 94 } : {}), fromSurface: true, captureBeyondViewport: false, optimizeForSpeed: true });
+      const data = await capture(p, i);
       const f = host.join(o.workDir, `f_${String(i).padStart(5, "0")}.${ext}`);
-      await host.writeB64(f, shot.data);
-      if (sampleIdx.has(i)) { const sp = host.join(o.workDir, `muestra_${String(i).padStart(5, "0")}.${ext}`); await host.writeB64(sp, shot.data); samples.push(sp); }
+      await host.writeB64(f, data);
+      if (sampleIdx.has(i)) { const sp = host.join(o.workDir, `muestra_${String(i).padStart(5, "0")}.${ext}`); await host.writeB64(sp, data); samples.push(sp); }
       const every = o.previewEvery ?? 12;
-      o.onFrame?.(i + 1, total, i % every === 0 ? { b64: shot.data, mime: fmt === "png" ? "image/png" : "image/jpeg" } : undefined);
+      o.onFrame?.(i + 1, total, i % every === 0 ? { b64: data, mime: p.fmt === "png" ? "image/png" : "image/jpeg" } : undefined);
     }
-    const late = await s("Runtime.evaluate", { expression: "JSON.stringify(ATRIL.errors||[])", returnByValue: true });
-    const lateErrors: string[] = JSON.parse(late.result?.value ?? "[]");
-    // Codificación: rutas relativas a la carpeta de trabajo (evita problemas de escape en Windows)
+    const errors = await lateErrors(p);
+    // Codificación: rutas relativas a la carpeta de trabajo (evita problemas de escape en Windows).
+    // «fast» rinde igual a crf 14 (el clip se vuelve a codificar en el montaje) y tarda la mitad que «medium».
     const args = c.transparent
       ? ["-y", "-hide_banner", "-loglevel", "error", "-framerate", String(fps), "-i", `f_%05d.${ext}`, "-c:v", "png", "-pix_fmt", "rgba", "-f", "mov", o.out]
-      : ["-y", "-hide_banner", "-loglevel", "error", "-framerate", String(fps), "-i", `f_%05d.${ext}`, "-c:v", "libx264", "-preset", "medium", "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", o.out];
+      : ["-y", "-hide_banner", "-loglevel", "error", "-framerate", String(fps), "-i", `f_%05d.${ext}`, "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p", "-movflags", "+faststart", o.out];
     try { await host.ffmpeg(args, o.workDir); }
     catch (e) { throw new EngineError(`ffmpeg no pudo codificar la animación: ${e instanceof Error ? e.message : String(e)}`); }
-    return { file: o.out, frames: total, duration: total / fps, errors: lateErrors, samples, consoleErrors };
-  } finally {
-    off();
-    try { await b.cdp.send("Target.closeTarget", { targetId }); } catch { /* noop */ }
-  }
+    return { file: o.out, frames: total, duration: total / fps, errors, samples, consoleErrors: [...p.consoleErrors] };
+  } finally { await p.close(); }
 }
 
 /** Error de la composición (código de Opus): se reintenta pidiendo una corrección. */
