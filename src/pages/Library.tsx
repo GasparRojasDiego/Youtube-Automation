@@ -14,6 +14,7 @@ import { PageHeader, Card, Chip, Empty, Modal, AsyncButton, Tabs, Stat } from ".
 import { navigate } from "../ui/nav";
 import { toast, logError } from "../lib/events";
 import { fmtBytes, fmtDate } from "../lib/util";
+import { askConfirm, askText } from "../ui/Ask";
 
 type KindTab = "all" | AssetKind;
 const KIND_LABEL: Record<AssetKind, string> = { image: "Imagen", video: "Clip", sfx: "Efecto", music: "Música", icon: "Ícono" };
@@ -51,7 +52,8 @@ export function LibraryPage() {
             const sel0 = await openDialog({ multiple: true, filters: [{ name: "Medios", extensions: ["jpg", "jpeg", "png", "webp", "mp4", "mov", "webm", "mp3", "wav", "m4a", "ogg"] }] });
             const files = Array.isArray(sel0) ? sel0 : sel0 ? [sel0] : [];
             if (!files.length) return;
-            const note = prompt("¿De dónde viene y con qué derecho lo usas?", "Material propio") ?? "Material propio";
+            const note = await askText("¿De dónde viene y con qué derecho lo usas?", { value: "Material propio", confirm: "Importar" });
+            if (note === null) return;
             for (const f of files) {
               const ext = f.split(".").pop()!.toLowerCase();
               const k: AssetKind = ["mp4", "mov", "webm"].includes(ext) ? "video" : ["mp3", "wav", "m4a", "ogg"].includes(ext) ? "sfx" : "image";
@@ -118,7 +120,7 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
         <button className="btn-ghost" onClick={() => void updateAsset(a.id, { favorite: a.favorite ? 0 : 1 })}><Star size={14} className={a.favorite ? "fill-amber-400 text-amber-400" : ""} /> {a.favorite ? "Quitar favorito" : "Favorito"}</button>
         <button className="btn-ghost" onClick={() => void updateAsset(a.id, { usable: a.usable ? 0 : 1 })}>{a.usable ? <><Ban size={14} /> No usar</> : <><CheckCircle2 size={14} /> Permitir</>}</button>
         {(a.kind === "image" || a.kind === "video") && <AsyncButton className="btn-ghost" onClick={async () => { await describeAssets([{ ...a, described_at: null }]); }}><Eye size={14} /> {a.described_at ? "Redescribir" : "Describir"}</AsyncButton>}
-        <button className="btn-ghost text-red-500" onClick={async () => { if (confirm("¿Borrar este archivo?")) { await deleteAsset(a.id); onClose(); } }}><Trash2 size={14} /> Borrar</button>
+        <button className="btn-ghost text-red-500" onClick={async () => { if (await askConfirm("¿Borrar este archivo?", { body: "Se quita de la biblioteca y del disco.", confirm: "Borrar", danger: true })) { await deleteAsset(a.id); onClose(); } }}><Trash2 size={14} /> Borrar</button>
       </>}>
       <div className="grid grid-cols-[1.3fr_1fr] gap-5">
         <div>

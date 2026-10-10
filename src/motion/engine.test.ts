@@ -161,6 +161,14 @@ describe.skipIf(!CHROME || !hasFfmpeg)("motor de motion", () => {
       const r = await renderComposition(b, TITLE, { ...opts("r1"), out: path.join(work, "r1.mp4") });
       expect(nfs.readFileSync(p1.samples[1]).equals(nfs.readFileSync(r.samples[1]))).toBe(true);
       await expect(previewComposition(b, BROKEN, opts("x"))).rejects.toThrow(/undefinedFn/);
+      // Constelación del kit: aparece progresivamente y se mueve (cuadros distintos), sin errores
+      const CONST: Composition = { id: "c1", duration: 2, transparent: false, css: "", html: "",
+        js: `const tl = gsap.timeline(); const s = K.scene({ bg: '#0B0D12' }); K.show(tl, s, 0); const c = K.constellation(s, { n: 80, hidden: true }); c.reveal(tl, 0.1, 1.2); ATRIL.register(tl, 2);` };
+      const pc = await previewComposition(b, CONST, opts("c1"));
+      expect([...pc.errors, ...pc.consoleErrors]).toEqual([]);
+      const [f0, f1, f2] = pc.samples.map((f) => nfs.readFileSync(f));
+      expect(f0.equals(f1)).toBe(false); expect(f1.equals(f2)).toBe(false);
+      expect(f2.length).toBeGreaterThan(f0.length);   // al final hay más puntos y líneas que al principio
     } finally {
       await closeBrowser(b);
       nfs.rmSync(work, { recursive: true, force: true });

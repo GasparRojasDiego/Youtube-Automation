@@ -478,6 +478,42 @@
     });
     return { canvas: c, p: p };
   };
+  /**
+   * Constelación: puntos repartidos de forma pareja (una celda por punto), que
+   * derivan, titilan y se enlazan con líneas cuando están cerca; algunas son
+   * estrellas con halo. Determinista: cada cuadro depende solo de t.
+   * .reveal(tl, at, dur) los hace aparecer y enlazarse; tweenea .p {alpha, link, speed, k}
+   */
+  K.constellation = function (parent, o) {
+    o = o || {}; var c = K.canvas(parent), ctx = c.getContext('2d');
+    var n = Math.max(8, o.n || 90), col = o.color || '#9DB0F1', R = o.size || 2.2, ratio = W / H;
+    var cols = Math.max(1, Math.round(Math.sqrt(n * ratio))), rows = Math.ceil(n / cols), cw = W / cols, ch = H / rows, pts = [];
+    for (var r = 0; r < rows; r++) for (var q = 0; q < cols && pts.length < n; q++) {
+      var star = K.rand() < (o.stars == null ? 0.08 : o.stars);
+      pts.push({ x: (q + 0.15 + K.rand(0.7)) * cw, y: (r + 0.15 + K.rand(0.7)) * ch, vx: K.rand(-1, 1) * 14, vy: K.rand(-1, 1) * 14,
+        r: star ? R * K.rand(1.6, 2.1) : R * K.rand(0.55, 1.05), ph: K.rand(0, 6.2832), star: star, d: K.rand() });
+    }
+    var p = { alpha: 1, link: o.link || 190, speed: o.speed == null ? 1 : o.speed, k: o.hidden ? 0 : 1 };
+    var wrap = function (v, m) { return ((v % m) + m) % m; };
+    A.addRender(function (t) {
+      ctx.clearRect(0, 0, W, H); if (p.alpha <= 0 || p.k <= 0) return;
+      var pos = pts.map(function (s) { return [wrap(s.x + s.vx * t * p.speed, W), wrap(s.y + s.vy * t * p.speed, H), s]; });
+      ctx.strokeStyle = col; ctx.lineWidth = o.width || 1.2;
+      for (var i = 0; i < pos.length; i++) for (var j = i + 1; j < pos.length; j++) {
+        var dx = pos[i][0] - pos[j][0], dy = pos[i][1] - pos[j][1], d = Math.sqrt(dx * dx + dy * dy);
+        if (d < p.link && Math.max(pos[i][2].d, pos[j][2].d) < p.k) { ctx.globalAlpha = (1 - d / p.link) * 0.45 * p.alpha; ctx.beginPath(); ctx.moveTo(pos[i][0], pos[i][1]); ctx.lineTo(pos[j][0], pos[j][1]); ctx.stroke(); }
+      }
+      ctx.fillStyle = col;
+      pos.forEach(function (P) {
+        var s = P[2]; if (s.d >= p.k) return;
+        var tw = 0.7 + 0.3 * Math.sin(t * 1.1 + s.ph);
+        if (s.star) { ctx.globalAlpha = 0.18 * tw * p.alpha; ctx.beginPath(); ctx.arc(P[0], P[1], s.r * 3.2, 0, 6.2832); ctx.fill(); }
+        ctx.globalAlpha = (s.star ? 0.95 : 0.8) * tw * p.alpha; ctx.beginPath(); ctx.arc(P[0], P[1], s.r, 0, 6.2832); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    });
+    return { canvas: c, p: p, reveal: function (tl, at, dur) { tl.fromTo(p, { k: 0 }, { k: 1.001, duration: dur || 1.4, ease: 'power2.out' }, at || 0); } };
+  };
   /** Explosión de partículas desde un punto. .boom(tl, at, dur) */
   K.particles = function (parent, o) {
     o = o || {}; var c = K.canvas(parent), ctx = c.getContext('2d'), n = o.n || 420, ps = [];

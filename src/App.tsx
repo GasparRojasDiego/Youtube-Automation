@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Home, Clapperboard, Sparkles, Smartphone, MonitorPlay, Library, Download, type LucideIcon } from "lucide-react";
 import { navigate, useRoute, type Page } from "./ui/nav";
-import { AtrilLogo, Ambient } from "./ui/Constellation";
+import { AtrilLogo } from "./ui/Logo";
 import { Toaster } from "./ui/Toaster";
 import { Avatar } from "./ui/kit";
 import { UpdateDialog, UpdateRing } from "./ui/Update";
@@ -18,6 +18,7 @@ import { TikTokPage } from "./pages/TikTok";
 import { SettingsPage } from "./pages/Settings";
 import { Welcome } from "./pages/Welcome";
 import { startUpdateChecks, updateState } from "./lib/updater";
+import { AskHost } from "./ui/Ask";
 
 const NAV: { id: Page; label: string; icon: LucideIcon }[][] = [
   [
@@ -68,7 +69,7 @@ export default function App() {
     return () => ro.disconnect();
   }, [activeId, collapsed, s.onboarded]);
 
-  if (!s.onboarded) return (<><Welcome /><Toaster /></>);
+  if (!s.onboarded) return (<><Welcome /><Toaster /><AskHost /></>);
 
   const up = updateState();
   const running = !!runningVideoId();
@@ -90,7 +91,6 @@ export default function App() {
 
   return (
     <div className="relative h-full flex isolate">
-      <Ambient />
       <aside className={`${collapsed ? "w-[72px]" : "w-[236px]"} relative z-10 shrink-0 border-r border-border/70 bg-card/55 backdrop-blur-xl flex flex-col transition-[width] duration-300 ease-frame`}>
         <div className="h-[72px] flex items-center justify-center px-3">
           <button onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Mostrar menú" : "Ocultar menú"}
@@ -145,6 +145,7 @@ export default function App() {
       </main>
       <UpdateDialog open={updating} onClose={() => setUpdating(false)} />
       <Toaster />
+      <AskHost />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { Card, Empty, Toggle, Chip, Modal, Field, AsyncButton } from "../ui/kit"
 import { lineDiff, fmtDate, slugify } from "../lib/util";
 import { refineSkill } from "../pipeline/extras";
 import { toast, logError } from "../lib/events";
+import { askConfirm } from "../ui/Ask";
 
 export function Skills() {
   return (
@@ -124,7 +125,7 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
                     if (p) { await fs.writeText(p, serializeSkillFile(current)); toast("success", "Exportada", p); }
                   }}><Download size={14} /> Exportar</button>}
                 </div>
-                {current && <button className="btn-ghost text-red-600 dark:text-red-500" onClick={async () => { if (confirm(`¿Eliminar «${current.name}»?`)) { await deleteSkill(current.id); setSel(null); setDraft(null); } }}><Trash2 size={14} /></button>}
+                {current && <button className="btn-ghost text-red-600 dark:text-red-500" onClick={async () => { if (await askConfirm(`¿Eliminar «${current.name}»?`, { body: "Esta acción no se puede deshacer.", confirm: "Eliminar", danger: true })) { await deleteSkill(current.id); setSel(null); setDraft(null); } }}><Trash2 size={14} /></button>}
               </div>
             </div>
           </Card>

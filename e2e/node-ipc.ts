@@ -51,8 +51,13 @@ const running = new Map<string, ChildProcess>();
 export interface ProcRes { code: number; stdout: string; stderr: string; timed_out: boolean }
 export interface ProcReq { id: string; program: string; args?: string[]; cwd?: string; stdin?: string; env?: Record<string, string>; stream?: boolean; timeoutS?: number }
 
+/** Windows (CreateProcess) rechaza líneas de comandos de más de 32 767 caracteres: se imita para que las pruebas lo detecten. */
+const WIN_CMDLINE_MAX = 32_767;
+const winTooLong = (program: string, args: string[]) => [program, ...args].reduce((n, a) => n + a.length + 3, 0) > WIN_CMDLINE_MAX;
+
 export const proc = {
-  run: (r: ProcReq) => new Promise<ProcRes>((resolve) => {
+  run: (r: ProcReq) => new Promise<ProcRes>((resolve, reject) => {
+    if (winTooLong(r.program, r.args ?? [])) { reject(new Error(`No se pudo ejecutar «${r.program}»: The filename or extension is too long. (os error 206)`)); return; }
     const cp = spawn(r.program, r.args ?? [], { cwd: r.cwd, env: { ...process.env, ...(r.env ?? {}) } });
     running.set(r.id, cp);
     let out = "", err = "", timedOut = false;

@@ -90,6 +90,7 @@ export function MotionSummary({ data }: { data: MotionOut }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-sm font-medium">{m.id.toUpperCase()} <span className="text-xs text-muted-foreground font-normal">{m.kind === "overlay" ? "Capa" : "Pantalla completa"} · {fmtDuration(m.code?.duration ?? m.duration)}{(m.attempts ?? 1) > 1 ? ` · ${(m.attempts ?? 1) - 1} corrección(es)` : ""}</span></div>
               <div className="text-xs text-muted-foreground truncate">{m.text || m.brief_en}</div>
+              {!m.file && m.error && <div className="text-xs text-red-600 dark:text-red-500 mt-0.5 line-clamp-2 select-text" title={m.error}>{m.error}</div>}
             </div>
             {m.file ? <Chip tone="green">Lista</Chip> : m.error ? <Chip tone="red">Falló</Chip> : <Chip>Pendiente</Chip>}
           </div>

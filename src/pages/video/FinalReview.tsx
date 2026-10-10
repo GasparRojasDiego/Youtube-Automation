@@ -16,6 +16,7 @@ import { ExportButton } from "./Panels";
 import { ShotThumb, ShotEditorV2, MusicBeds, MotionPanel } from "./EditPanels";
 import { fmtDuration, zonedTimeToUtc, ymdInZone, joinPath } from "../../lib/util";
 import { toast } from "../../lib/events";
+import { askConfirm } from "../../ui/Ask";
 
 async function nextSlot(): Promise<{ date: string; time: string }> {
   const p = getSettings().publishing;
@@ -113,7 +114,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
                   <div key={sg.id} className="flex items-center gap-3">
                     <div className="w-52 text-sm truncate">{sg.title}</div>
                     {seg && <audio controls preload="none" className="h-8 flex-1" src={fileUrl(seg.path, seg.hash.slice(0, 8))} />}
-                    {video.voice_mode !== "own" && <button className="btn-ghost btn-sm" onClick={() => { if (confirm("¿Rehacer esta voz?")) void redoVoiceSegment(video.id, sg.id); }}><RotateCcw size={13} /> Rehacer</button>}
+                    {video.voice_mode !== "own" && <button className="btn-ghost btn-sm" onClick={async () => { if (await askConfirm("¿Rehacer esta voz?", { body: "Se vuelve a narrar este segmento y se monta de nuevo.", confirm: "Rehacer" })) void redoVoiceSegment(video.id, sg.id); }}><RotateCcw size={13} /> Rehacer</button>}
                   </div>
                 );
               })}

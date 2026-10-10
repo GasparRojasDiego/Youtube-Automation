@@ -24,5 +24,7 @@ describe("Claude Code con system prompt largo", () => {
     const r = await claudeRun<{ word: string }>({ stage: "critique", label: "Prueba", system, prompt: "What is the secret word?",
       schema: { type: "object", additionalProperties: false, required: ["word"], properties: { word: { type: "string" } } } });
     expect(r.data.word.toUpperCase()).toContain("ATRIL");
+    // Lo que pasaba en la 2.5.3: el mismo texto en la línea de comandos supera el límite de Windows
+    await expect(ipc.proc.run({ id: "x", program: "claude", args: ["-p", "--system-prompt", system] })).rejects.toThrow(/os error 206/);
   }, 5 * 60_000);
 });

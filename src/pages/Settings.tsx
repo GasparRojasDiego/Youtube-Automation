@@ -154,7 +154,7 @@ function ErrorReport() {
 // ---------- Claude ----------
 const STAGE_LABEL: [StageModelKey, string][] = [["research", "Investigación"], ["script", "Guion"], ["verify", "Datos"], ["storyboard", "Storyboard"], ["vision", "Visión"],
   ["polish", "Retoques"], ["motion", "Animaciones"], ["critique", "Revisión visual"], ["package", "Metadatos"], ["topics", "Temas"], ["analysis", "Instrucciones IA"]];
-const MODELS: [string, string][] = [["opus", "Opus"], ["sonnet", "Sonnet"], ["haiku", "Haiku"]];
+const MODELS: [string, string][] = [["sonnet", "Sonnet"], ["haiku", "Haiku"], ["opus", "Opus"]];
 const EFFORTS: [string, string][] = [["low", "Bajo"], ["medium", "Medio"], ["high", "Alto"], ["xhigh", "Muy alto"], ["max", "Máximo"]];
 
 function Seg({ v, on, opts }: { v: string; on: (s: string) => void; opts: [string, string][] }) {

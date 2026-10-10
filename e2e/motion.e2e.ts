@@ -19,6 +19,10 @@ describe.skipIf(!nfs.existsSync(path.join(WORK, "atril.db")))("animaciones con l
     const repo = await import("../src/lib/repo");
     const sk = await import("../src/lib/skills");
     await loadSettings();
+    // Modelos como los usa el usuario: Sonnet para diseñar y corregir, Haiku para revisar
+    const { saveSettings } = await import("../src/lib/settings");
+    await saveSettings((s) => ({ ...s, claude: { ...s.claude, models: { ...s.claude.models, motion: "sonnet", fix: "sonnet", critique: "haiku", polish: "sonnet" },
+      effort: { ...s.claude.effort, motion: "medium", fix: "low", critique: "medium", polish: "low" } } }));
     const v = (await repo.listVideos())[0];
     // Solo las habilidades de Atril (las de prueba se desactivan)
     for (const s of await sk.listSkills(v.channel_id)) await sk.setSkillEnabled(s.id, false);

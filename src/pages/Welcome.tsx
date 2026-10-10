@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { Constellation, AtrilLogo } from "../ui/Constellation";
+import { AtrilLogo } from "../ui/Logo";
 import { createChannel } from "../lib/repo";
 import { saveSettings } from "../lib/settings";
 import { navigate } from "../ui/nav";
@@ -16,7 +16,6 @@ export function Welcome() {
   };
   return (
     <div className="relative h-full flex items-center justify-center overflow-hidden isolate">
-      <Constellation />
       <div className="card bg-card/95 backdrop-blur max-w-md w-full p-8 shadow-2xl">
         <div className="flex flex-col items-center text-center">
           <AtrilLogo size={56} className="text-primary mb-3" />

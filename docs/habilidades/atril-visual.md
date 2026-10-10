@@ -156,7 +156,7 @@ Coordenadas de planos en unidades cartesianas (y hacia arriba), tal como las rec
 - Sistema que se activa: plano inclinado con app genérica → despierta con clics → gira → cursor con foco → apagón y monograma (S1).
 - Quiebre: palabra en botón → clic → ciclo que se acelera → ruptura con tiempo detenido → galería que estalla → una imagen tapa el cuadro (S3).
 
-### Catálogo de efectos (172)
+### Catálogo de efectos (173)
 Formato: nombre — lo que se ve — cómo (kit K.* de ATRIL o GSAP) — cuándo. Usa 6–12 por pieza y no repitas la misma combinación en el mismo video.
 
 **A. Nacimientos y entradas**
@@ -292,82 +292,83 @@ Formato: nombre — lo que se ve — cómo (kit K.* de ATRIL o GSAP) — cuándo
 110. Ondas suaves — ondas concéntricas — K.ripples — consecuencias que se propagan.
 111. Grano — textura de película sutil sobre todo — K.grain({opacity:0.05}) — archivo, cohesión.
 112. Cinta que corre — banda de texto en bucle, inclinada — K.marquee({rot:-4}) — ruido mediático, solo con palabras de la narración.
+113. Constelación — puntos repartidos que derivan, titilan y se unen con líneas al acercarse (algunas estrellas brillan) — K.constellation + .reveal — redes, datos, conexiones, el espacio.
 
 **L. Texto, solo como acento**
-113. Palabra que crece — entra pequeña y crece hasta dominar el cuadro — scale 0,6 → 1,1 — la idea central, una vez por video.
-114. Palabra clave resaltada — en una frase corta, la palabra importante cambia al acento y crece — span + tween de color y escala — guiar la lectura.
-115. Cifra mecanografiada — Courier Prime carácter a carácter — K.reveal({fx:'type'}) — fechas, códigos.
-116. Subida tras una línea — el texto sube desde detrás de una línea — K.reveal({fx:'rise'}) — títulos de capítulo.
-117. Descifrado — caracteres aleatorios que se ordenan — K.reveal({fx:'scramble'}) — algo oculto que aparece.
-118. Palabra entre figuras — la palabra se lee cuando el patrón que la tapaba se aparta — K.pattern .dim o .shift + texto debajo — revelación.
+114. Palabra que crece — entra pequeña y crece hasta dominar el cuadro — scale 0,6 → 1,1 — la idea central, una vez por video.
+115. Palabra clave resaltada — en una frase corta, la palabra importante cambia al acento y crece — span + tween de color y escala — guiar la lectura.
+116. Cifra mecanografiada — Courier Prime carácter a carácter — K.reveal({fx:'type'}) — fechas, códigos.
+117. Subida tras una línea — el texto sube desde detrás de una línea — K.reveal({fx:'rise'}) — títulos de capítulo.
+118. Descifrado — caracteres aleatorios que se ordenan — K.reveal({fx:'scramble'}) — algo oculto que aparece.
+119. Palabra entre figuras — la palabra se lee cuando el patrón que la tapaba se aparta — K.pattern .dim o .shift + texto debajo — revelación.
 
 **M. Resoluciones**
-119. Composición final sostenida — imagen quieta que respira (1 → 1,015) durante ≥ 0,8 s — tween lento de escala — cerrar la idea.
-120. Eco de apertura — la última escena repite la composición de la primera, con otro sentido — misma composición, otro contenido — callback visual.
-121. Fundido a ink — todo se oscurece salvo un detalle que se apaga al final — K.spotlight con off — final de capítulo.
+120. Composición final sostenida — imagen quieta que respira (1 → 1,015) durante ≥ 0,8 s — tween lento de escala — cerrar la idea.
+121. Eco de apertura — la última escena repite la composición de la primera, con otro sentido — misma composición, otro contenido — callback visual.
+122. Fundido a ink — todo se oscurece salvo un detalle que se apaga al final — K.spotlight con off — final de capítulo.
 
 **N. Planos, capas e interfaces**
-122. Plano inclinado — una pantalla, imagen o tarjeta proyectada en un cuadrilátero; todo lo de dentro comparte la perspectiva — K.plane({quad:[[0,0],[10,3],[13,-3],[3,-6]]}) — mostrar un sistema o un documento con profundidad.
-123. Plano que se reorienta — el plano gira y viaja a otro cuadrilátero sin cortar — pl.to({quad:[[0,0],[0,6],[10,8],[10,2]]}) — cambiar de punto de vista.
-124. Plano al frente — de inclinado a plano y de frente — pl.to({front:true}) — entrar a la pantalla.
-125. Plano que se minimiza — se encoge hacia un punto y se desvanece — pl.to con un cuadrilátero pequeño + opacidad — cerrar un tema.
-126. Interfaz que despierta — una app genérica apagada; el menú, el botón, el título, los valores, la tabla y el gráfico se encienden en pasos de 0,3–0,45 s — K.ui .awaken (devuelve los tiempos para los clics) — un sistema que se activa.
-127. Cursor guía — el puntero recorre una ruta y pulsa con un anillo — K.cursor .path .click — una decisión, "aquí".
-128. Foco que sigue al cursor — lo cercano al cursor se enfoca y lo que deja atrás vuelve a desenfocarse — K.focus({cursor}) — guiar la mirada en pantallas densas.
-129. Selector elegido — una barra con tres opciones; el cursor pulsa una y se enciende — caja + K.cursor .click + color — elegir un camino.
-130. Capas cardinales — el mismo plano replicado en 5+ capas en profundidad (imagen, marca, texto, fondo) que se separan y se juntan — K.stack({quad:[[0,0],[8,2],[10,-6],[2,-5]]}) .spread .collapse — anatomía de algo.
-131. Todo sube — el plano entero sale hacia arriba en < 0,5 s y deja ver el siguiente — K.swap({fx:'slide', dir:'up'}) — "siguiente".
+123. Plano inclinado — una pantalla, imagen o tarjeta proyectada en un cuadrilátero; todo lo de dentro comparte la perspectiva — K.plane({quad:[[0,0],[10,3],[13,-3],[3,-6]]}) — mostrar un sistema o un documento con profundidad.
+124. Plano que se reorienta — el plano gira y viaja a otro cuadrilátero sin cortar — pl.to({quad:[[0,0],[0,6],[10,8],[10,2]]}) — cambiar de punto de vista.
+125. Plano al frente — de inclinado a plano y de frente — pl.to({front:true}) — entrar a la pantalla.
+126. Plano que se minimiza — se encoge hacia un punto y se desvanece — pl.to con un cuadrilátero pequeño + opacidad — cerrar un tema.
+127. Interfaz que despierta — una app genérica apagada; el menú, el botón, el título, los valores, la tabla y el gráfico se encienden en pasos de 0,3–0,45 s — K.ui .awaken (devuelve los tiempos para los clics) — un sistema que se activa.
+128. Cursor guía — el puntero recorre una ruta y pulsa con un anillo — K.cursor .path .click — una decisión, "aquí".
+129. Foco que sigue al cursor — lo cercano al cursor se enfoca y lo que deja atrás vuelve a desenfocarse — K.focus({cursor}) — guiar la mirada en pantallas densas.
+130. Selector elegido — una barra con tres opciones; el cursor pulsa una y se enciende — caja + K.cursor .click + color — elegir un camino.
+131. Capas cardinales — el mismo plano replicado en 5+ capas en profundidad (imagen, marca, texto, fondo) que se separan y se juntan — K.stack({quad:[[0,0],[8,2],[10,-6],[2,-5]]}) .spread .collapse — anatomía de algo.
+132. Todo sube — el plano entero sale hacia arriba en < 0,5 s y deja ver el siguiente — K.swap({fx:'slide', dir:'up'}) — "siguiente".
 
 **O. Ruptura, tiempo y cortes**
-132. Ruptura — texto, tarjetas, íconos o imágenes salen expulsados en todas direcciones, unos hacia la cámara (crecen) y otros al fondo (se encogen), girando y desenfocándose — K.explode — quiebre.
-133. Tiempo detenido — tras el golpe todo casi se congela 1–3 s y luego termina de salir — K.explode({freeze:{len, speed}}) o K.warp — dejar que el golpe pese.
-134. Cursor detonante — un cursor cruza en diagonal en < 0,5 s y en ese instante cambia el fondo y empieza la ruptura — K.cursor .move + tl.set — causa visible del quiebre.
-135. Corte diagonal — una línea de luz cruza la palabra con pendiente 4/10 y la parte en dos mitades que se separan — K.cut — cancelar, borrar, desmentir.
-136. Dispersión de símbolos — símbolos (><, /, -, ( )) alrededor de un centro se dispersan en < 0,2 s, aclarándose y desenfocándose — K.explode({freeze:false, dur:0.25}) — energía técnica.
-137. Caída de intensidad — la onda o el movimiento cae de golpe casi a cero y entra la idea — tween de p.level a 0,05 en 0,2 s — silencio que da paso a la frase clave.
+133. Ruptura — texto, tarjetas, íconos o imágenes salen expulsados en todas direcciones, unos hacia la cámara (crecen) y otros al fondo (se encogen), girando y desenfocándose — K.explode — quiebre.
+134. Tiempo detenido — tras el golpe todo casi se congela 1–3 s y luego termina de salir — K.explode({freeze:{len, speed}}) o K.warp — dejar que el golpe pese.
+135. Cursor detonante — un cursor cruza en diagonal en < 0,5 s y en ese instante cambia el fondo y empieza la ruptura — K.cursor .move + tl.set — causa visible del quiebre.
+136. Corte diagonal — una línea de luz cruza la palabra con pendiente 4/10 y la parte en dos mitades que se separan — K.cut — cancelar, borrar, desmentir.
+137. Dispersión de símbolos — símbolos (><, /, -, ( )) alrededor de un centro se dispersan en < 0,2 s, aclarándose y desenfocándose — K.explode({freeze:false, dur:0.25}) — energía técnica.
+138. Caída de intensidad — la onda o el movimiento cae de golpe casi a cero y entra la idea — tween de p.level a 0,05 en 0,2 s — silencio que da paso a la frase clave.
 
 **P. Revelados y tipografía cinética**
-138. Pincel que revela — un cursor pinta un trazo que deja ver la imagen bajo una capa de color; lo de atrás se vuelve a cubrir y al final el trazo crece hasta revelarla entera — K.brush .play — descubrir algo escondido.
-139. Entrar por el hueco — tras el revelado, la cámara entra en la imagen — cam.to({zoom:3}) — pasar a la escena revelada.
-140. Palabra en botón — en una frase, una palabra está dentro de un botón; el cursor la pulsa y crece hasta ocupar el cuadro — K.cursor .click + escala o cam.to — el concepto central.
-141. Ciclo de estilos — la misma palabra cambia de tipografía, contenedor y fondo cada vez más rápido (< 5 s) con un tic que se acelera; una palabra lo corta — K.cycle — saturación, obsesión.
-142. Escritura con cámara — la cámara sigue al texto que se escribe en una línea larga — K.typeline .type — pensamiento en curso.
-143. Letras que caen — al llegar al límite las letras caen; la cámara se fija en una y entra hasta el negro — K.typeline .fall — colapso, transición a negro.
-144. Rodillo — 1, 2, 3, 4 suben uno tras otro en una ventana — K.roll .run — pasos, conteo.
-145. Rebote de letras — las letras caen al fondo y rebotan a su lugar — keyframes y −420 → +420 → 0 con back.out, escalonado 0,035 — títulos con energía física.
-146. Inserto girado — un texto y una caja se separan y entre ellos entra un texto de otro color girado ~20° — tweens de y + rotation — remate o aclaración.
-147. Texto gigante que se asienta — un texto enorme se reduce al centro en < 0,5 s y se sostiene 2–3 s; luego el siguiente — fromTo scale 6 → 1 con expo.out — ideas en serie con fuerza.
+139. Pincel que revela — un cursor pinta un trazo que deja ver la imagen bajo una capa de color; lo de atrás se vuelve a cubrir y al final el trazo crece hasta revelarla entera — K.brush .play — descubrir algo escondido.
+140. Entrar por el hueco — tras el revelado, la cámara entra en la imagen — cam.to({zoom:3}) — pasar a la escena revelada.
+141. Palabra en botón — en una frase, una palabra está dentro de un botón; el cursor la pulsa y crece hasta ocupar el cuadro — K.cursor .click + escala o cam.to — el concepto central.
+142. Ciclo de estilos — la misma palabra cambia de tipografía, contenedor y fondo cada vez más rápido (< 5 s) con un tic que se acelera; una palabra lo corta — K.cycle — saturación, obsesión.
+143. Escritura con cámara — la cámara sigue al texto que se escribe en una línea larga — K.typeline .type — pensamiento en curso.
+144. Letras que caen — al llegar al límite las letras caen; la cámara se fija en una y entra hasta el negro — K.typeline .fall — colapso, transición a negro.
+145. Rodillo — 1, 2, 3, 4 suben uno tras otro en una ventana — K.roll .run — pasos, conteo.
+146. Rebote de letras — las letras caen al fondo y rebotan a su lugar — keyframes y −420 → +420 → 0 con back.out, escalonado 0,035 — títulos con energía física.
+147. Inserto girado — un texto y una caja se separan y entre ellos entra un texto de otro color girado ~20° — tweens de y + rotation — remate o aclaración.
+148. Texto gigante que se asienta — un texto enorme se reduce al centro en < 0,5 s y se sostiene 2–3 s; luego el siguiente — fromTo scale 6 → 1 con expo.out — ideas en serie con fuerza.
 
 **Q. Datos, audio y conexiones**
-148. Bola que inicia una tendencia — una bola con sombra rebota, se aparta encogiéndose y aparece una flecha de crecimiento con su cifra — K.dot + K.drop + K.arrow + K.counter — el comienzo de un crecimiento.
-149. Línea que se vuelve fondo — del último número sale una línea con un círculo; al tocar el borde, el círculo crece hasta ser el fondo nuevo — DrawSVG + K.cover({from:[x,y]}) — transición que nace del dato.
-150. Número que regresa — el número vuelve dentro de un círculo y de él sale una circunferencia que crece rápido — escala + anillo (radio ↑, opacidad ↓) — retomar un punto.
-151. Onda de audio — caja con onda viva: barras oscuras a la izquierda, grises a la derecha y un divisor de acento que avanza — K.wave (p.split) — voz, grabación, testimonio.
-152. Marcas conectadas — dos marcas neutras unidas por una línea que se dibuja, viaja y desaparece varias veces — K.arrow .draw + .flow — relación entre dos actores.
-153. Ramas con íconos — un círculo suelta una línea ondulada (~1 s); en < 0,5 s salen 5 curvas que terminan en íconos con su palabra — K.waveD + K.arrow + K.icon — una causa, varias consecuencias.
+149. Bola que inicia una tendencia — una bola con sombra rebota, se aparta encogiéndose y aparece una flecha de crecimiento con su cifra — K.dot + K.drop + K.arrow + K.counter — el comienzo de un crecimiento.
+150. Línea que se vuelve fondo — del último número sale una línea con un círculo; al tocar el borde, el círculo crece hasta ser el fondo nuevo — DrawSVG + K.cover({from:[x,y]}) — transición que nace del dato.
+151. Número que regresa — el número vuelve dentro de un círculo y de él sale una circunferencia que crece rápido — escala + anillo (radio ↑, opacidad ↓) — retomar un punto.
+152. Onda de audio — caja con onda viva: barras oscuras a la izquierda, grises a la derecha y un divisor de acento que avanza — K.wave (p.split) — voz, grabación, testimonio.
+153. Marcas conectadas — dos marcas neutras unidas por una línea que se dibuja, viaja y desaparece varias veces — K.arrow .draw + .flow — relación entre dos actores.
+154. Ramas con íconos — un círculo suelta una línea ondulada (~1 s); en < 0,5 s salen 5 curvas que terminan en íconos con su palabra — K.waveD + K.arrow + K.icon — una causa, varias consecuencias.
 
 **R. Imágenes y profundidad**
-154. Velo con manchas — paisaje con velo blanco; círculos negros al 50 % crecen en la franja media y son más transparentes hacia arriba y abajo — K.scatter .grow .drift — atmósfera, multitud, contaminación.
-155. Galería que aparece — 20+ imágenes surgen desde transparencia total — K.gallery .fadeIn — volumen, archivo.
-156. Galería que estalla — las imágenes crecen y se dispersan con profundidad (las grandes, desenfocadas) — K.gallery .burst — expansión.
-157. Una tapa el cuadro — una imagen de la galería crece y cubre todo en < 0,5 s — K.gallery .cover — entrar a un caso concreto.
-158. Bordes con profundidad — caja central con texto e ícono e imágenes en los bordes de distintos tamaños (la mayor desenfocada, las medianas nítidas) — K.image + blur según tamaño — composición con profundidad de campo.
-159. Sujeto recortado — la persona u objeto separado del fondo y un texto enorme entre ambos — fondo + texto + recorte PNG — portada de capítulo; solo con recorte en la Biblioteca (S4).
-160. Pulso de imagen — la imagen se encoge un poco y crece de inmediato (< 0,5 s) — scale 1 → 0,92 → 1 — acento sin cambiar de escena.
-161. Constelación de textos — palabras de varios tamaños alrededor de la idea central; las pequeñas, desenfocadas — K.text + blur según tamaño — contexto alrededor del concepto.
+155. Velo con manchas — paisaje con velo blanco; círculos negros al 50 % crecen en la franja media y son más transparentes hacia arriba y abajo — K.scatter .grow .drift — atmósfera, multitud, contaminación.
+156. Galería que aparece — 20+ imágenes surgen desde transparencia total — K.gallery .fadeIn — volumen, archivo.
+157. Galería que estalla — las imágenes crecen y se dispersan con profundidad (las grandes, desenfocadas) — K.gallery .burst — expansión.
+158. Una tapa el cuadro — una imagen de la galería crece y cubre todo en < 0,5 s — K.gallery .cover — entrar a un caso concreto.
+159. Bordes con profundidad — caja central con texto e ícono e imágenes en los bordes de distintos tamaños (la mayor desenfocada, las medianas nítidas) — K.image + blur según tamaño — composición con profundidad de campo.
+160. Sujeto recortado — la persona u objeto separado del fondo y un texto enorme entre ambos — fondo + texto + recorte PNG — portada de capítulo; solo con recorte en la Biblioteca (S4).
+161. Pulso de imagen — la imagen se encoge un poco y crece de inmediato (< 0,5 s) — scale 1 → 0,92 → 1 — acento sin cambiar de escena.
+162. Constelación de textos — palabras de varios tamaños alrededor de la idea central; las pequeñas, desenfocadas — K.text + blur según tamaño — contexto alrededor del concepto.
 
 **S. Transiciones y cierres nuevos**
-162. Destellos decrecientes — 2–4 destellos blancos, cada uno más transparente — K.flicker — transición nerviosa.
-163. Vidrio líquido — paneles translúcidos que desenfocan la imagen de atrás, con un reflejo que pasa — K.glass .shine — datos sobre una foto.
-164. Carrusel curvo — imágenes curvadas como un monitor que cruzan de abajo-derecha a arriba-izquierda, cada una más alta — K.carousel({inverse:true}) — recorrido de ejemplos.
-165. Rejilla de letras — líneas verticales y horizontales forman celdas y las letras las llenan hasta formar una palabra — DrawSVG + escalonado de letras — títulos de capítulo.
-166. Mosaico diagonal — cuadrados que se tocan por las esquinas en la diagonal y se extienden a ambos lados; detrás cambia la escena — K.tiles — cambio geométrico.
-167. Velo que se cierra — una caja blanca pasa de 100 % a 0 % de transparencia — tween de opacity — final suave de una sección.
-168. Cintas opuestas — dos filas de texto corren en sentidos contrarios (arriba claro, abajo oscuro) — dos K.marquee, una con dir:'right' — tensión, dos versiones.
-169. Celda que se abre — dos líneas horizontales; dos «/» en medio se separan en < 0,3 s y se vuelven verticales de lado a lado: queda una celda donde entra un texto corto — DrawSVG + tweens — enmarcar un concepto.
-170. Blanco con glitch — pantalla blanca, glitch, y el texto central cambia mientras los de alrededor desaparecen — K.flash + K.glitch — cambio de concepto.
-171. Foco por pares — la cámara visita rápido dos extremos, otros dos y el último en 0,3 s, y vuelve al plano general 2 s — cam.to en pasos — recorrer opciones.
-172. Puntos que forman un círculo — cada ícono suelta un círculo pequeño y todos se agrupan en la silueta de un círculo mayor, sin unirse, con una palabra con glitch al centro — tweens hacia puntos de una circunferencia + K.glitch — convergencia, síntesis.
+163. Destellos decrecientes — 2–4 destellos blancos, cada uno más transparente — K.flicker — transición nerviosa.
+164. Vidrio líquido — paneles translúcidos que desenfocan la imagen de atrás, con un reflejo que pasa — K.glass .shine — datos sobre una foto.
+165. Carrusel curvo — imágenes curvadas como un monitor que cruzan de abajo-derecha a arriba-izquierda, cada una más alta — K.carousel({inverse:true}) — recorrido de ejemplos.
+166. Rejilla de letras — líneas verticales y horizontales forman celdas y las letras las llenan hasta formar una palabra — DrawSVG + escalonado de letras — títulos de capítulo.
+167. Mosaico diagonal — cuadrados que se tocan por las esquinas en la diagonal y se extienden a ambos lados; detrás cambia la escena — K.tiles — cambio geométrico.
+168. Velo que se cierra — una caja blanca pasa de 100 % a 0 % de transparencia — tween de opacity — final suave de una sección.
+169. Cintas opuestas — dos filas de texto corren en sentidos contrarios (arriba claro, abajo oscuro) — dos K.marquee, una con dir:'right' — tensión, dos versiones.
+170. Celda que se abre — dos líneas horizontales; dos «/» en medio se separan en < 0,3 s y se vuelven verticales de lado a lado: queda una celda donde entra un texto corto — DrawSVG + tweens — enmarcar un concepto.
+171. Blanco con glitch — pantalla blanca, glitch, y el texto central cambia mientras los de alrededor desaparecen — K.flash + K.glitch — cambio de concepto.
+172. Foco por pares — la cámara visita rápido dos extremos, otros dos y el último en 0,3 s, y vuelve al plano general 2 s — cam.to en pasos — recorrer opciones.
+173. Puntos que forman un círculo — cada ícono suelta un círculo pequeño y todos se agrupan en la silueta de un círculo mayor, sin unirse, con una palabra con glitch al centro — tweens hacia puntos de una circunferencia + K.glitch — convergencia, síntesis.
 
 ## Miniatura [miniatura]
 - Un sujeto focal (objeto, lugar o documento simbólico; nunca una persona real generada), una zona libre para 0–4 palabras, alto contraste y acento sodium; rojo solo si el sujeto es el objeto de la revelación documentada.

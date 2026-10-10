@@ -8,7 +8,6 @@ import { startNextVideo, startFromPrompt, startPersonal, activeVideos, runVideo,
 import { ACCEPT, SCRIPT_EXT, kindOf } from "../pipeline/personal";
 import { navigate } from "../ui/nav";
 import { Card, Empty, Chip, AsyncButton } from "../ui/kit";
-import { Constellation } from "../ui/Constellation";
 import { StepStrip, awaiting } from "../ui/Steps";
 import { TopicsPanel } from "./Topics";
 
@@ -82,7 +81,6 @@ export function Today() {
   return (
     <div className="space-y-6">
       <section className="card relative overflow-hidden">
-        <Constellation />
         <div className="relative px-8 pt-7 pb-6">
           <div className="inline-flex p-0.5 rounded-lg border border-border bg-background/60 mb-4" role="tablist">
             {([["auto", "Automatización", Bot], ["personal", "Personal", UserRound]] as const).map(([id, label, I]) => (

@@ -26,6 +26,7 @@ import { FinalReview } from "./video/FinalReview";
 import { ResearchSummary, ScriptFinal, MediaSummary, MotionSummary, RenderSummary, PackageSummary, PersonalFinal, ImprovePanel } from "./video/Summaries";
 import { personalOf } from "../pipeline/personal";
 import type { Shot, MotionItem, SfxCue, MusicBed } from "../pipeline/types";
+import { askConfirm } from "../ui/Ask";
 
 const KIND: Record<ActivityKind, { icon: LucideIcon; cls: string }> = {
   stage: { icon: Flag, cls: "text-primary" }, search: { icon: Search, cls: "text-sky-500" }, fetch: { icon: Globe, cls: "text-sky-500" },
@@ -297,7 +298,7 @@ export function ProductionView({ video, back }: { video: Video; back?: boolean }
       </div>
       <div className="flex items-center justify-between pt-2">
         <h2 className="text-lg font-bold tracking-tight">{group.label}</h2>
-        {redoable && <button className="btn-ghost btn-sm" title="Reutiliza lo que no cambió" onClick={() => { if (confirm(`¿Rehacer «${group.label}» y lo que sigue?`)) void rerenderFrom(video.id, group.stages[0]); }}><RotateCcw size={13} /> Rehacer</button>}
+        {redoable && <button className="btn-ghost btn-sm" title="Reutiliza lo que no cambió" onClick={async () => { if (await askConfirm(`¿Rehacer «${group.label}» y lo que sigue?`, { body: "Se reutiliza todo lo que no cambie.", confirm: "Rehacer" })) void rerenderFrom(video.id, group.stages[0]); }}><RotateCcw size={13} /> Rehacer</button>}
       </div>
       <StepResult video={video} stages={stages} group={group} />
       <Card title="Paso a paso" icon={ActivityIcon}><Feed videoId={video.id} stages={group.stages} /></Card>
