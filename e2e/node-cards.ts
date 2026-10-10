@@ -18,6 +18,7 @@ export async function renderTitleCard(o: { title: string }, _v: unknown, out: st
 export async function renderQuoteCard(o: { quote: string }, _v: unknown, out: string) { return card(`"${o.quote}"`, out); }
 export async function renderTextCard(o: { text: string }, _v: unknown, out: string) { return card(o.text, out); }
 export async function renderThumbnail(o: { background?: string | null; text: string }, _p: unknown, _v: unknown, out: string) {
+  nfs.mkdirSync(path.dirname(out), { recursive: true });   // como fs.writeB64 de la app, que crea la carpeta
   if (o.background && nfs.existsSync(o.background)) { execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", o.background, "-vf", "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720", "-frames:v", "1", out]); return out; }
   return card(o.text, out, "0x222222", 1280, 720);
 }
