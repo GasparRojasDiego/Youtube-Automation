@@ -104,7 +104,9 @@ jobs:
           "@ | Out-File -Encoding utf8 portable/LEEME.txt
           Compress-Archive -Path portable/* -DestinationPath "out/ATRIL_${v}_portable_x64.zip"
           # Huellas SHA-256 de cada entregable (la app y la página las comparan antes de instalar)
-          Get-ChildItem out -File | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Out-File -Encoding ascii out/SHA256SUMS.txt
+          # Se calculan antes de crear el archivo para que no se lea a sí mismo mientras se escribe
+          $sums = @(Get-ChildItem out -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" })
+          $sums | Out-File -Encoding ascii out/SHA256SUMS.txt
           Get-ChildItem out | Format-Table Name, Length
           Get-Content out/SHA256SUMS.txt
       - name: Certificado de procedencia (Sigstore)
