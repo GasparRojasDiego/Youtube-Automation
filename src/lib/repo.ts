@@ -20,14 +20,6 @@ export async function createChannel(name: string, description = ""): Promise<Cha
   return (await listChannels()).find((c) => c.id === id)!;
 }
 
-export async function updateChannel(id: string, patch: Partial<Pick<Channel, "name" | "description" | "language">>) {
-  const c = (await listChannels()).find((x) => x.id === id);
-  if (!c) return;
-  await db.execute("UPDATE channels SET name=?, description=?, language=? WHERE id=?",
-    [patch.name ?? c.name, patch.description ?? c.description, patch.language ?? c.language, id]);
-  emit("channels");
-}
-
 export async function activeChannel(): Promise<Channel | null> {
   const list = await listChannels();
   const id = getSettings().activeChannelId;
@@ -214,11 +206,6 @@ export async function listArtifacts(videoId: string, kind: string) {
 export async function addReview(videoId: string, stage: string, decision: string, notes: string, seconds: number) {
   await db.execute("INSERT INTO reviews(video_id,stage,decision,notes,seconds,created_at) VALUES(?,?,?,?,?,?)", [videoId, stage, decision, notes, Math.round(seconds), now()]);
   emit("videos");
-}
-
-export async function reviewSecondsSince(ts: number): Promise<number> {
-  const r = await db.query<{ s: number }>("SELECT COALESCE(SUM(seconds),0) AS s FROM reviews WHERE created_at>=?", [ts]);
-  return r[0]?.s ?? 0;
 }
 
 // ---------- Música ----------

@@ -121,9 +121,3 @@ export async function setThumbnail(videoId: string, pngPath: string): Promise<vo
     "El canal debe estar verificado por teléfono (youtube.com/verify). El video ya está subido; puedes poner la miniatura a mano en YouTube Studio.", "YouTube", false);
   if (res.status >= 300) throw new UserError(`No se pudo subir la miniatura (HTTP ${res.status}).`, res.body.slice(0, 1500), "YouTube");
 }
-
-export async function videoStatus(videoIds: string[]): Promise<any[]> {
-  if (!videoIds.length) return [];
-  const r = await requestJson<any>("YouTube", { url: `https://www.googleapis.com/youtube/v3/videos?part=status,statistics,snippet&id=${videoIds.join(",")}`, headers: await auth() });
-  return r.items ?? [];
-}

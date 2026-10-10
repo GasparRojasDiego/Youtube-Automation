@@ -18,7 +18,6 @@ let current: Running | null = null;
 const queue: string[] = [];
 
 export const runningVideoId = () => current?.videoId ?? null;
-export const runningStage = () => current?.stage ?? null;
 export const isQueued = (id: string) => queue.includes(id) || current?.videoId === id;
 
 export function runVideo(videoId: string) {

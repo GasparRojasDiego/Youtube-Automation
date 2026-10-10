@@ -6,3 +6,11 @@ src-tauri/binaries/*
 !src-tauri/binaries/.gitkeep
 *.log
 .DS_Store
+# Nunca subir credenciales
+.env
+.env.*
+*.pem
+*.pfx
+*.p12
+*.key
+client_secret*.json

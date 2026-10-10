@@ -179,8 +179,3 @@ export async function renderComposition(b: Browser, c: Composition, o: RenderOpt
 
 /** Error de la composición (código de Opus): se reintenta pidiendo una corrección. */
 export class MotionError extends Error {}
-
-/** Lista de archivos de cuadros a borrar tras codificar. */
-export function frameFiles(host: MotionHost, dir: string, total: number, ext: string): string[] {
-  return Array.from({ length: total }, (_, i) => host.join(dir, `f_${String(i).padStart(5, "0")}.${ext}`));
-}

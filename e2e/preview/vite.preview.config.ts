@@ -32,6 +32,7 @@ const handlers: Record<string, (a: any) => unknown> = {
   secret_get: (a) => (/google|openai|pexels/.test(a.key) ? "x" : null),
   secret_set: () => null, secret_delete: () => null,
   which: () => null,
+  wav_duration: (a) => { const b = nfs.readFileSync(a.path); return (b.length - 44) / b.readUInt32LE(28); },
   "plugin:event|listen": () => 0,
 };
 

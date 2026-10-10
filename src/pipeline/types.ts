@@ -73,7 +73,6 @@ export interface PublishOut { youtube_id: string; url: string; privacy: string; 
 export interface VoiceSegmentV2 extends VoiceSegment { sentences?: Span[] }
 
 export type VisualType = "photo" | "archival" | "clip" | "meme" | "ai_image" | "motion" | "map" | "source_card" | "quote_card" | "title_card" | "text_card";
-export const CARD_VISUALS: VisualType[] = ["source_card", "quote_card", "title_card", "text_card"];
 export type Transition = "cut" | "fade" | "dissolve" | "fadeblack" | "fadewhite" | "smoothleft" | "smoothright" | "smoothup" | "slideleft" | "slideright"
   | "wipeleft" | "wiperight" | "circleopen" | "zoomin" | "hblur" | "fadegrays" | "coverleft" | "revealleft" | "radial";
 export const TRANSITIONS: Transition[] = ["cut", "fade", "dissolve", "fadeblack", "fadewhite", "smoothleft", "smoothright", "smoothup", "slideleft", "slideright", "wipeleft", "wiperight", "circleopen", "zoomin", "hblur", "fadegrays", "coverleft", "revealleft", "radial"];

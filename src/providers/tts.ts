@@ -124,14 +124,6 @@ export async function synthesize(job: TtsJob): Promise<TtsResult> {
   throw new UserError(`Proveedor de voz desconocido: ${p}.`, "Elige uno en Ajustes → Voz.", "voz", false);
 }
 
-export async function listGoogleVoices(languageCode = "en-US"): Promise<{ name: string; ssmlGender: string }[]> {
-  const key = await requireSecret(SECRET.googleApiKey, "Google Cloud");
-  const res = await requestJson<{ voices: { name: string; ssmlGender: string }[] }>("Google TTS", {
-    url: `https://texttospeech.googleapis.com/v1/voices?languageCode=${languageCode}`, headers: { "x-goog-api-key": key },
-  });
-  return (res.voices ?? []).sort((a, b) => a.name.localeCompare(b.name));
-}
-
 /** Efecto de sonido creado con ElevenLabs (texto → audio). Requiere plan de pago para uso comercial. */
 export async function elevenSoundEffect(o: { prompt: string; seconds: number; outPath: string; videoId?: string | null; channelId?: string | null }): Promise<string> {
   const key = await requireSecret(SECRET.elevenlabsApiKey, "ElevenLabs");

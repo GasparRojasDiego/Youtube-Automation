@@ -145,8 +145,6 @@ export function parseParamBlocks(content: string): { params: Record<string, any>
 
 export const stripParamBlocks = (content: string) => stripComments(content).replace(PARAM_RE, "").trim();
 
-const matchesScope = (s: Skill, scope: Scope) => s.scopes.includes("all") || s.scopes.includes(scope);
-
 // ---------- Secciones dirigidas a una etapa ----------
 // Un título que termina en etiquetas entre corchetes («## Efectos [animaciones]»)
 // manda esa sección (hasta el siguiente título de su nivel o superior) solo a
@@ -238,10 +236,6 @@ export async function skillParams<T extends object>(channelId: string | null, bl
   return out as T;
 }
 
-export async function activeSkillNames(channelId: string | null, scope: Scope): Promise<string[]> {
-  return (await listSkills(channelId)).filter((s) => s.enabled && matchesScope(s, scope)).map((s) => s.name);
-}
-
 // ---------- Valores por defecto del motor (neutros; la identidad va en habilidades) ----------
 
 export const MONTAGE_DEFAULTS = {
@@ -259,7 +253,6 @@ export const MONTAGE_DEFAULTS = {
   grain: 3,              // grano de película (0 = sin grano)
   vignette: true,
 };
-export type MontageParams = typeof MONTAGE_DEFAULTS;
 
 export const VISUAL_DEFAULTS = {
   background: "#111113",

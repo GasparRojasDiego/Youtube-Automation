@@ -1,6 +1,6 @@
 // Lógica pura del pipeline (sin E/S): validación de guion, reparación del plan
 // visual, reparto de tiempos, capítulos, subtítulos y descripción.
-import { splitSentences, wordCount, fmtDuration } from "../lib/util";
+import { wordCount, fmtDuration } from "../lib/util";
 import type { ScriptOut, ResearchOut, VerifyOut, Source, ClaimCheck } from "./types";
 
 // ---------- Guion ----------
@@ -65,13 +65,6 @@ export function openBlocks(v: VerifyOut): number {
 
 export function pendingFixes(v: VerifyOut): number {
   return v.claims.filter((x) => x.resolution === "fix").length + v.unlinked.filter((x) => x.resolution === "fix").length;
-}
-
-// ---------- Plan visual ----------
-export interface SegSentences { id: string; title: string; sentences: string[] }
-
-export function segmentSentences(script: ScriptOut): SegSentences[] {
-  return script.segments.map((s) => ({ id: s.id, title: s.title, sentences: splitSentences(s.text_en) }));
 }
 
 // ---------- Capítulos y subtítulos ----------

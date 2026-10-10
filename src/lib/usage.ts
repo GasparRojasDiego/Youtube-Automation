@@ -121,8 +121,6 @@ export async function listRuns(o: { videoId?: string; since?: number; limit?: nu
   return db.query<RunRow>(`SELECT * FROM claude_runs ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY id DESC LIMIT ?`, p);
 }
 
-export const totalInput = (r: Pick<RunRow, "input_tokens" | "cache_read" | "cache_write">) => r.input_tokens + r.cache_read + r.cache_write;
-
 export function fmtK(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M`;
   if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)} k`;

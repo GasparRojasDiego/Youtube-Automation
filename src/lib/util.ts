@@ -39,10 +39,6 @@ export function fmtDuration(seconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
 }
 
-export function fmtUsd(v: number, digits = 2): string {
-  return `$${(v ?? 0).toFixed(digits)}`;
-}
-
 export function fmtDate(ts: number | null | undefined, withTime = true): string {
   if (!ts) return "—";
   const d = new Date(ts);

@@ -1,0 +1,20 @@
+# Avisos de dependencias: una vez al mes, agrupados, para revisar sin ruido
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    groups:
+      npm: { patterns: ["*"] }
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    groups:
+      cargo: { patterns: ["*"] }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    groups:
+      actions: { patterns: ["*"] }

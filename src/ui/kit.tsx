@@ -1,8 +1,7 @@
 // Componentes base con la identidad visual de VT Asvent.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, Check, AlertTriangle, CircleDashed, Clock, Eye, Ban, type LucideIcon } from "lucide-react";
-import type { StageStatus } from "../lib/repo";
+import { X, Loader2, type LucideIcon } from "lucide-react";
 import { getSettings } from "../lib/settings";
 import { fileUrl } from "../lib/ipc";
 
@@ -80,26 +79,6 @@ export function Progress({ value, className = "" }: { value: number; className?:
       <div className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary shadow-[0_0_10px_hsl(var(--primary)/.6)] transition-[width] duration-500 ease-frame" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
   );
-}
-
-const STATUS: Record<StageStatus, { label: string; cls: string; icon: LucideIcon }> = {
-  pending: { label: "Pendiente", cls: "text-muted-foreground border-border", icon: CircleDashed },
-  running: { label: "En curso", cls: "text-primary border-primary/40 bg-primary/10", icon: Loader2 },
-  done: { label: "Hecho", cls: "text-green-700 dark:text-green-500 border-green-500/40 bg-green-500/10", icon: Check },
-  approved: { label: "Aprobado", cls: "text-green-700 dark:text-green-500 border-green-500/40 bg-green-500/10", icon: Check },
-  review: { label: "Te espera", cls: "text-amber-700 dark:text-amber-500 border-amber-500/50 bg-amber-500/10", icon: Eye },
-  failed: { label: "Falló", cls: "text-red-600 dark:text-red-500 border-red-500/50 bg-red-500/10", icon: AlertTriangle },
-  skipped: { label: "Omitido", cls: "text-muted-foreground border-border", icon: Ban },
-};
-
-export function StatusChip({ status }: { status: StageStatus }) {
-  const s = STATUS[status] ?? STATUS.pending; const I = s.icon;
-  return <span className={`chip ${s.cls}`}><I size={11} className={status === "running" ? "animate-spin" : ""} />{s.label}</span>;
-}
-
-export function StatusIcon({ status, size = 14 }: { status: StageStatus; size?: number }) {
-  const s = STATUS[status] ?? STATUS.pending; const I = s.icon;
-  return <I size={size} className={`${s.cls.split(" ").filter((c) => c.startsWith("text-") || c.startsWith("dark:text-")).join(" ")} ${status === "running" ? "animate-spin" : ""}`} />;
 }
 
 export function Chip({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "primary" | "green" | "amber" | "red" }) {
@@ -191,16 +170,6 @@ export function Stat({ label, value, sub, tone }: { label: string; value: ReactN
       {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
   );
-}
-
-export function ReviewTimer({ onTick }: { onTick?: (s: number) => void }) {
-  // Cuenta solo el tiempo con la ventana visible
-  const [s, setS] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => { if (document.visibilityState === "visible") setS((x) => { onTick?.(x + 1); return x + 1; }); }, 1000);
-    return () => clearInterval(id);
-  }, [onTick]);
-  return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular"><Clock size={12} />{Math.floor(s / 60)}:{String(s % 60).padStart(2, "0")}</span>;
 }
 
 /** Foto de perfil (o iniciales sobre el color de la marca). */

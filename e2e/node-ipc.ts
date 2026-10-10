@@ -91,12 +91,26 @@ export const secrets = {
   get: async (k: string) => secretStore.get(k) ?? null,
   remove: async (k: string) => { secretStore.delete(k); },
 };
+/** Duración exacta de un WAV PCM leyendo su cabecera RIFF (igual que el núcleo Rust). */
+export function wavSeconds(file: string): number {
+  const b = nfs.readFileSync(file);
+  if (b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WAVE") throw new Error("No es un WAV");
+  let rate = 0, i = 12;
+  while (i + 8 <= b.length) {
+    const id = b.toString("ascii", i, i + 4), len = b.readUInt32LE(i + 4);
+    if (id === "fmt ") rate = b.readUInt32LE(i + 16);
+    if (id === "data" && rate) { const rest = b.length - i - 8; return (len === 0 || len === 0xffffffff || len > rest ? rest : len) / rate; }
+    i += 8 + len + (len & 1);
+  }
+  throw new Error("WAV sin datos");
+}
+export const media = { wavDuration: async (p: string) => wavSeconds(p) };
 export const oauth = { listen: async () => 0, wait: async () => ({}) };
 export const youtubeUpload = async () => { throw new Error("no"); };
 export const onUploadProgress = async () => () => {};
 export const onUploadSession = async () => () => {};
 
-export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string }
+export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string; downloads: string }
 let paths: AppPaths | null = null;
 export function setPaths(p: AppPaths) { paths = p; }
 export async function appPaths(): Promise<AppPaths> { return paths!; }
