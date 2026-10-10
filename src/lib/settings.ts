@@ -78,10 +78,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   claude: {
     path: "claude",
     extraArgs: "",
-    models: { topics: "sonnet", research: "sonnet", script: "opus", verify: "sonnet", package: "sonnet", analysis: "sonnet",
-      storyboard: "sonnet", vision: "sonnet", polish: "opus", motion: "opus", fix: "opus", critique: "sonnet" },
-    effort: { topics: "medium", research: "medium", script: "high", verify: "medium", package: "medium", analysis: "medium",
-      storyboard: "medium", vision: "low", polish: "high", motion: "high", fix: "high", critique: "low" },
+    // Sonnet para casi todo y Haiku para lo simple: la calidad es casi igual y la demora mucho menor que con Opus
+    models: { topics: "sonnet", research: "sonnet", script: "sonnet", verify: "haiku", package: "sonnet", analysis: "sonnet",
+      storyboard: "sonnet", vision: "sonnet", polish: "sonnet", motion: "sonnet", fix: "sonnet", critique: "haiku" },
+    effort: { topics: "medium", research: "low", script: "medium", verify: "low", package: "low", analysis: "low",
+      storyboard: "medium", vision: "low", polish: "low", motion: "medium", fix: "low", critique: "medium" },
     timeoutMin: 40,
   },
   tts: {
@@ -165,7 +166,7 @@ async function migrateSettings(s: AppSettings, from: number): Promise<AppSetting
     s.production.targetMinutes = std(s.production.targetMinutes, [10, 13]);
     s.production.scriptPasses = std(s.production.scriptPasses, 1);
     if ((s.tts.provider as string) === "own") s.tts.provider = "google";
-    if (!s.claude.models.fix) { s.claude.models.fix = s.claude.models.motion || "opus"; s.claude.effort.fix = s.claude.effort.motion || "high"; }
+    if (!s.claude.models.fix) { s.claude.models.fix = s.claude.models.motion || "sonnet"; s.claude.effort.fix = s.claude.effort.motion || "low"; }
     for (const k of ["budget", "review", "ui"]) delete (s as any)[k];
   }
   if (from < 24) delete (s.motion as any).perCall;   // ahora cada animación va en su propia llamada, en paralelo

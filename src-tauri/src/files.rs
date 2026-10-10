@@ -48,16 +48,16 @@ pub fn fs_exists(path: String) -> bool {
 
 #[tauri::command]
 pub fn fs_mkdir(path: String) -> Result<(), String> {
-    std::fs::create_dir_all(&path).map_err(|e| e.to_string())
+    std::fs::create_dir_all(&path).map_err(|e| format!("No se pudo crear la carpeta {path}: {e}"))
 }
 
 #[tauri::command]
 pub fn fs_remove(path: String) -> Result<(), String> {
     let p = Path::new(&path);
     if p.is_dir() {
-        std::fs::remove_dir_all(p).map_err(|e| e.to_string())
+        std::fs::remove_dir_all(p).map_err(|e| format!("No se pudo borrar {path}: {e}"))
     } else if p.exists() {
-        std::fs::remove_file(p).map_err(|e| e.to_string())
+        std::fs::remove_file(p).map_err(|e| format!("No se pudo borrar {path}: {e}"))
     } else {
         Ok(())
     }
@@ -68,7 +68,7 @@ pub fn fs_copy(from: String, to: String) -> Result<(), String> {
     if let Some(parent) = Path::new(&to).parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    std::fs::copy(&from, &to).map(|_| ()).map_err(|e| format!("No se pudo copiar {from}: {e}"))
+    std::fs::copy(&from, &to).map(|_| ()).map_err(|e| format!("No se pudo copiar {from} a {to}: {e}"))
 }
 
 #[derive(Serialize)]

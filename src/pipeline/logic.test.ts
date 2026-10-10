@@ -89,6 +89,14 @@ describe("proveedores", () => {
     expect(args.slice(-2)).toEqual(["--fallback-model", "sonnet"]);
     expect(splitArgs(`a "b c" 'd'`)).toEqual(["a", "b c", "d"]);
   });
+  it("el system prompt largo va en un archivo: ningún argumento pone en riesgo el límite de Windows (~32 000 caracteres)", () => {
+    const huge = "Regla visual. ".repeat(6000);   // ~84 000 caracteres, como unas directrices visuales extensas
+    const args = buildClaudeArgs({ stage: "motion", system: huge, schema: { type: "object" } },
+      { path: "claude", extraArgs: "", models: { motion: "sonnet" } as any, effort: { motion: "medium" } as any, timeoutMin: 10 }, "C:\\datos\\jobs\\cj_1\\system.txt");
+    expect(args[args.indexOf("--system-prompt-file") + 1]).toMatch(/system\.txt$/);
+    expect(args).not.toContain("--system-prompt");
+    expect(args.join(" ").length).toBeLessThan(8000);
+  });
   it("interpreta la salida de Claude Code", () => {
     const ok = parseClaudeOutput<{ x: number }>(JSON.stringify({ type: "result", subtype: "success", is_error: false, structured_output: { x: 1 }, total_cost_usd: 0.5, num_turns: 3 }), "", 0);
     expect(ok.data.x).toBe(1); expect(ok.apiEquivUsd).toBe(0.5);

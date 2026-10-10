@@ -17,7 +17,7 @@ export const SCOPES = [
   { id: "thumbnail", label: "Miniatura" },
   { id: "metadata", label: "Título, descripción y etiquetas" },
   { id: "montage", label: "Montaje" },
-  { id: "edit", label: "Retoques de edición (Opus)" },
+  { id: "edit", label: "Retoques de edición" },
   { id: "motion", label: "Animaciones y motion graphics" },
   { id: "metrics", label: "Análisis de métricas" },
   { id: "analysis", label: "Análisis de referentes" },

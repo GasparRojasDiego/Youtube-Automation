@@ -31,3 +31,12 @@ describe("prompts de animación", () => {
     expect(p).toContain('id "m1"');
   });
 });
+
+describe("línea de comandos de Windows", () => {
+  it("cada esquema JSON (va como argumento de claude -p) cabe holgado en el límite de ~32 000 caracteres", async () => {
+    const P = await import("./prompts"); const P2 = await import("./prompts2"); const V = await import("../media/vision");
+    const schemas = Object.entries({ ...P, ...P2, ...V }).filter(([k, v]) => /SCHEMA$/.test(k) && v && typeof v === "object");
+    expect(schemas.length).toBeGreaterThan(8);
+    for (const [k, v] of schemas) expect(JSON.stringify(v).length, k).toBeLessThan(12_000);
+  });
+});

@@ -46,14 +46,19 @@ export function splitArgs(s: string): string[] {
   return out;
 }
 
-export function buildClaudeArgs(c: Pick<ClaudeCall, "stage" | "system" | "schema" | "tools" | "addDirs">, cfg = getSettings().claude): string[] {
+/**
+ * Argumentos de `claude -p`. El system prompt va en un archivo (`systemFile`):
+ * Windows limita la línea de comandos a ~32 000 caracteres y las directrices
+ * visuales del canal pueden superarlo (entonces el proceso ni arranca).
+ */
+export function buildClaudeArgs(c: Pick<ClaudeCall, "stage" | "system" | "schema" | "tools" | "addDirs">, cfg = getSettings().claude, systemFile?: string): string[] {
   const tools = c.tools ?? [];
   const args = [
     "-p",
     "--output-format", "stream-json", "--verbose",
     "--no-session-persistence",
     "--model", cfg.models[c.stage] || "sonnet",
-    "--system-prompt", c.system,
+    ...(systemFile ? ["--system-prompt-file", systemFile] : ["--system-prompt", c.system]),
     "--tools", tools.join(","),
     "--permission-mode", "dontAsk",
     "--strict-mcp-config",
@@ -162,7 +167,9 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
       "Instálalo, ejecuta «claude» para iniciar sesión y reintenta. Otra ruta: Ajustes → Claude Code.", "claude", false);
   }
   const { program: exe, prefix } = await resolveLauncher(resolved);
-  const args = [...prefix, ...buildClaudeArgs(c, cfg)];
+  const systemFile = joinPath(jobDir, "system.txt");
+  await fs.writeText(systemFile, c.system);
+  const args = [...prefix, ...buildClaudeArgs(c, cfg, systemFile)];
   let stdin = c.prompt;
   if (c.images?.length) {
     // Mensaje con bloques de imagen (stream-json de entrada): un solo turno, sin llamadas a Read.

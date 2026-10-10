@@ -1,7 +1,7 @@
 {
   "name": "atril",
   "private": true,
-  "version": "2.5.3",
+  "version": "2.5.4",
   "type": "module",
   "description": "ATRIL — estudio de producción asistida para YouTube (VT Asvent)",
   "scripts": {

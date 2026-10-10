@@ -489,8 +489,8 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
     return `${s.visual}: "${(s.card_text ?? "").slice(0, 80)}"`;
   };
   const edl = buildEdl(assets.shots, segs, offsets, assets.sfx, describe);
-  await ctx.progress("Opus pule la edición…");
-  await activity(v.id, "polish", "think", "Opus revisa el corte");
+  await ctx.progress("Claude pule la edición…");
+  await activity(v.id, "polish", "think", "Claude revisa el corte");
   const r = await claudeRun<PolishRaw>({
     stage: "polish", activityStage: "polish", label: "Retoques de edición", system: systemFor(v), schema: P2.POLISH_SCHEMA,
     prompt: P2.polishPrompt({ skills: polishSkills,
@@ -522,7 +522,7 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const verify = (r.data.verify_es ?? []).map((x) => x.trim()).filter(Boolean);
   if (verify.length) {
     await activity(v.id, "polish", "warn", `Comprobar ${verify.length} dato(s) antes de publicar`, verify.join("\n"));
-    await log("warn", "retoques", `Opus sugiere comprobar ${verify.length} dato(s) antes de publicar.`, verify.join("\n"), v.id);
+    await log("warn", "retoques", `Claude sugiere comprobar ${verify.length} dato(s) antes de publicar.`, verify.join("\n"), v.id);
   }
   const sfx = await resolveSfx(ctx, applied.sfx);
   return { shots: applied.shots, sfx, music: assets.music, motion: applied.motion, notes_es: r.data.notes_es ?? "", grade: applied.grade, key, verify_es: verify };
@@ -752,6 +752,13 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     try { await fs.remove(work); } catch { /* noop */ }
   }
   const failed = items.filter((m) => !m.file && (m.error || engineFail)).length;
+  // Los fallos nunca son silenciosos: van al informe de errores, y si no salió ninguna, la etapa falla (no se monta sin animaciones)
+  const reasons = [...new Set(todo.filter((m) => !m.file && m.error).map((m) => m.error!))];
+  if (reasons.length && !engineFail) await log("error", "animaciones", `Animaciones: ${todo.filter((m) => !m.file).length} de ${todo.length} fallaron`, reasons.slice(0, 3).join("\n\n---\n\n"), v.id, true);
+  if (todo.length && !todo.some((m) => m.file) && !ctx.cancelled()) {
+    await saveProgress();
+    throw new UserError(`No se pudo crear ninguna animación (${todo.length}).`, `${reasons[0] ?? engineFail ?? "Sin detalle"}\n\nNo se montó el video sin animaciones. Pulsa «Reintentar» cuando esté resuelto; el informe de errores de Ajustes tiene el detalle.`, "animaciones", false);
+  }
   if (engineFail) {
     for (const m of items) if (!m.file && !m.error) m.error = engineFail;
     await activity(v.id, "motion", "warn", "El motor de animaciones falló; el video sigue sin las animaciones que faltan", engineFail);

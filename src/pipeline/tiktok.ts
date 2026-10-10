@@ -2,6 +2,7 @@
 // lo parte en piezas de ~1:30 sin recodificar (copia directa, segundos), con cada
 // corte en un fotograma clave que cae, si es posible, en la pausa entre dos frases.
 import { fs, appPaths } from "../lib/ipc";
+import { UserError } from "../lib/events";
 import { updateVideo, getStages, getVideo, type Video } from "../lib/repo";
 import { skillParams, MONTAGE_DEFAULTS } from "../lib/skills";
 import { ffmpeg } from "../providers/ffmpeg";
@@ -99,13 +100,23 @@ async function finished(v: Video): Promise<{ render: RenderOut; title: string }>
   return { render, title: pkg?.chosen_title || v.title };
 }
 
-/** Copia el video terminado a Descargas (lo reemplaza si ya estaba). */
+/** Un archivo abierto en otro programa (reproductor, vista previa del Explorador) no se puede reemplazar ni borrar. */
+const inUse = (e: unknown) => /os error (32|33|1224)|being used|utilizado por otro proceso|sección asignada/i.test(String((e as Error)?.message ?? e));
+const busyError = (what: string) => new UserError(`No se pudo escribir ${what}: está abierto en otro programa.`, "Cierra el video o sus partes en tu reproductor (o la vista previa del Explorador) y vuelve a intentar.", "TikTok", false);
+
+/** Copia el video terminado a Descargas (lo reemplaza si ya estaba; si está abierto, usa otro nombre). */
 export async function downloadVideo(v: Video): Promise<string> {
   const { render, title } = await finished(v);
-  const dest = joinPath((await appPaths()).downloads, `${safeName(title)}.mp4`);
-  await fs.copy(render.file, dest);
-  await updateVideo(v.id, { data: { download: dest } });
-  return dest;
+  const dir = (await appPaths()).downloads;
+  for (let n = 1; n <= 5; n++) {
+    const dest = joinPath(dir, `${safeName(title)}${n > 1 ? ` (${n})` : ""}.mp4`);
+    try {
+      await fs.copy(render.file, dest);
+      await updateVideo(v.id, { data: { download: dest } });
+      return dest;
+    } catch (e) { if (!inUse(e)) throw e; }
+  }
+  throw busyError("el video en Descargas");
 }
 
 /** El video en Descargas; si se borró, se vuelve a descargar. */
@@ -122,9 +133,15 @@ export async function cutParts(v: Video, onProgress: (text: string) => void): Pr
   onProgress("Buscando los puntos de corte…");
   const keys = await keyframes(src).catch(() => null);
   const parts = splitPlan(render.duration, await pauseIntervals(v), keys);
-  const dir = joinPath((await appPaths()).downloads, safeName(title));
-  await fs.mkdir(dir);
-  for (const f of await fs.list(dir)) if (/^parte .+\.mp4$/i.test(f.name)) await fs.remove(f.path);
+  // Las partes anteriores se reemplazan; si alguna está abierta en otro programa, se recorta en una carpeta nueva
+  let dir = "";
+  for (let n = 1; n <= 5 && !dir; n++) {
+    const d = joinPath((await appPaths()).downloads, `${safeName(title)}${n > 1 ? ` (${n})` : ""}`);
+    await fs.mkdir(d);
+    try { for (const f of await fs.list(d)) if (/^parte .+\.mp4$/i.test(f.name)) await fs.remove(f.path); dir = d; }
+    catch (e) { if (!inUse(e)) throw e; }
+  }
+  if (!dir) throw busyError("las partes en Descargas");
   for (const [i, p] of parts.entries()) {
     onProgress(`Copiando ${partName(i, parts.length)} (${i + 1}/${parts.length})…`);
     // Copia directa: entra en el fotograma clave del corte y no recodifica nada
