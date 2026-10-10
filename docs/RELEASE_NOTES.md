@@ -13,7 +13,7 @@ Producción mucho más rápida, modo Personal para videos a medida con mejora co
 - **Correcciones por parches.** Claude devuelve solo los cambios (no reescribe toda la animación); si un cambio no encaja, se pide la versión completa.
 - **Caché de instrucciones.** Las reglas del canal van en el mensaje de sistema, igual en todas las animaciones del video: Claude lo lee de caché (unos 28 000 tokens por llamada que ya no se vuelven a escribir).
 - **También en paralelo:** la búsqueda y descarga de medios (4 a la vez), las imágenes con IA (3), la visión (3 lotes), la narración (3 segmentos), los segmentos del montaje (2), y los títulos, la descripción y las miniaturas, que se preparan mientras se crean las animaciones.
-- **Medido con Claude real** (mismo video, mismos modelos, 3 animaciones): la etapa Motion bajó de 43 min a 11,6 min (3,7× más rápida).
+- **Medido con Claude real** (mismo video, mismos modelos, 3 animaciones): la etapa Motion bajó de 43 min a 11,6 min (3,7× más rápida). Un video personal de 30 s con guion propio tardó entre 5 y 10 min en las pruebas.
 - Lo terminado se guarda al instante: si algo se interrumpe, no se vuelve a pagar.
 
 ## Modo Personal (Inicio)
@@ -28,7 +28,7 @@ Producción mucho más rápida, modo Personal para videos a medida con mejora co
 
 ## Mejora continua
 - Con la primera versión lista, escribes qué cambiar. Claude mira un resumen del video y 12 cuadros del resultado, propone cambios puntuales y ATRIL rehace solo lo afectado.
-- Ejemplos: «la animación m2 más lenta», «en el 0:40 una imagen de un laboratorio», «otra música».
+- Ejemplos: «la animación m2 más lenta», «en el 0:40 una imagen de un laboratorio», «otra música». Tu pedido manda sobre el estilo del canal (si pides amarillo, va amarillo). En la prueba, cambiar el título de una animación tardó unos 3 min.
 - Cambiar una animación corrige su código; cambiar una imagen, una tarjeta o la música solo vuelve a montar.
 - Cambiar la narración es lo más lento: rehace la voz y la edición de esa parte.
 
