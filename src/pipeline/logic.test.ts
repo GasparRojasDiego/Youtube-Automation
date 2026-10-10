@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as L from "./logic";
 import { parseSkillFile, parseParamBlocks, stripParamBlocks } from "../lib/skills";
 import { splitSentences, extractJson, zonedTimeToUtc, lineDiff, joinPath } from "../lib/util";
-import { buildClaudeArgs, parseClaudeOutput, splitArgs } from "../providers/claude";
+import { buildClaudeArgs, parseClaudeOutput, splitArgs, CLAUDE_ENV } from "../providers/claude";
 import { chunkText } from "../providers/tts";
 import { buildVideoResource } from "../providers/youtube";
 import type { ScriptOut, ResearchOut } from "./types";
@@ -96,6 +96,13 @@ describe("proveedores", () => {
     expect(args[args.indexOf("--system-prompt-file") + 1]).toMatch(/system\.txt$/);
     expect(args).not.toContain("--system-prompt");
     expect(args.join(" ").length).toBeLessThan(8000);
+  });
+  it("cada llamada va aislada de la configuración global del usuario (menos tokens, sin consignas ajenas)", () => {
+    const args = buildClaudeArgs({ stage: "motion", system: "s", schema: { type: "object" } },
+      { path: "claude", extraArgs: "", models: { motion: "sonnet" } as any, effort: {} as any, timeoutMin: 10 });
+    expect(args).toContain("--strict-mcp-config");       // sin servidores MCP del usuario (p. ej. Blender)
+    expect(args).toContain("--disable-slash-commands");  // sin sus skills globales (Remotion, ffmpeg-skill…)
+    expect(CLAUDE_ENV.CLAUDE_CODE_DISABLE_CLAUDE_MDS).toBe("1");   // sin su ~/.claude/CLAUDE.md
   });
   it("interpreta la salida de Claude Code", () => {
     const ok = parseClaudeOutput<{ x: number }>(JSON.stringify({ type: "result", subtype: "success", is_error: false, structured_output: { x: 1 }, total_cost_usd: 0.5, num_turns: 3 }), "", 0);

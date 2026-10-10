@@ -152,7 +152,7 @@ CONTRACT (mandatory):
 - Math.random is seeded; call it only during setup. K.rand(a,b) is a seeded helper.
 - from()/fromTo() render their start state immediately when created: if an element gets several from/fromTo tweens, add immediateRender:false to the later ones, or it will show the wrong state before they start.
 - Globals: gsap + SplitText, DrawSVGPlugin, MorphSVGPlugin, MotionPathPlugin, CustomEase, ScrambleTextPlugin, TextPlugin, Physics2DPlugin (registered). libs "d3": d3 v7 + topojson. libs "map": also ATRIL_WORLD (world-atlas countries-50m; objects.countries with properties.name, objects.land); use d3.geoMercator/geoNaturalEarth1/geoOrthographic + fitExtent and real [lon, lat].
-- Images: ATRIL.asset("key") → URL of a provided library image (or K.image(parent, key, {...})).
+- Images: ATRIL.asset("key") → URL of a provided library image (or K.image(parent, key, {...})). When a "key_cut" is listed it is the same image with the background removed (same size, transparent): K.depth(parent, key, {x, y, w, h}) → {back, mid, front} puts your text/shapes in .mid BEHIND the subject (pop-out, depth, parallax by moving the layers at different speeds).
 - Icons: K.icon(parent, "key", {x, y, size, color, bg}) inserts a provided vector icon (keys listed per item; they inherit color) and K.drawIcon(tl, el, at) traces its strokes. Use them for people, objects, money, arrows, time, places… instead of drawing them by hand.
 - Fonts (exact names): ${FONT_FAMILIES.map((f) => `"${f}"`).join(", ")}. Max two families + the mono per piece. ATRIL.fit(el, maxW, maxH) shrinks variable text to fit.
 - No network, no external URLs, no audio/video elements.
@@ -222,7 +222,7 @@ export function motionSystem(o: { skills: string; palette: unknown }) {
 Brand palette and fonts: ${JSON.stringify(o.palette)}`;
 }
 
-export interface MotionBrief { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string }[]; icons: string[] }
+export interface MotionBrief { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string; cut?: boolean }[]; icons: string[] }
 
 export function motionPrompt(it: MotionBrief) {
   return `Create this animation. Return exactly one composition with id "${it.id}". Fullscreen items are multi-scene motion-design sequences; overlays are short, clean graphics over footage.
@@ -232,7 +232,7 @@ Brief: ${it.brief}
 On-screen text (verbatim): ${it.text || "(none)"}
 Narration at that moment: "${it.context}"
 Libraries: ${it.libs.join(", ") || "none"}
-Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a.description}`).join("; ") : "none"}
+Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a.description}${a.cut ? ` (also "${a.key}_cut": subject without background)` : ""}`).join("; ") : "none"}
 Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}`;
 }
 

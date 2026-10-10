@@ -156,7 +156,7 @@ Coordenadas de planos en unidades cartesianas (y hacia arriba), tal como las rec
 - Sistema que se activa: plano inclinado con app genérica → despierta con clics → gira → cursor con foco → apagón y monograma (S1).
 - Quiebre: palabra en botón → clic → ciclo que se acelera → ruptura con tiempo detenido → galería que estalla → una imagen tapa el cuadro (S3).
 
-### Catálogo de efectos (173)
+### Catálogo de efectos (174)
 Formato: nombre — lo que se ve — cómo (kit K.* de ATRIL o GSAP) — cuándo. Usa 6–12 por pieza y no repitas la misma combinación en el mismo video.
 
 **A. Nacimientos y entradas**
@@ -369,6 +369,7 @@ Formato: nombre — lo que se ve — cómo (kit K.* de ATRIL o GSAP) — cuándo
 171. Blanco con glitch — pantalla blanca, glitch, y el texto central cambia mientras los de alrededor desaparecen — K.flash + K.glitch — cambio de concepto.
 172. Foco por pares — la cámara visita rápido dos extremos, otros dos y el último en 0,3 s, y vuelve al plano general 2 s — cam.to en pasos — recorrer opciones.
 173. Puntos que forman un círculo — cada ícono suelta un círculo pequeño y todos se agrupan en la silueta de un círculo mayor, sin unirse, con una palabra con glitch al centro — tweens hacia puntos de una circunferencia + K.glitch — convergencia, síntesis.
+174. Texto detrás del sujeto — la foto, un titular o una forma en la capa del medio y el mismo sujeto recortado delante (recorte automático con rembg); mover las tres capas a distinto ritmo da paralaje — K.depth(parent, key, {x, y, w, h}) → { back, mid, front } — presentar a una persona u objeto, portadas, profundidad.
 
 ## Miniatura [miniatura]
 - Un sujeto focal (objeto, lugar o documento simbólico; nunca una persona real generada), una zona libre para 0–4 palabras, alto contraste y acento sodium; rojo solo si el sujeto es el objeto de la revelación documentada.

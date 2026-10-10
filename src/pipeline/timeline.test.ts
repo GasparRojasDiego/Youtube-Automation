@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, ensureMotionCadence, keywordsQuery, fallbackQueries, motionCues, type SegInfo } from "./timeline";
+import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, ensureMotionCadence, keywordsQuery, fallbackQueries, motionCues, coverCount, sceneSafeIn, parseSceneCuts, type SegInfo } from "./timeline";
 import { buildSrtAligned, creditLines, composeDescription, adaptDisclosure } from "./logic";
 import { normLicense, rankCandidates, type Candidate } from "../media/sources";
 import { ftsQuery } from "../media/library";
@@ -101,9 +101,37 @@ describe("storyboard y línea de tiempo", () => {
     expect(r.motion[1].duration).toBeLessThanOrEqual(12);
     expect(r.grade).toBe("cold");
   });
+  it("una animación a pantalla completa cubre solo las tomas que dura", () => {
+    // Regla: una toma entra si la animación llega a su mitad (siempre la primera)
+    expect(coverCount([4, 4, 4, 4, 4, 4, 4], 20)).toBe(5);
+    expect(coverCount([4, 4, 4, 4, 4, 5], 21)).toBe(5);
+    expect(coverCount([4, 4, 4, 4, 4, 2], 21)).toBe(6);
+    expect(coverCount([35], 20)).toBe(1);
+    expect(coverCount([3, 3], 30)).toBe(2);
+    // Opus pide una racha de 24 tomas (≈ 94 s): la animación se queda con las que caben en ~20 s
+    const long = Array.from({ length: 24 }, (_, i) => ({ id: `s${String(i + 1).padStart(3, "0")}`, segment_id: "S1", beat: i, visual: "photo", start: i * 4, dur: 4 })) as any[];
+    const r = applyPolish({ grade: "neutral", notes_es: "", shots: [], sfx_add: [], sfx_remove: [],
+      motion: [{ kind: "fullscreen", shot_ids: ["s001", "s024"], start_s: 0, duration_s: 90, brief_en: "big sequence", text: "", libs: [], asset_ids: [] }] }, long, [], { S1: 0 }, 96, 4);
+    expect(r.motion[0].shot_ids).toEqual(["s001", "s002", "s003", "s004", "s005"]);
+    expect(r.motion[0].duration).toBe(20);
+  });
   it("todas las secciones reciben una cama musical", () => {
     const beds = repairMusic([{ segment_ids: ["seg2", "bad"], mood_en: "dark" }], ["seg1", "seg2"]);
     expect(beds.flatMap((b) => b.segment_ids).sort()).toEqual(["seg1", "seg2"]);
+  });
+});
+
+describe("escenas de los clips", () => {
+  it("lee los cortes de scdet", () => {
+    expect(parseSceneCuts("[scdet @ 0x1] lavfi.scd.score: 26.8, lavfi.scd.time: 3\n[scdet @ 0x1] lavfi.scd.score: 31, lavfi.scd.time: 7.4", 10)).toEqual([13, 17.4]);
+  });
+  it("una toma no cruza un corte: se mueve lo mínimo, o no se toca si ya cabe", () => {
+    // clip de 0–20 s con cortes en 6 y 12; toma de 4 s
+    expect(sceneSafeIn([6, 12], 1, 4, 0, 20)).toBe(1);        // 1–5: cabe en la primera escena
+    expect(sceneSafeIn([6, 12], 3.5, 4, 0, 20)).toBe(2);      // 3,5–7,5 cruza el corte de 6: la primera escena lo cubre más → 2–6
+    expect(sceneSafeIn([6, 12], 5.5, 4, 0, 20)).toBe(6);      // 5,5–9,5: la segunda lo cubre más → 6–10
+    expect(sceneSafeIn([6, 12], 10, 7, 0, 20)).toBe(12);      // 7 s no caben en 6–12: la tercera (12–20) sí
+    expect(sceneSafeIn([3, 6, 9], 2, 5, 0, 11)).toBe(0);      // ninguna alcanza: la más larga desde su inicio
   });
 });
 

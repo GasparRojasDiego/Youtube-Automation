@@ -1,11 +1,11 @@
 // Implementación de cada etapa. Todas son reanudables: lo ya generado (y
 // pagado) se reutiliza comparando huellas (hash) de sus entradas.
-import { fs } from "../lib/ipc";
+import { fs, db } from "../lib/ipc";
 import { getSettings } from "../lib/settings";
 import { skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS, THUMBNAIL_DEFAULTS, SCRIPT_DEFAULTS } from "../lib/skills";
 import { getStage, saveArtifact, updateVideo, listMusic, type Video, type StageId } from "../lib/repo";
 import { UserError, log } from "../lib/events";
-import { joinPath, sha256, now, extName, splitSentences, mapLimit } from "../lib/util";
+import { joinPath, sha256, now, extName, splitSentences, mapLimit, limiter } from "../lib/util";
 import { claudeRun } from "../providers/claude";
 import { synthesize, chunkText, ttsProviderName, type VoiceOverride } from "../providers/tts";
 import { generateImage, imageProvider } from "../providers/images";
@@ -16,7 +16,8 @@ import * as P from "./prompts";
 import * as L from "./logic";
 import { joinAudioArgs } from "./montage";
 import { renderThumbnail } from "./cards";
-import { parseSilences, alignSentences } from "./align";
+import { parseSilences, alignSentences, alignWords } from "./align";
+import { transcribeWords, disableTool } from "../media/toolkit";
 import { segInfos, segmentOffsets, segmentLength } from "./timeline";
 import { getAssets } from "../media/library";
 import { activity } from "../lib/activity";
@@ -40,6 +41,13 @@ export const need = async <T>(v: Video, s: StageId, label: string) => {
   return o;
 };
 export const checkCancel = (ctx: Ctx) => { if (ctx.cancelled()) throw new UserError("Proceso cancelado.", "", "pipeline", true); };
+/** Guarda lo avanzado de una etapa sin cambiar su estado: si algo falla, el reintento retoma desde aquí. */
+export const checkpoint = (v: Video, s: StageId, partial: unknown) =>
+  db.execute("UPDATE stages SET output=? WHERE video_id=? AND stage=?", [JSON.stringify(partial), v.id, s]).then(() => undefined, () => undefined);
+/** Marca de una parte terminada (archivo + huella de sus entradas), independiente de la base de datos. */
+export async function readMark<T extends { hash: string }>(file: string, hash: string): Promise<T | null> {
+  try { const m = JSON.parse(await fs.readText(file)) as T; return m?.hash === hash ? m : null; } catch { return null; }
+}
 
 async function wordsTarget(v: Video): Promise<[number, number, number]> {
   const s = getSettings().production;
@@ -98,13 +106,23 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
       videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
     script.version = (current.version ?? 1) + 1;
   } else {
-    await ctx.progress("Escribiendo el guion…");
-    script = (await claudeRun<ScriptOut>({ stage: "script", label: "Guion", system, schema: P.SCRIPT_SCHEMA,
-      prompt: P.scriptPrompt({ skills, topic: v.data.topic?.title ?? v.title, research, minWords: minW, maxWords: maxW }),
-      videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
-    script.version = 1;
+    // Cada pasada terminada se guarda: si la siguiente falla, el reintento no repite las anteriores
+    // (al terminar bien se borra, así «Rehacer» escribe un guion nuevo)
+    const topic = v.data.topic?.title ?? v.title;
+    const passKey = await sha256(JSON.stringify([topic, research, skills, minW, maxW]));
+    const done = (await readMark<{ hash: string; scripts: ScriptOut[] }>(passFile(v), passKey))?.scripts ?? [];
+    const keep = (sc: ScriptOut) => { done.push(sc); return fs.writeText(passFile(v), JSON.stringify({ hash: passKey, scripts: done })).catch(() => undefined); };
+    if (!done.length) {
+      await ctx.progress("Escribiendo el guion…");
+      const first = (await claudeRun<ScriptOut>({ stage: "script", label: "Guion", system, schema: P.SCRIPT_SCHEMA,
+        prompt: P.scriptPrompt({ skills, topic, research, minWords: minW, maxWords: maxW }),
+        videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
+      first.version = 1;
+      await keep(first);
+    } else await activity(v.id, "script", "decision", `Se retoma el guion: ${done.length} pasada(s) ya hechas`);
+    script = done[done.length - 1];
     const passes = personal ? 1 : getSettings().production.scriptPasses;
-    for (let i = 1; i < passes; i++) {
+    for (let i = done.length; i < passes; i++) {
       checkCancel(ctx);
       await ctx.progress(`Pasada de mejora ${i + 1}/${passes}…`);
       const mech = L.checkScript(script, research);
@@ -113,6 +131,7 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
           notes: "Second pass: sharpen the hook, tighten rhythm, deepen the original analysis, remove filler. Keep every claim sourced." }),
         videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
       script.version = i + 1;
+      await keep(script);
     }
   }
   if (!script.segments?.length) throw new UserError("El guion llegó vacío.", "", "guion");
@@ -122,8 +141,10 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
   const best = script.title_options?.[0]?.title;
   if (best) await updateVideo(v.id, { title: best });
   if (script.skills_check_es?.length) await activity(v.id, "script", "decision", `Habilidades aplicadas al guion (${script.skills_check_es.length})`, script.skills_check_es.join("\n"));
+  if (!revision) await fs.remove(passFile(v)).catch(() => undefined);
   return script;
 }
+const passFile = (v: Video) => joinPath(v.dir, "guion.pasadas.json");
 
 // ---------- 4. Verificación ----------
 export async function stageVerify(ctx: Ctx): Promise<VerifyOut> {
@@ -144,13 +165,31 @@ export async function stageVerify(ctx: Ctx): Promise<VerifyOut> {
 }
 
 // ---------- 5. Voz ----------
-/** Tiempos de cada oración (silencios detectados por ffmpeg). Se guarda en el segmento de voz. */
-async function alignVoice(seg: VoiceSegmentV2, text: string, videoId: string) {
+/**
+ * Tiempos de cada oración (silencios detectados por ffmpeg) y, si whisper.cpp está instalado, de cada
+ * palabra (lo que de verdad se oye): subtítulos resaltados y cortes al ritmo exacto de la voz.
+ */
+async function alignVoice(seg: VoiceSegmentV2, text: string, videoId: string, o: { language: string; workDir: string; jobId: string }) {
   const sentences = splitSentences(text);
   if (seg.sentences?.length === sentences.length) return;
   const stderr = await ffmpeg(["-hide_banner", "-nostats", "-i", seg.path, "-af", "silencedetect=noise=-38dB:d=0.16", "-f", "null", "-"]);
-  seg.sentences = alignSentences(sentences, seg.duration, parseSilences(stderr, seg.duration));
-  await activity(videoId, "voice", "audio", `Voz alineada (${sentences.length} frases)`, "");
+  const silences = parseSilences(stderr, seg.duration);
+  let aligned: ReturnType<typeof alignWords> = null;
+  try {
+    const asr = await transcribeWords(seg.path, { language: o.language, prompt: text, workDir: o.workDir, jobId: o.jobId });
+    if (asr) aligned = alignWords(sentences, asr, seg.duration, silences);
+  } catch (e) {
+    disableTool("whisper");
+    await activity(videoId, "voice", "warn", "whisper.cpp no funcionó; los subtítulos se sincronizan por estimación", e instanceof Error ? e.message.slice(0, 600) : String(e));
+  }
+  if (aligned) {
+    seg.sentences = aligned.spans; seg.words = aligned.words; seg.aligner = "whisper";
+    const total = aligned.words.reduce((a, w) => a + w.length, 0);
+    await activity(videoId, "voice", "audio", `Voz alineada palabra por palabra con whisper.cpp (${sentences.length} frases, ${aligned.matched}/${total} palabras reconocidas)`, "");
+  } else {
+    seg.sentences = alignSentences(sentences, seg.duration, silences); seg.aligner = "silences";
+    await activity(videoId, "voice", "audio", `Voz alineada (${sentences.length} frases)`, "");
+  }
 }
 export async function stageVoice(ctx: Ctx): Promise<VoiceOut> {
   const v = ctx.video;
@@ -167,22 +206,39 @@ export async function stageVoice(ctx: Ctx): Promise<VoiceOut> {
     const voiceKey = JSON.stringify({ provider, g: st.google, ge: st.gemini, e: st.elevenlabs, override });
     // Varios segmentos a la vez (cada uno espera a la red); el orden se conserva
     let narrated = 0;
+    // Cada segmento (y cada trozo de texto) terminado deja una marca: si la voz falla a mitad, el
+    // reintento solo narra lo que faltó (la voz se paga por carácter).
+    // La alineación (whisper.cpp usa la CPU) avanza de a una mientras se narran los demás (red).
+    const lang = (personalOf(v)?.language ?? getSettings().publishing.defaultLanguage ?? "en").slice(0, 2);
+    const alignSlot = limiter(1);
+    const aligning: Promise<void>[] = [];
+    const align = (seg: VoiceSegmentV2, text: string) => { aligning.push(alignSlot(() => alignVoice(seg, text, v.id, { language: lang, workDir: joinPath(dir, "whisper"), jobId: ctx.jobId }))); return seg; };
     segments.push(...await mapLimit(script.segments, 3, async (s) => {
       checkCancel(ctx);
       const hash = await sha256(`${voiceKey}|${s.text_en}`);
       const outPath = joinPath(dir, `${s.id}.wav`);
       const old = prev?.segments.find((x) => x.segment_id === s.id);
       if (old && old.hash === hash && (await fs.exists(outPath))) return old;
+      const mark = await readMark<{ hash: string; duration: number }>(joinPath(dir, `${s.id}.json`), hash);
+      if (mark && (await fs.exists(outPath))) return align({ segment_id: s.id, path: outPath, duration: mark.duration, hash }, s.text_en);
       const parts: string[] = [];
       for (const [j, chunk] of chunkText(s.text_en).entries()) {
-        const r = await synthesize({ text: chunk, outPath: joinPath(dir, "parts", `${s.id}_${j}`), videoId: v.id, channelId: v.channel_id, override });
+        const base = joinPath(dir, "parts", `${s.id}_${j}`);
+        const partHash = await sha256(`${voiceKey}|${chunk}`);
+        const done = await readMark<{ hash: string; path: string }>(`${base}.json`, partHash);
+        if (done && (await fs.exists(done.path))) { parts.push(done.path); continue; }
+        const r = await synthesize({ text: chunk, outPath: base, videoId: v.id, channelId: v.channel_id, override });
+        await fs.writeText(`${base}.json`, JSON.stringify({ hash: partHash, path: r.path }));
         parts.push(r.path);
       }
       await ffmpeg(joinAudioArgs(parts, outPath, 0.12));
+      const duration = await probeDuration(outPath);
+      await fs.writeText(joinPath(dir, `${s.id}.json`), JSON.stringify({ hash, duration }));
       await ctx.progress(`Narración: ${++narrated} segmento(s) listos`);
-      return { segment_id: s.id, path: outPath, duration: await probeDuration(outPath), hash };
+      return align({ segment_id: s.id, path: outPath, duration, hash }, s.text_en);
     }));
-    for (const seg of segments) await alignVoice(seg, script.segments.find((x) => x.id === seg.segment_id)!.text_en, v.id);
+    await Promise.all(aligning);
+    for (const seg of segments) await alignVoice(seg, script.segments.find((x) => x.id === seg.segment_id)!.text_en, v.id, { language: lang, workDir: joinPath(dir, "whisper"), jobId: ctx.jobId });
   return { provider, segments, total: segments.reduce((a, s) => a + s.duration, 0) };
 }
 
@@ -209,8 +265,14 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   const bgOptions = assetIds.map((id) => assetMap.get(id)!).filter((a) => a && a.kind === "image" && !a.real_person && a.quality >= 3)
     .sort((a, b) => b.quality - a.quality).slice(0, 12);
   let pkg: PackageOut;
+  // Borrador de lo pagado (Claude y fondos con IA): si falla lo que sigue, el reintento no lo repite
+  const draftFile = joinPath(v.dir, "metadatos.borrador.json");
+  const draftKey = await sha256(JSON.stringify([script.title_options, script.segments.map((x) => x.text_en), verify.overall_es, thumbP, s.images.thumbnailCandidates, visual.photorealistic, bgOptions.map((a) => a.id)]));
+  const draft = !prev && !opts.regenerate ? await readMark<{ hash: string; pkg: PackageOut }>(draftFile, draftKey) : null;
   if (prev && !opts.regenerate) {
     pkg = { ...prev };
+  } else if (draft) {
+    pkg = { ...draft.pkg };
   } else {
     await ctx.progress("Títulos, descripción y miniaturas…");
     const r = await claudeRun<Omit<PackageOut, "chosen_title" | "description" | "chosen_thumbnail" | "chapters" | "srt">>({
@@ -236,6 +298,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
       }
       t.image = bg ?? bgOptions[i % Math.max(1, bgOptions.length)]?.path ?? polish.shots.find((x) => x.media === "image" && x.path)?.path ?? undefined;
     }
+    await fs.writeText(draftFile, JSON.stringify({ hash: draftKey, pkg })).catch(() => undefined);
   }
   // Composición de miniaturas (rápida, sin costo): siempre con los parámetros actuales
   for (const [i, t] of pkg.thumbnails.entries()) {
@@ -267,22 +330,27 @@ export async function stagePublish(ctx: Ctx): Promise<PublishOut> {
   if (v.status !== "approved" && v.status !== "scheduled") throw new NeedsUser("El video necesita tu aprobación en la revisión final.");
   const s = getSettings().publishing;
   const publishAt = v.scheduled_at && v.scheduled_at > Date.now() + 15 * 60 * 1000 ? new Date(v.scheduled_at).toISOString() : null;
-  await ctx.progress("Subiendo a YouTube…");
-  const offP = await onUploadProgress((p) => { if (p.id === ctx.jobId) void ctx.progress(`Subiendo a YouTube · ${Math.round((p.sent / p.total) * 100)} %`); });
-  const offS = await onUploadSession((p) => { if (p.id === ctx.jobId) void updateVideo(v.id, { upload_session: p.session }); });
+  // Este mismo montaje ya se subió (falló lo que venía después): no se sube dos veces
+  const already = v.youtube_id && v.data?.uploaded?.renderedAt === render.renderedAt ? v.youtube_id : null;
   let res: any;
-  try {
-    res = await uploadVideo(ctx.jobId, render.file, {
-    title: pkg.chosen_title, description: pkg.description, tags: pkg.tags, categoryId: s.categoryId,
-    defaultLanguage: s.defaultLanguage, privacy: publishAt ? "private" : "public", publishAt, containsSyntheticMedia: pkg.synthetic_media,
-    }, v.upload_session);
-  } catch (e) {
-    // Si la sesión guardada ya no sirve, la próxima vez se inicia una nueva
-    if (e instanceof UserError && /expir/.test(e.userMessage)) await updateVideo(v.id, { upload_session: null });
-    throw e;
-  } finally { offP(); offS(); }
+  if (already) res = { id: already, status: v.data.uploaded.status ?? {} };
+  else {
+    await ctx.progress("Subiendo a YouTube…");
+    const offP = await onUploadProgress((p) => { if (p.id === ctx.jobId) void ctx.progress(`Subiendo a YouTube · ${Math.round((p.sent / p.total) * 100)} %`); });
+    const offS = await onUploadSession((p) => { if (p.id === ctx.jobId) void updateVideo(v.id, { upload_session: p.session }); });
+    try {
+      res = await uploadVideo(ctx.jobId, render.file, {
+      title: pkg.chosen_title, description: pkg.description, tags: pkg.tags, categoryId: s.categoryId,
+      defaultLanguage: s.defaultLanguage, privacy: publishAt ? "private" : "public", publishAt, containsSyntheticMedia: pkg.synthetic_media,
+      }, v.upload_session);
+    } catch (e) {
+      // Si la sesión guardada ya no sirve, la próxima vez se inicia una nueva
+      if (e instanceof UserError && /expir/.test(e.userMessage)) await updateVideo(v.id, { upload_session: null });
+      throw e;
+    } finally { offP(); offS(); }
+  }
   const ytId = res.id as string;
-  await updateVideo(v.id, { youtube_id: ytId, upload_session: null });
+  await updateVideo(v.id, { youtube_id: ytId, upload_session: null, data: { uploaded: { renderedAt: render.renderedAt, status: res.status ?? {} } } });
   let thumbnail_ok = true; let note = "";
   const thumb = pkg.thumbnails[pkg.chosen_thumbnail]?.path;
   if (thumb) {

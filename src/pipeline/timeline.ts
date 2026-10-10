@@ -218,6 +218,23 @@ export interface PolishRaw {
 }
 
 const MOTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right", "static", "punch_in", "drift"];
+/** Duración buscada de una animación a pantalla completa y tope del motor (s). */
+export const FULLSCREEN_TARGET = 20, FULLSCREEN_MAX = 30;
+
+/**
+ * Cuántas tomas consecutivas cubre una animación a pantalla completa de `len` s:
+ * una toma entra si la animación llega al menos a su mitad (siempre la primera).
+ * El resto conserva su propia imagen: una animación de 20 s nunca sostiene su
+ * último cuadro durante un minuto.
+ */
+export function coverCount(durs: number[], len: number): number {
+  let acc = 0, n = 0;
+  for (const d of durs) {
+    if (n && acc + d / 2 > len + 0.05) break;
+    acc += d; n++;
+  }
+  return n;
+}
 
 /** Aplica los retoques de Opus con validación estricta (nada fuera de rango llega al montaje). */
 export function applyPolish(p: PolishRaw, shots: Shot[], sfx: SfxCue[], offsets: Record<string, number>, totalDur: number, motionBudget: number): { shots: Shot[]; sfx: SfxCue[]; motion: MotionItem[]; grade: Grade } {
@@ -251,13 +268,14 @@ export function applyPolish(p: PolishRaw, shots: Shot[], sfx: SfxCue[], offsets:
     if (it.kind === "fullscreen") {
       // tomas consecutivas del mismo segmento, sin repetir
       const idx = ids.map((id) => segShots.findIndex((s) => s.id === id)).filter((i) => i >= 0).sort((a, b) => a - b);
-      const run: string[] = [];
-      for (let i = idx[0]; i <= idx[idx.length - 1]; i++) run.push(segShots[i].id);
+      const span = segShots.slice(idx[0], idx[idx.length - 1] + 1);
+      // Solo las tomas que caben en la animación (antes, una racha de 90 s recibía una animación de 20 s)
+      const run = span.slice(0, coverCount(span.map((s) => s.dur ?? 0), FULLSCREEN_TARGET)).map((s) => s.id);
       if (run.some((id) => usedFull.has(id))) continue;
       run.forEach((id) => usedFull.add(id));
       const start = byId.get(run[0])!.start ?? 0;
       const end = run.reduce((a, id) => Math.max(a, (byId.get(id)!.start ?? 0) + (byId.get(id)!.dur ?? 0)), 0);
-      motion.push({ id: `m${++m}`, kind: "fullscreen", shot_ids: run, segment_id: seg, start, duration: Math.min(20, end - start), brief_en: it.brief_en, text: it.text ?? "", libs: (it.libs ?? []).filter((l) => l === "map" || l === "d3"), asset_ids: it.asset_ids ?? [], icons: cleanIcons(it.icons_en) });
+      motion.push({ id: `m${++m}`, kind: "fullscreen", shot_ids: run, segment_id: seg, start, duration: Math.min(FULLSCREEN_MAX, end - start), brief_en: it.brief_en, text: it.text ?? "", libs: (it.libs ?? []).filter((l) => l === "map" || l === "d3"), asset_ids: it.asset_ids ?? [], icons: cleanIcons(it.icons_en) });
     } else {
       const start = (first.start ?? 0) + clamp(Number(it.start_s) || 0, 0, Math.max(0, (first.dur ?? 0) - 0.5));
       const segEnd = segShots.reduce((a, s) => Math.max(a, (s.start ?? 0) + (s.dur ?? 0)), 0);
@@ -351,4 +369,27 @@ export function motionCues(m: MotionItem, raw: MotionSfxRaw[] | undefined): SfxC
     cues.push({ id: `${m.id}-fx${cues.length + 1}`, at: Math.round(c.at * 100) / 100, type: c.type.trim(), query_en: (c.query_en || c.type).trim(), gain_db: loud.test(t) ? -16 : mid.test(t) ? -18 : -21 });
   }
   return cues;
+}
+
+// ---------- Escenas de los clips ----------
+/** Instantes de corte que detecta `scdet` de ffmpeg (en su registro). */
+export function parseSceneCuts(stderr: string, offset = 0): number[] {
+  return [...stderr.matchAll(/lavfi\.scd\.time:\s*([\d.]+)/g)].map((m) => Math.round((Number(m[1]) + offset) * 1000) / 1000).filter((t) => Number.isFinite(t));
+}
+
+/**
+ * Punto de entrada de un clip que no cruza un corte de escena. Si [entrada, entrada + dur] ya cabe
+ * en una escena, no se toca; si cruza un corte, se mueve lo mínimo dentro de la escena que más lo
+ * cubre (entre las que alcanzan); si ninguna alcanza, se usa la más larga desde su inicio.
+ * [from, to] es el tramo analizado del clip.
+ */
+export function sceneSafeIn(cuts: number[], clipIn: number, dur: number, from: number, to: number): number {
+  const b = [from, ...cuts.filter((c) => c > from + 0.05 && c < to - 0.05).sort((x, y) => x - y), to];
+  const scenes = b.slice(1).map((e, i) => ({ s: b[i], e }));
+  const end = clipIn + dur;
+  if (scenes.some((sc) => clipIn >= sc.s - 0.15 && end <= sc.e + 0.15)) return clipIn;
+  const overlap = (sc: { s: number; e: number }) => Math.max(0, Math.min(end, sc.e) - Math.max(clipIn, sc.s));
+  const fits = scenes.filter((sc) => sc.e - sc.s >= dur).sort((x, y) => overlap(y) - overlap(x));
+  const r = fits.length ? clamp(clipIn, fits[0].s, fits[0].e - dur) : scenes.sort((x, y) => (y.e - y.s) - (x.e - x.s))[0].s;
+  return Math.round(r * 1000) / 1000;
 }

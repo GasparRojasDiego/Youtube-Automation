@@ -169,6 +169,21 @@ describe.skipIf(!CHROME || !hasFfmpeg)("motor de motion", () => {
       const [f0, f1, f2] = pc.samples.map((f) => nfs.readFileSync(f));
       expect(f0.equals(f1)).toBe(false); expect(f1.equals(f2)).toBe(false);
       expect(f2.length).toBeGreaterThan(f0.length);   // al final hay más puntos y líneas que al principio
+      // Profundidad con recorte (rembg): el sujeto queda DELANTE de la capa intermedia; sin recorte, la capa tapa la foto
+      const photo = path.join(work, "foto.png"), cut = path.join(work, "foto_cut.png");
+      execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=640x400", "-frames:v", "1", photo]);
+      execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=red:s=640x400,format=rgba,geq=r='255':g='0':b='0':a='if(lt(hypot(X-320\\,Y-200)\\,120)\\,255\\,0)'", "-frames:v", "1", cut]);
+      const DEPTH = (withCut: boolean): Composition => ({ id: "d1", duration: 1, transparent: false, css: "", html: "", assets: withCut ? { img1: photo, img1_cut: cut } : { img1: photo },
+        js: `const tl = gsap.timeline(); const s = K.scene({ bg: '#000' }); K.show(tl, s, 0); const d = K.depth(s, 'img1', {}); K.el('div', { css: { position: 'absolute', inset: '0', background: '#00ff00' } }, d.mid); window.__front = !!d.front; ATRIL.register(tl, 1);` });
+      const pixel = (f: string, x: number, y: number) => [...execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", f, "-vf", `format=rgb24,crop=2:2:${x}:${y}`, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])];
+      const pd = await previewComposition(b, DEPTH(true), opts("d1"));
+      expect([...pd.errors, ...pd.consoleErrors]).toEqual([]);
+      const [cr, cg] = pixel(pd.samples[1], 960, 540), [er, eg] = pixel(pd.samples[1], 40, 40);
+      expect(cr).toBeGreaterThan(200); expect(cg).toBeLessThan(60);     // centro: el sujeto recortado (rojo) delante
+      expect(eg).toBeGreaterThan(200); expect(er).toBeLessThan(60);     // borde: la capa intermedia (verde) tapa la foto
+      const pn = await previewComposition(b, DEPTH(false), opts("d2"));
+      expect([...pn.errors, ...pn.consoleErrors]).toEqual([]);           // sin recorte no hay error: queda la capa sobre la foto
+      expect(pixel(pn.samples[1], 960, 540)[1]).toBeGreaterThan(200);
     } finally {
       await closeBrowser(b);
       nfs.rmSync(work, { recursive: true, force: true });

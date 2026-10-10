@@ -98,17 +98,19 @@ export function segmentV2Args(c: SegmentV2): { args: string[]; filter: string } 
     const grade = GRADE_FILTERS[s.grade ?? "neutral"] ?? GRADE_FILTERS.neutral;
     const vi = input++;
     if (s.media === "video") {
-      const avail = Math.max(0.1, (s.clipLen ?? L) - (s.clipIn ?? 0));
-      args.push("-ss", num(s.clipIn ?? 0), "-t", num(Math.min(L, avail)), "-i", s.path);
+      // Siempre se sostiene el último cuadro hasta completar L: si el archivo dura menos de lo que dicen
+      // sus datos (una animación más corta, un clip de stock redondeado), la toma no se acorta. Una toma
+      // corta hace que xfade corte el segmento entero (97 s montados como 33 s).
+      args.push("-ss", num(s.clipIn ?? 0), "-t", num(L), "-i", s.path);
       const fx = clamp(s.focus?.x ?? 0.5, 0, 1), fy = clamp(s.focus?.y ?? 0.5, 0, 1);
-      const pad = avail < L ? `,tpad=stop_mode=clone:stop_duration=${num(L - avail + 0.1)}` : "";
       filters.push(`[${vi}:v]fps=${f.fps},scale=${f.width}:${f.height}:force_original_aspect_ratio=increase,` +
-        `crop=${f.width}:${f.height}:(iw-${f.width})*${num(fx)}:(ih-${f.height})*${num(fy)},setsar=1${pad},trim=duration=${num(L)},setpts=PTS-STARTPTS,${grade},format=yuv420p,settb=AVTB[s${i}]`);
+        `crop=${f.width}:${f.height}:(iw-${f.width})*${num(fx)}:(ih-${f.height})*${num(fy)},setsar=1,tpad=stop_mode=clone:stop_duration=${num(L)},trim=duration=${num(L)},setpts=PTS-STARTPTS,${grade},format=yuv420p,settb=AVTB[s${i}]`);
     } else {
       args.push("-loop", "1", "-framerate", String(f.fps), "-t", num(L), "-i", s.path);
       const punch = s.punchAt != null ? Math.round(s.punchAt * f.fps) : null;
       const me = cameraExpr(s.motion ?? "zoom_in", c.kenBurns, frames, s.focus, punch, f.fps);
-      filters.push(`[${vi}:v]scale=${W2}:${H2}:force_original_aspect_ratio=increase,crop=${W2}:${H2},setsar=1,` +
+      // Lanczos: las imágenes pequeñas (archivo, IA a 1024 px) se amplían más nítidas que con el bicúbico por defecto
+      filters.push(`[${vi}:v]scale=${W2}:${H2}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W2}:${H2},setsar=1,` +
         `zoompan=z='${me.z}':x='${me.x}':y='${me.y}':d=1:s=${f.width}x${f.height}:fps=${f.fps},` +
         `trim=duration=${num(L)},setpts=PTS-STARTPTS,${grade},format=yuv420p,fps=${f.fps},settb=AVTB[s${i}]`);
     }
@@ -160,12 +162,14 @@ export interface FinalMixV2 {
   narration: { path: string; duration: number }[];   // duración = la del clip del segmento
   beds: BedPlacement[]; sfx: SfxPlacement[]; clipAudio: ClipAudio[];
   duck: boolean; out: string; loudnessLufs?: number;
+  /** Solo el audio, sin normalizar, en este WAV (primera pasada de la normalización en dos pasadas). */
+  audioOnly?: string;
 }
 
 export function finalMixV2Args(m: FinalMixV2): { args: string[]; filter: string } {
-  const args = ["-y", "-hide_banner", "-nostats", "-progress", "pipe:1", "-f", "concat", "-safe", "0", "-i", m.concatListPath];
+  const args = ["-y", "-hide_banner", "-nostats", "-progress", "pipe:1", ...(m.audioOnly ? [] : ["-f", "concat", "-safe", "0", "-i", m.concatListPath])];
   const f: string[] = [];
-  let idx = 1;
+  let idx = m.audioOnly ? 0 : 1;
   const fmt = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
   m.narration.forEach((s, i) => {
     args.push("-i", s.path);
@@ -216,9 +220,42 @@ export function finalMixV2Args(m: FinalMixV2): { args: string[]; filter: string 
   } else {
     f.push(`[scfx]anullsink`);
   }
+  if (m.audioOnly) {
+    f.push(`${layers.join("")}amix=inputs=${layers.length}:duration=first:normalize=0[aout]`);
+    args.push("-map", "[aout]", "-c:a", "pcm_f32le", "-ar", "48000", "-t", num(total), m.audioOnly);
+    return { args, filter: f.join(";\n") };
+  }
   f.push(`${layers.join("")}amix=inputs=${layers.length}:duration=first:normalize=0,alimiter=limit=0.95,loudnorm=I=${lufs}:TP=-1.5:LRA=11[aout]`);
   args.push("-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-t", num(total), "-movflags", "+faststart", m.out);
   return { args, filter: f.join(";\n") };
+}
+
+// ---------- Normalización en dos pasadas (−14 LUFS, lineal) ----------
+// Una sola pasada de loudnorm ajusta el volumen sobre la marcha (la música «respira» y el
+// nivel final se desvía); con la medición previa se aplica una ganancia constante.
+export interface Loudness { I: number; TP: number; LRA: number; thresh: number; offset: number }
+export const loudnessScanArgs = (wav: string, lufs = -14) =>
+  ["-hide_banner", "-nostats", "-i", wav, "-af", `loudnorm=I=${lufs}:TP=-1.5:LRA=11:print_format=json`, "-f", "null", "-"];
+
+/** Lee la medición de loudnorm (bloque JSON al final de stderr). null si no hay o el audio es silencio. */
+export function parseLoudness(stderr: string): Loudness | null {
+  const blocks = stderr.match(/\{[^{}]*"input_i"[^{}]*\}/g);
+  if (!blocks) return null;
+  try {
+    const j = JSON.parse(blocks[blocks.length - 1]);
+    const r = { I: Number(j.input_i), TP: Number(j.input_tp), LRA: Number(j.input_lra), thresh: Number(j.input_thresh), offset: Number(j.target_offset) };
+    return Object.values(r).every((x) => Number.isFinite(x)) && r.I > -70 ? r : null;
+  } catch { return null; }
+}
+
+/** Une el video (copia) con el audio mezclado y normalizado con la medición (o en una pasada si no la hay). */
+export function finalMuxArgs(o: { concatListPath: string; wav: string; out: string; total: number; lufs?: number; measured: Loudness | null }): string[] {
+  const L = o.lufs ?? -14, m = o.measured;
+  const ln = m
+    ? `loudnorm=I=${L}:TP=-1.5:LRA=11:measured_I=${m.I}:measured_TP=${m.TP}:measured_LRA=${m.LRA}:measured_thresh=${m.thresh}:offset=${m.offset}:linear=true`
+    : `alimiter=limit=0.95,loudnorm=I=${L}:TP=-1.5:LRA=11`;
+  return ["-y", "-hide_banner", "-nostats", "-progress", "pipe:1", "-f", "concat", "-safe", "0", "-i", o.concatListPath, "-i", o.wav,
+    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-af", `${ln},aresample=48000`, "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-t", num(o.total), "-movflags", "+faststart", o.out];
 }
 
 /** Inserta el guion de filtros según la versión de ffmpeg (≥7: «-/filter_complex archivo»). */

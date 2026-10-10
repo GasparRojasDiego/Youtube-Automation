@@ -1,12 +1,12 @@
 // Orquestador: ejecuta todas las etapas sin detenerse hasta la revisión final
 // (lo único que espera al usuario), guarda cada resultado y se reanuda donde
 // quedó tras un fallo.
-import { db, proc } from "../lib/ipc";
+import { db, proc, fs } from "../lib/ipc";
 import { emit } from "../lib/bus";
 import { getSettings } from "../lib/settings";
 import { log, logError, errorText, toast } from "../lib/events";
 import { STAGES, getVideo, getStages, setStage, updateVideo, resetFrom, listTopics, createVideo, activeChannel, listVideos, type StageId } from "../lib/repo";
-import { uid } from "../lib/util";
+import { uid, joinPath } from "../lib/util";
 import * as St from "./stages";
 import * as Ed from "./edit";
 import { activity, setLive } from "../lib/activity";
@@ -195,12 +195,22 @@ export async function redoVoiceSegment(videoId: string, segmentId: string) {
   const st = (await getStages(videoId)).find((s) => s.stage === "voice");
   const out = st?.output as { segments: { segment_id: string; hash: string }[] } | null;
   if (out) { const seg = out.segments.find((x) => x.segment_id === segmentId); if (seg) seg.hash = "redo"; await db.execute("UPDATE stages SET output=? WHERE video_id=? AND stage='voice'", [JSON.stringify(out), videoId]); }
+  // Sin las marcas de lo ya narrado, ese segmento se narra de nuevo (las demás se conservan)
+  const v = await getVideo(videoId);
+  if (v) {
+    const dir = joinPath(v.dir, "voice");
+    await fs.remove(joinPath(dir, `${segmentId}.json`)).catch(() => undefined);
+    for (const e of await fs.list(joinPath(dir, "parts")).catch(() => [])) if (e.name.startsWith(`${segmentId}_`) && e.name.endsWith(".json")) await fs.remove(joinPath(dir, "parts", e.name)).catch(() => undefined);
+  }
   await resetFrom(videoId, "voice");
   runVideo(videoId);
 }
 
 export async function rerenderFrom(videoId: string, stage: StageId) {
   await resetFrom(videoId, stage);
+  // Un video personal nunca se publica: «Publicar» sigue omitido
+  const v = await getVideo(videoId);
+  if (v && personalOf(v)) await setStage(videoId, "publish", { status: "skipped" });
   runVideo(videoId);
 }
 

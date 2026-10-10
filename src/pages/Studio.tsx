@@ -227,7 +227,7 @@ function StepResult({ video, stages, group }: { video: Video; stages: StageRow[]
         <div className="card border-red-500/50 p-4">
           <div className="flex items-center gap-2 font-semibold text-red-600 dark:text-red-500"><AlertTriangle size={16} /> Falló: {STAGES.find((x) => x.id === failed.stage)?.label}</div>
           <pre className="text-xs whitespace-pre-wrap mt-2 text-muted-foreground max-h-64 overflow-y-auto">{failed.error}</pre>
-          <div className="text-xs mt-2">Lo hecho quedó guardado. El informe completo está en Ajustes.</div>
+          <div className="text-xs mt-2">Lo que salió bien quedó guardado: «Reintentar» solo rehace la parte que falló. El informe completo está en Ajustes.</div>
           <button className="btn-primary btn-sm mt-3" onClick={() => void retryStage(video.id, failed.stage)}><RotateCcw size={13} /> Reintentar</button>
         </div>
       )}
@@ -252,6 +252,14 @@ export function ProductionView({ video, back }: { video: Video; back?: boolean }
   const a = awaiting(video, stages);
   const gst = groupStatus(stages, group);
   const redoable = (gst === "done" || gst === "failed") && group.id !== "publicacion";
+  // Con un fallo, «Rehacer» retoma desde la etapa que falló: lo que ya salió bien se conserva
+  const failedStage = group.stages.find((id) => stages.find((s) => s.stage === id)?.status === "failed");
+  const redo = async () => {
+    const ok = failedStage
+      ? await askConfirm(`¿Reintentar lo que falló en «${group.label}»?`, { body: "Solo se rehace la parte que falló; todo lo que salió bien queda guardado.", confirm: "Reintentar" })
+      : await askConfirm(`¿Rehacer «${group.label}» y lo que sigue?`, { body: "Se reutiliza todo lo que no cambie.", confirm: "Rehacer" });
+    if (ok) void rerenderFrom(video.id, failedStage ?? group.stages[0]);
+  };
 
   return (
     <div className="space-y-4">
@@ -298,7 +306,7 @@ export function ProductionView({ video, back }: { video: Video; back?: boolean }
       </div>
       <div className="flex items-center justify-between pt-2">
         <h2 className="text-lg font-bold tracking-tight">{group.label}</h2>
-        {redoable && <button className="btn-ghost btn-sm" title="Reutiliza lo que no cambió" onClick={async () => { if (await askConfirm(`¿Rehacer «${group.label}» y lo que sigue?`, { body: "Se reutiliza todo lo que no cambie.", confirm: "Rehacer" })) void rerenderFrom(video.id, group.stages[0]); }}><RotateCcw size={13} /> Rehacer</button>}
+        {redoable && <button className="btn-ghost btn-sm" title={failedStage ? "Solo la parte que falló" : "Reutiliza lo que no cambió"} onClick={() => void redo()}><RotateCcw size={13} /> {failedStage ? "Reintentar" : "Rehacer"}</button>}
       </div>
       <StepResult video={video} stages={stages} group={group} />
       <Card title="Paso a paso" icon={ActivityIcon}><Feed videoId={video.id} stages={group.stages} /></Card>

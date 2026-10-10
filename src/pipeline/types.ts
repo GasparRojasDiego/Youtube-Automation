@@ -70,7 +70,11 @@ export interface PublishOut { youtube_id: string; url: string; privacy: string; 
 // ======================= Edición v2 =======================
 
 /** Voz v2: además de la duración, los tiempos de cada oración (relativos al audio del segmento). */
-export interface VoiceSegmentV2 extends VoiceSegment { sentences?: Span[] }
+export interface VoiceSegmentV2 extends VoiceSegment {
+  sentences?: Span[];
+  words?: { w: string; s: number; e: number }[][];   // por oración: tiempos reales de cada palabra (whisper.cpp)
+  aligner?: "whisper" | "silences";
+}
 
 export type VisualType = "photo" | "archival" | "clip" | "meme" | "ai_image" | "motion" | "map" | "source_card" | "quote_card" | "title_card" | "text_card";
 export type Transition = "cut" | "fade" | "dissolve" | "fadeblack" | "fadewhite" | "smoothleft" | "smoothright" | "smoothup" | "slideleft" | "slideright"
@@ -124,7 +128,8 @@ export interface MotionItem {
   revise_en?: string;        // pedidos de mejora continua: se aplican como corrección del código anterior
   // resultado
   file?: string | null; error?: string | null; attempts?: number; critique_es?: string; hash?: string;
-  code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number };
+  code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number; sfx?: { at: number; type: string; query_en: string }[] };
+  ready?: boolean;           // código ya revisado y aprobado, pendiente de render (un reintento solo renderiza)
   poster?: string | null;
   sfx?: SfxCue[];            // efectos sincronizados con sus movimientos (tiempo desde el inicio de la animación)
 }

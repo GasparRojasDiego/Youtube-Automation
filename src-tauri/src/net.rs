@@ -161,7 +161,13 @@ struct UploadProgress {
     total: u64,
 }
 
-const CHUNK: u64 = 16 * 1024 * 1024; // múltiplo de 256 KiB, como exige la API
+// Bloques múltiplos de 256 KiB, como exige la API. El tamaño se adapta a la conexión:
+// tras un fallo se reduce (en una conexión inestable un bloque pequeño sí llega) y crece con los aciertos.
+const CHUNK_MIN: u64 = 1024 * 1024;
+const CHUNK_START: u64 = 8 * 1024 * 1024;
+const CHUNK_MAX: u64 = 32 * 1024 * 1024;
+// Fallos seguidos que se toleran (espera 2, 4, 8… hasta 60 s: unos 8 minutos sin conexión).
+const MAX_RETRIES: u32 = 12;
 
 /// Subida reanudable (protocolo "resumable" de la YouTube Data API).
 /// `session_url`: si se pasa una sesión previa, se intenta reanudar.
@@ -207,6 +213,9 @@ pub async fn youtube_upload(
     let mut offset: u64 = query_offset(&c, &session, total).await.unwrap_or(0);
     let mut file = std::fs::File::open(&file_path).map_err(|e| e.to_string())?;
     let mut retries = 0u32;
+    let mut chunk = CHUNK_START;
+    let mut streak = 0u32;
+    let backoff = |n: u32| Duration::from_secs(2u64.pow(n.min(6)).min(60));
     loop {
         if offset >= total {
             // Puede ocurrir si ya estaba completa: pedir estado final.
@@ -215,7 +224,7 @@ pub async fn youtube_upload(
                 None => Err("YouTube no confirmó el final de la subida; vuelve a intentarlo.".into()),
             };
         }
-        let len = CHUNK.min(total - offset);
+        let len = chunk.min(total - offset);
         let mut buf = vec![0u8; len as usize];
         file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
         file.read_exact(&mut buf).map_err(|e| e.to_string())?;
@@ -242,12 +251,19 @@ pub async fn youtube_upload(
                         .map(|n| n + 1)
                         .unwrap_or(offset + len);
                     retries = 0;
+                    streak += 1;
+                    if streak >= 3 && chunk < CHUNK_MAX {
+                        chunk *= 2;
+                        streak = 0;
+                    }
                     let _ = app.emit("upload-progress", UploadProgress { id: id.clone(), sent: offset, total });
                 } else if st == 404 || st == 410 {
                     return Err("La sesión de subida expiró; vuelve a intentarlo (se iniciará una nueva).".into());
-                } else if st >= 500 && retries < 6 {
+                } else if (st >= 500 || st == 429) && retries < MAX_RETRIES {
                     retries += 1;
-                    tokio::time::sleep(Duration::from_secs(2u64.pow(retries))).await;
+                    streak = 0;
+                    chunk = (chunk / 2).max(CHUNK_MIN);
+                    tokio::time::sleep(backoff(retries)).await;
                     offset = query_offset(&c, &session, total).await.unwrap_or(offset);
                 } else {
                     let body = r.text().await.unwrap_or_default();
@@ -255,11 +271,14 @@ pub async fn youtube_upload(
                 }
             }
             Err(e) => {
-                if retries >= 6 {
-                    return Err(format!("La conexión falló repetidamente durante la subida: {e}"));
+                if retries >= MAX_RETRIES {
+                    let pct = offset * 100 / total.max(1);
+                    return Err(format!("La conexión falló repetidamente durante la subida (quedó en {pct} %; «Reintentar» continúa desde ahí): {e}"));
                 }
                 retries += 1;
-                tokio::time::sleep(Duration::from_secs(2u64.pow(retries))).await;
+                streak = 0;
+                chunk = (chunk / 2).max(CHUNK_MIN);
+                tokio::time::sleep(backoff(retries)).await;
                 if let Some(o) = query_offset(&c, &session, total).await {
                     offset = o;
                 }

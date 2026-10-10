@@ -51,6 +51,14 @@ export function splitArgs(s: string): string[] {
  * Windows limita la línea de comandos a ~32 000 caracteres y las directrices
  * visuales del canal pueden superarlo (entonces el proceso ni arranca).
  */
+/**
+ * Entorno de cada llamada: ATRIL ya da su propio contexto (mensaje de sistema y habilidades), así que no
+ * se cargan los CLAUDE.md del usuario ni la memoria automática. Un CLAUDE.md global (p. ej. el inventario
+ * de herramientas instalado en ~/.claude) se sumaba a cada una de las decenas de llamadas por video:
+ * tokens de más y consignas ajenas (comprobado con Claude Code 2.1.296). Las credenciales no se tocan.
+ */
+export const CLAUDE_ENV: Record<string, string> = { DISABLE_AUTOUPDATER: "1", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
+
 export function buildClaudeArgs(c: Pick<ClaudeCall, "stage" | "system" | "schema" | "tools" | "addDirs">, cfg = getSettings().claude, systemFile?: string): string[] {
   const tools = c.tools ?? [];
   const args = [
@@ -214,7 +222,7 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
     res = await proc.run({
       id: runId, program: exe, args, cwd: jobDir, stdin, stream: true,
       timeoutS: Math.round((c.timeoutMin ?? cfg.timeoutMin) * 60),
-      env: { DISABLE_AUTOUPDATER: "1" },
+      env: CLAUDE_ENV,
     });
   } finally { off(); }
   if (res.timed_out) throw new UserError(`Claude Code tardó demasiado en «${c.label}».`, "Sube el tiempo máximo en Ajustes → Claude Code o reintenta.", "claude");
@@ -254,7 +262,7 @@ export async function refreshPlanUsage(): Promise<ClaudeLimits | null> {
   const jobDir = joinPath(paths.data, "jobs", uid("cu_"));
   await fs.mkdir(jobDir);
   const res = await proc.run({
-    id: uid("cu_"), program: exe, cwd: jobDir, stdin: "Reply with: ok", timeoutS: 120, env: { DISABLE_AUTOUPDATER: "1" },
+    id: uid("cu_"), program: exe, cwd: jobDir, stdin: "Reply with: ok", timeoutS: 120, env: CLAUDE_ENV,
     args: [...prefix, "-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--model", "haiku",
       "--system-prompt", "Reply with the single word ok.", "--tools", "", "--strict-mcp-config", "--disable-slash-commands", "--max-turns", "1"],
   });

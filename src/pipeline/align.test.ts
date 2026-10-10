@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import * as nfs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { parseSilences, alignSentences, wordTimings } from "./align";
+import { parseSilences, alignSentences, wordTimings, alignWords, parseWhisperJson, normWord, type AsrWord } from "./align";
 import { paginate, buildAss, CAPTION_DEFAULTS, assColor, assTime } from "./captions";
 
 const hasFfmpeg = (() => { try { execFileSync("ffmpeg", ["-version"]); return true; } catch { return false; } })();
@@ -49,6 +49,47 @@ describe("alineación de oraciones", () => {
     expect(spans[2].start).toBeCloseTo(5.6, 1);
     expect(spans[2].end).toBeCloseTo(6.4, 1);
     nfs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("alineación por palabra (whisper.cpp)", () => {
+  const sentences = ["La fotosíntesis es la forma en que las plantas fabrican su alimento.", "Con la luz del sol, producen glucosa."];
+  // Lo que «oyó» whisper: tiempos reales, sin tildes en una palabra, una palabra mal reconocida y otra de más
+  const asr: AsrWord[] = [
+    ["La", 0.3, 0.42], ["fotosintesis", 0.42, 1.1], ["es", 1.1, 1.2], ["la", 1.2, 1.3], ["forma", 1.3, 1.62], ["en", 1.62, 1.7], ["que", 1.7, 1.82],
+    ["las", 1.82, 1.95], ["plantas", 1.95, 2.4], ["fabrican", 2.4, 2.95], ["su", 2.95, 3.05], ["alimento.", 3.05, 3.7],
+    ["Con", 4.4, 4.6], ["la", 4.6, 4.7], ["luz", 4.7, 4.95], ["del", 4.95, 5.1], ["sal,", 5.1, 5.5], ["eh", 5.5, 5.7], ["producen", 5.9, 6.5], ["glucosa.", 6.5, 7.2],
+  ].map(([w, s, e]) => ({ w: w as string, s: s as number, e: e as number }));
+  const silences = [{ start: 0, end: 0.3 }, { start: 3.72, end: 4.38 }, { start: 7.25, end: 7.6 }];
+  it("lee el JSON de whisper-cli", () => {
+    const j = JSON.stringify({ transcription: [{ offsets: { from: 300, to: 420 }, text: " La" }, { offsets: { from: 420, to: 1100 }, text: " fotosíntesis" }, { offsets: { from: 1100, to: 1100 }, text: " ," }] });
+    expect(parseWhisperJson(j)).toEqual([{ w: "La", s: 0.3, e: 0.42 }, { w: "fotosíntesis", s: 0.42, e: 1.1 }]);
+    expect(parseWhisperJson("no es json")).toEqual([]);
+    // Como lo escribe whisper-cli en Windows: ruta con barras escapadas, tabuladores y un tabulador dentro de un texto
+    const win = '{\n\t"params": {\n\t\t"model": "C:\\\\Users\\\\Diego Gaspar\\\\.cache\\\\whisper.cpp\\\\ggml-base.bin"\n\t},\n\t"transcription": [\n\t\t{"offsets": {"from": 0, "to": 500}, "text": " Un\tvolcán"}\n\t]\n}';
+    expect(parseWhisperJson(win)).toEqual([{ w: "Un volcán", s: 0, e: 0.5 }]);
+    expect(normWord("¡Fotosíntesis!")).toBe("fotosintesis");
+  });
+  it("usa los tiempos reales, reparte los que no coinciden y respeta las pausas", () => {
+    const r = alignWords(sentences, asr, 7.6, silences)!;
+    expect(r).not.toBeNull();
+    expect(r.matched).toBeGreaterThanOrEqual(17);
+    const w0 = r.words[0], w1 = r.words[1];
+    expect(w0[1]).toMatchObject({ w: "fotosíntesis", s: 0.42, e: 1.1 });
+    expect(w0[11].w).toBe("alimento.");
+    // «sol,» no se reconoció («sal»… sí, con una letra distinta) y «producen» llega tarde: todo en orden
+    const all = [...w0, ...w1];
+    for (let i = 1; i < all.length; i++) expect(all[i].s).toBeGreaterThan(all[i - 1].s);
+    expect(w1.find((x) => x.w === "producen")!.s).toBeCloseTo(5.9, 2);
+    // Oraciones: la frontera es la pausa entre «alimento.» y «Con»
+    expect(r.spans[0]).toEqual({ start: 0.3, end: 3.72 });
+    expect(r.spans[1].start).toBeCloseTo(4.38, 2);
+    expect(r.spans[1].end).toBeLessThanOrEqual(7.25);
+  });
+  it("si el audio no se parece al texto, no se usa (queda la estimación)", () => {
+    const junk: AsrWord[] = ["hello", "world", "this", "is", "other"].map((w, i) => ({ w, s: i, e: i + 0.5 }));
+    expect(alignWords(sentences, junk, 7.6, silences)).toBeNull();
+    expect(alignWords(sentences, [], 7.6, silences)).toBeNull();
   });
 });
 

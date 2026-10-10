@@ -9,6 +9,7 @@ import { fmtBytes } from "./util";
 import { claudeVersion } from "../providers/claude";
 import { ffmpegVersion, pickEncoder } from "../providers/ffmpeg";
 import { findBrowser } from "../motion/host";
+import { toolkitStatus } from "../media/toolkit";
 import { STAGES } from "./repo";
 
 export interface ErrorRow { ts: number; level: string; source: string; message: string; detail: string; video_id: string | null }
@@ -44,6 +45,7 @@ export async function buildReport(errors: ErrorRow[]): Promise<string> {
     `- Claude Code: ${(await safe(() => claudeVersion(), "error")) ?? "no encontrado"}`,
     `- ffmpeg: ${(await safe(() => ffmpegVersion(), "error")) ?? "no encontrado"} · codificador: ${enc}`,
     `- Navegador para animaciones: ${(await safe(() => findBrowser(), "error")) ?? "no encontrado"}`,
+    ...(await toolkitStatus().catch(() => [])).map((t) => `- ${t.label} (opcional: ${t.use.toLowerCase()}): ${t.found ?? "no encontrado"}`),
     `- Claves: ${present.join(" · ")}`,
     "",
     "CONFIGURACIÓN",

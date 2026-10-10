@@ -602,6 +602,20 @@
     return e;
   };
 
+  /**
+   * Profundidad con el sujeto recortado (rembg): foto detrás, una capa intermedia para texto o formas
+   * y el mismo sujeto sin fondo delante, alineado al píxel. Sin recorte disponible, front es null
+   * (queda texto sobre la foto). Devuelve { back, mid, front }.
+   */
+  K.depth = function (parent, key, o) {
+    o = o || {};
+    var box = { x: o.x || 0, y: o.y || 0, w: o.w || W, h: o.h || H, fx: o.fx, fy: o.fy, radius: o.radius };
+    var back = K.image(parent, key, box);
+    var mid = K.el('div', { cls: 'k-abs', css: { left: box.x + 'px', top: box.y + 'px', width: box.w + 'px', height: box.h + 'px', overflow: 'hidden', borderRadius: (box.radius || 0) + 'px' } }, parent);
+    var front = (A.assets || {})[key + '_cut'] ? K.image(parent, key + '_cut', box) : null;
+    return { back: back, mid: mid, front: front };
+  };
+
 
   /* ---------- impacto visual (v2.4) ---------- */
   var origin = function (from) {

@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import * as nfs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { segmentV2Args, finalMixV2Args, withFilterScript, shotLengths, cameraExpr, segmentV2Duration, type LayerShot } from "./montage2";
+import { segmentV2Args, finalMixV2Args, finalMuxArgs, loudnessScanArgs, parseLoudness, withFilterScript, shotLengths, cameraExpr, segmentV2Duration, type LayerShot } from "./montage2";
 import { concatList } from "./montage";
 import { buildAss, paginate, CAPTION_DEFAULTS } from "./captions";
 import { wordTimings } from "./align";
@@ -64,12 +64,46 @@ describe.skipIf(!hasFfmpeg)("montaje v2 con ffmpeg real", () => {
     ff(withFilterScript(mix.args, "mix.filter", false), d);
     expect(Number(probe(path.join(d, "final.mp4")))).toBeCloseTo(total, 1);
     expect(probe(path.join(d, "final.mp4"), "stream=codec_type")).toContain("audio");
+    // Dos pasadas: mezcla sin normalizar → medición → ganancia constante; el resultado queda en −14 LUFS
+    const two = finalMixV2Args({ concatListPath: path.join(d, "list.txt"), narration: [{ path: path.join(d, "n1.wav"), duration: total }],
+      beds: [{ path: path.join(d, "bed.mp3"), start: 0, end: total, gainDb: -20, fadeIn: 1, fadeOut: 1 }], sfx: [], clipAudio: [], duck: true, out: "", audioOnly: path.join(d, "mix.wav") });
+    nfs.writeFileSync(path.join(d, "mix2.filter"), two.filter);
+    ff(withFilterScript(two.args, "mix2.filter", false), d);
+    const scan = spawnSync("ffmpeg", loudnessScanArgs(path.join(d, "mix.wav"))).stderr.toString();
+    const measured = parseLoudness(scan);
+    expect(measured).not.toBeNull();
+    ff(finalMuxArgs({ concatListPath: path.join(d, "list.txt"), wav: path.join(d, "mix.wav"), out: path.join(d, "final2.mp4"), total, measured }), d);
+    expect(Number(probe(path.join(d, "final2.mp4")))).toBeCloseTo(total, 1);
+    const ebu = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", path.join(d, "final2.mp4"), "-af", "ebur128", "-f", "null", "-"]).stderr.toString();
+    const I = Number(ebu.match(/I:\s+(-?[\d.]+) LUFS\s*\n\s*Threshold/)?.[1] ?? ebu.match(/I:\s+(-?[\d.]+) LUFS/g)?.pop()?.match(/-?[\d.]+/)?.[0]);
+    expect(Math.abs(I - -14)).toBeLessThan(1.5);
+    expect(parseLoudness("sin medición")).toBeNull();
     // Regresión: varias tomas unidas por cortes (xfade de 1 cuadro) conservan la duración total
     const cuts: LayerShot[] = [3.167, 3.167, 3.467, 3.5, 3.5].map((dur, i) => ({ path: path.join(d, "img.jpg"), media: "image" as const, dur, motion: i % 2 ? "drift" as const : "zoom_in" as const, transitionIn: "cut" as const }));
     const cutSeg = segmentV2Args({ shots: cuts, overlays: [], out: path.join(d, "cuts.mp4"), fadeIn: false, fadeOut: false, kenBurns: 0.08, frame: { width: 320, height: 180, fps: 30 }, encoder: { name: "libx264", quality: 30 } });
     nfs.writeFileSync(path.join(d, "cuts.filter"), cutSeg.filter);
     ff(withFilterScript(cutSeg.args, "cuts.filter", false), d);
     expect(Number(probe(path.join(d, "cuts.mp4")))).toBeCloseTo(segmentV2Duration(cuts), 1);
+    if (!process.env.ATRIL_KEEP) nfs.rmSync(d, { recursive: true, force: true });
+  }, 120_000);
+
+  it("regresión 2.5.5: un archivo más corto de lo que dicen sus datos no acorta el segmento", () => {
+    // Una animación de 3 s que «dice» durar 12 s y cubre 16 s de tomas se montaba como un segmento cortado
+    // (xfade termina todo cuando una entrada se acaba antes de tiempo: 97 s → 33 s en el video del usuario).
+    const d = nfs.mkdtempSync(path.join(os.tmpdir(), "atril-m2c-"));
+    ff(["-y", "-f", "lavfi", "-i", "testsrc2=s=640x360", "-frames:v", "1", path.join(d, "img.jpg")]);
+    ff(["-y", "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=3", "-c:v", "libx264", "-pix_fmt", "yuv420p", path.join(d, "anim.mp4")]);
+    const shots: LayerShot[] = [
+      { path: path.join(d, "img.jpg"), media: "image", dur: 1.5 },
+      { path: path.join(d, "anim.mp4"), media: "video", dur: 16, clipIn: 0, clipLen: 12, transitionIn: "fade", transitionS: 0.4 },
+      { path: path.join(d, "img.jpg"), media: "image", dur: 2, transitionIn: "cut" },
+      { path: path.join(d, "img.jpg"), media: "image", dur: 2, transitionIn: "smoothleft", transitionS: 0.4 },
+    ];
+    const seg = segmentV2Args({ shots, overlays: [], out: path.join(d, "s.mp4"), fadeIn: false, fadeOut: false, kenBurns: 0.06, frame: { width: 320, height: 180, fps: 30 }, encoder: { name: "libx264", quality: 32 } });
+    expect(seg.filter).toContain("tpad=stop_mode=clone");
+    nfs.writeFileSync(path.join(d, "s.filter"), seg.filter);
+    ff(withFilterScript(seg.args, "s.filter", false), d);
+    expect(Number(probe(path.join(d, "s.mp4")))).toBeCloseTo(segmentV2Duration(shots), 1);
     if (!process.env.ATRIL_KEEP) nfs.rmSync(d, { recursive: true, force: true });
   }, 120_000);
 });
