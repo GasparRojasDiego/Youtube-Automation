@@ -161,6 +161,7 @@ ${state.text}`,
     rev.status = "rendering";
     await saveRevision(videoId, rev);
     await resetFrom(videoId, from);
+    if (video.data?.personal) await setStage(videoId, "publish", { status: "skipped" });
     run(videoId);
     return rev;
   } catch (e) {

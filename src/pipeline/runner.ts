@@ -69,6 +69,8 @@ async function runOnce(r: Running) {
       notifyReview(video.id, `${dest ? `Video terminado y guardado en Descargas: ${dest.split(/[\\/]/).pop()}` : "Video listo para la revisión final."}${iterate ? " Puedes pedir mejoras en Producción." : ""}`);
       return;
     }
+    // Un video personal nunca se sube (aunque un «Rehacer» o una mejora haya reiniciado las etapas)
+    if (stage === "publish" && personalOf(video)) { await setStage(video.id, "publish", { status: "skipped" }); continue; }
     if (stage === "publish" && video.status !== "approved" && video.status !== "scheduled") return;
 
     await setStage(video.id, stage, { status: "running", error: null, startedNow: true, bumpAttempt: true, progress: "Iniciando…" });

@@ -236,6 +236,11 @@ Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a
 Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}`;
 }
 
+/** Regla de prioridad: el canal manda, salvo un pedido explícito del operador (mejora continua), que manda sobre el estilo. */
+const ruleLine = (operator?: string | null) => operator
+  ? `The operator explicitly asked: "${operator}". Apply that request exactly, even where it departs from the channel's style rules (colours, sizes, fonts); for everything else, keep the channel rules.`
+  : "If a listed problem asks for something that breaks a channel rule, keep the rule and ignore that problem.";
+
 const codeBlock = (code: { css: string; html: string; js: string }) => `<css>
 ${code.css}
 </css>
@@ -246,8 +251,8 @@ ${code.html}
 ${code.js}
 </js>`;
 
-export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[] }) {
-  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the full corrected composition (same id) through the structured output only — no explanations. Keep what works. If a listed problem asks for something that breaks a channel rule, keep the rule and ignore that problem.
+export function motionFixPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[]; operator?: string | null }) {
+  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them and return the full corrected composition (same id) through the structured output only — no explanations. Keep what works. ${ruleLine(o.operator)}
 
 Brief: ${o.item.brief}
 Text: ${o.item.text || "(none)"}
@@ -271,8 +276,8 @@ export const PATCH_SCHEMA = obj({
   sfx: arr(obj({ at: num(), type: str(`One of: ${SFX_TYPES}`), query_en: str() }), "Only when sfx_changed: the full new list of synced sound effects"),
 });
 
-export function motionPatchPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[] }) {
-  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them with MINIMAL search/replace edits — do not rewrite the composition. Each "find" must be copied character-for-character from the current code of its part and appear exactly once there. Keep everything that works. If a listed problem asks for something that breaks a channel rule, keep the rule and ignore that problem. Only if the problems truly require restructuring most of the code, return rewrite=true with no edits.
+export function motionPatchPrompt(o: { item: { id: string; kind: string; duration: number; brief: string; text: string }; code: { css: string; html: string; js: string }; problems: string[]; operator?: string | null }) {
+  return `This animation (${o.item.kind}, ${o.item.duration.toFixed(2)} s, id ${o.item.id}) has problems. Fix them with MINIMAL search/replace edits — do not rewrite the composition. Each "find" must be copied character-for-character from the current code of its part and appear exactly once there. Keep everything that works. ${ruleLine(o.operator)} Only if the problems truly require restructuring most of the code, return rewrite=true with no edits.
 
 Brief: ${o.item.brief}
 Text: ${o.item.text || "(none)"}
@@ -315,10 +320,10 @@ ${skills.slice(0, 12000)}
 </channel_rules>` : ""}`;
 }
 
-export function critiquePrompt(o: { kind: string; brief: string; text: string }) {
+export function critiquePrompt(o: { kind: string; brief: string; text: string; operator?: string | null }) {
   return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a documentary.
 Brief: ${o.brief}
 Expected text (verbatim): ${o.text || "(none)"}
-Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.kind === "overlay" ? " This is an overlay." : `
+Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.operator ? `\nThe operator explicitly asked for: "${o.operator}". That is correct even where it departs from the channel rules: never report it as a defect; do report it if it was NOT applied.` : ""}${o.kind === "overlay" ? " This is an overlay." : `
 Also a defect (severity "major"): the piece is dominated by text — in 4 or more of the 6 frames the main content is text on a plain background — or it is visually static (one element, nothing building or transforming). Name what visual should replace the text.`}`;
 }

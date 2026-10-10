@@ -93,6 +93,7 @@ describe.skipIf(!nfs.existsSync(SRC))("modo Personal y mejora continua", () => {
     console.log(`Mejora aplicada en ${((Date.now() - t1) / 60000).toFixed(1)} min`);
     st = await repo.getStages(id!);
     expect(st.find((s) => s.stage === "final")!.status).toBe("review");
+    expect(st.find((s) => s.stage === "publish")!.status).toBe("skipped");
     const v = await repo.getVideo(id!);
     const last = (v!.data.revisions as any[]).at(-1);
     expect(last.status).toBe("done");

@@ -649,7 +649,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     report(m.id, "corrigiendo");
     await activity(v.id, "motion", "motion", `Claude corrige la animación ${m.id}`, problems.join("\n"));
     const r = await run<{ rewrite: boolean; edits: { part: "css" | "html" | "js"; find: string; replace: string }[]; sfx_changed: boolean; sfx: MotionSfxRaw[] }>({
-      stage: "fix", label: `Corrección de ${m.id}`, system: sys, schema: P2.PATCH_SCHEMA, prompt: P2.motionPatchPrompt({ item: brief(m), code: c, problems }) });
+      stage: "fix", label: `Corrección de ${m.id}`, system: sys, schema: P2.PATCH_SCHEMA, prompt: P2.motionPatchPrompt({ item: brief(m), code: c, problems, operator: m.revise_en }) });
     const patched = r.data.rewrite ? null : P2.applyPatch(c, r.data.edits ?? []);
     if (patched) {
       await activity(v.id, "motion", "decision", `Corrección de ${m.id}: ${r.data.edits.length} cambio(s) puntual(es)`);
@@ -657,7 +657,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     }
     await activity(v.id, "motion", "warn", r.data.rewrite ? `${m.id}: la corrección necesita rehacer el código` : `${m.id}: los cambios no encajaron; se pide la versión completa`);
     const full = await run<{ compositions: Code[] }>({ stage: "fix", label: `Corrección completa de ${m.id}`, system: sys, schema: P2.MOTION_SCHEMA,
-      prompt: P2.motionFixPrompt({ item: brief(m), code: c, problems }) });
+      prompt: P2.motionFixPrompt({ item: brief(m), code: c, problems, operator: m.revise_en }) });
     const f = full.data.compositions?.[0];
     return f ? { ...c, ...f } : null;
   };
@@ -668,7 +668,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     setLive(v.id, { frame: sheet, caption: `Revisión visual de la animación ${m.id}` });
     const r = await run<{ ok: boolean; problems_en: string[]; severity: string }>({
       stage: "critique", label: `Revisión visual ${m.id}`, system: critSys, schema: P2.CRITIQUE_SCHEMA,
-      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "" }), images: [{ label: "Frames:", path: sheet }] });
+      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "", operator: m.revise_en }), images: [{ label: "Frames:", path: sheet }] });
     const ok = r.data.ok || r.data.severity !== "major";
     await activity(v.id, "motion", ok ? "done" : "warn", `Revisión de ${m.id}: ${ok ? "aprobada" : "con defectos"}`, (r.data.problems_en ?? []).join("\n"));
     return { ok, problems: r.data.problems_en ?? [] };
@@ -694,7 +694,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
       const base = m.revise_en ? prev?.items.find((p) => p.id === m.id && p.code)?.code : null;
       let c: Code | null;
       if (base) {
-        c = await fix(m, { ...base, sfx: prev?.items.find((p) => p.id === m.id)?.sfx?.map((x) => ({ at: x.at, type: x.type, query_en: x.query_en })) }, [`The operator asked for this change: ${m.revise_en}`]);
+        c = await fix(m, { ...base, sfx: prev?.items.find((p) => p.id === m.id)?.sfx?.map((x) => ({ at: x.at, type: x.type, query_en: x.query_en })) }, [`Apply the operator's request: ${m.revise_en}`]);
       } else {
         report(m.id, "diseñando");
         c = await compose(m);
