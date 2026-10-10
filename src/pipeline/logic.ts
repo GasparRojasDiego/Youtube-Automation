@@ -63,10 +63,6 @@ export function openBlocks(v: VerifyOut): number {
   return c + u;
 }
 
-export function pendingFixes(v: VerifyOut): number {
-  return v.claims.filter((x) => x.resolution === "fix").length + v.unlinked.filter((x) => x.resolution === "fix").length;
-}
-
 // ---------- Capítulos y subtítulos ----------
 export function chapters(segs: { id: string; title: string }[], segClipDur: Record<string, number>): { t: number; title: string }[] {
   let t = 0; const out: { t: number; title: string }[] = [];

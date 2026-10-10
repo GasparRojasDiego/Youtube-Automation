@@ -28,7 +28,7 @@ export function groupStatus(stages: StageRow[], g: (typeof GROUPS)[number]): Sta
 
 /** Qué espera cada video del usuario (texto para «en qué estado está»). */
 export function awaiting(video: Video, stages: StageRow[]): { text: string; tone: "primary" | "amber" | "red" | "green" | "muted"; action?: string } {
-  if (video.status === "published") return { text: "Publicado", tone: "green" };
+  if (video.status === "published") return { text: video.data?.personal ? "Terminado" : "Publicado", tone: "green" };
   if (video.status === "scheduled") return { text: `Programado${video.scheduled_at ? " para " + new Date(video.scheduled_at).toLocaleString("es-PE", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}`, tone: "green" };
   if (video.status === "rejected") return { text: "Rechazado", tone: "muted" };
   const label = (id: string) => STAGES.find((x) => x.id === id)?.label;

@@ -62,11 +62,11 @@ export function UpdateDialog({ open, onClose }: { open: boolean; onClose: () => 
       ) : !u.busy ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border/80 bg-secondary/40 px-4 py-3">
+            <div className="rounded-lg border border-border/80 bg-secondary/40 px-4 py-3">
               <div className="label">Peso</div>
               <div className="text-xl font-bold tabular mt-0.5">{u.size ? mb(u.size) : "—"}</div>
             </div>
-            <div className="rounded-xl border border-border/80 bg-secondary/40 px-4 py-3">
+            <div className="rounded-lg border border-border/80 bg-secondary/40 px-4 py-3">
               <div className="label">Tiempo estimado</div>
               <div className="text-xl font-bold tabular mt-0.5 flex items-center gap-2">
                 {est ? `≈ ${secs(est.seconds)}` : probeErr ? "—" : <><Loader2 size={16} className="animate-spin text-primary" /><span className="text-sm font-medium text-muted-foreground">midiendo…</span></>}
@@ -86,7 +86,7 @@ export function UpdateDialog({ open, onClose }: { open: boolean; onClose: () => 
               <span className="tabular text-muted-foreground">{ph === "download" ? `${mb(u.done)} de ${mb(u.total)}` : ""}</span>
             </div>
             <div className="h-2 rounded-full bg-secondary overflow-hidden mt-2">
-              <div className={`h-full rounded-full bg-gradient-to-r from-primary/70 to-primary transition-[width] duration-300 ${ph !== "download" ? "animate-pulse" : ""}`} style={{ width: `${ph === "download" ? pct : 100}%` }} />
+              <div className={`h-full rounded-full bg-primary transition-[width] duration-300 ${ph !== "download" ? "animate-pulse" : ""}`} style={{ width: `${ph === "download" ? pct : 100}%` }} />
             </div>
             <div className="flex justify-between text-[11px] text-muted-foreground mt-1.5 tabular">
               <span>{ph === "download" && u.speed > 0 ? `${mb(u.speed)}/s` : ph === "install" ? "ATRIL se cerrará y se volverá a abrir sola" : ""}</span>

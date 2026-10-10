@@ -121,7 +121,7 @@ function ProfileHeader() {
           </button>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <div className="inline-flex p-1 rounded-xl bg-secondary/70 border border-border/70">{themeBtn("light", Sun, "Modo claro")}{themeBtn("dark", Moon, "Modo oscuro")}</div>
+          <div className="inline-flex p-1 rounded-lg bg-secondary/70 border border-border/70">{themeBtn("light", Sun, "Modo claro")}{themeBtn("dark", Moon, "Modo oscuro")}</div>
           {s.theme === "system" && <span className="text-[10.5px] text-muted-foreground">Según el dispositivo</span>}
         </div>
       </div>
@@ -171,7 +171,7 @@ function ClaudeTile({ className }: { className: string }) {
   return (
     <Tile title="Claude" icon={Bot} className={className}
       actions={<>{ver !== undefined && (ver ? <Chip tone="green">{ver.split(" ")[0]}</Chip> : <Chip tone="red">No encontrado</Chip>)}<AsyncButton className="btn-ghost btn-sm" onClick={async () => setVer(await claudeVersion())}>Comprobar</AsyncButton></>}>
-      <div className="rounded-xl border border-primary/30 bg-primary/[.06] px-4 py-3 mb-4">
+      <div className="rounded-lg border border-primary/30 bg-primary/[.06] px-4 py-3 mb-4">
         <div className="flex items-center gap-2 text-[13px] font-semibold"><Wand2 size={14} className="text-primary" /> Corrección de animaciones</div>
         <div className="text-[11px] text-muted-foreground mt-0.5 mb-2.5">Quién corrige una animación cuando la revisión visual encuentra defectos, y con cuánto esfuerzo.</div>
         <div className="flex flex-wrap items-center gap-3">
@@ -219,7 +219,7 @@ function VoiceTile({ className }: { className: string }) {
         <Row label="ID de voz"><Txt v={s.tts.elevenlabs.voiceId} on={(v) => void set("tts.elevenlabs.voiceId", v)} mono /></Row>
         <Row label="Velocidad"><Num v={s.tts.elevenlabs.speed} step={0.05} on={(v) => void set("tts.elevenlabs.speed", v)} /></Row>
       </>}
-      <div className="mt-4 rounded-xl border border-border/80 bg-secondary/40 px-4 py-3">
+      <div className="mt-4 rounded-lg border border-border/80 bg-secondary/40 px-4 py-3">
         <div className="flex items-baseline justify-between"><span className="label">Cuota gratuita de Google este mes</span><span className="text-[11px] text-muted-foreground tabular">{fmtK(used)} / {fmtK(free)}</span></div>
         <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-2"><div className={`h-full rounded-full ${k >= 0.9 ? "bg-red-500" : k >= 0.7 ? "bg-amber-500" : "bg-teal-500"}`} style={{ width: `${k * 100}%` }} /></div>
         <div className="text-[11px] text-muted-foreground mt-1.5">Caracteres narrados por ATRIL. Pasado el límite, Google cobra por carácter.</div>
@@ -336,6 +336,9 @@ function MotionTile({ className }: { className: string }) {
       <Row label="Activadas"><Toggle checked={s.motion.enabled} onChange={(v) => void set("motion.enabled", v)} /></Row>
       <Row label="Por video" hint="Nunca menos de una por minuto"><Num v={s.motion.perVideo} on={(v) => void set("motion.perVideo", v)} min={0} max={30} /></Row>
       <Row label="Revisión visual" hint="Y corrección si hay defectos"><Toggle checked={s.motion.critique} onChange={(v) => void set("motion.critique", v)} /></Row>
+      <Row label="A la vez" hint="Las que Claude diseña en paralelo"><Num v={s.motion.parallel} on={(v) => void set("motion.parallel", v)} min={1} max={8} /></Row>
+      <Row label="Renders a la vez" hint="Más usa más memoria (2 para 16 GB)"><Num v={s.motion.renders} on={(v) => void set("motion.renders", v)} min={1} max={4} /></Row>
+      <Row label="Correcciones" hint="Máximo por animación"><Num v={s.motion.maxFixes} on={(v) => void set("motion.maxFixes", v)} min={0} max={4} /></Row>
       <Row label="Navegador" hint={found === undefined ? "Edge o Chrome" : found ? <span className="text-green-600 dark:text-green-500">Encontrado</span> : <span className="text-red-600 dark:text-red-500">No encontrado</span>}>
         <AsyncButton className="btn-ghost btn-sm" onClick={async () => setFound(await findBrowser())}>Detectar</AsyncButton>
       </Row>
@@ -352,6 +355,7 @@ function ProductionTile({ className }: { className: string }) {
       <Row label="Pasadas de guion"><Num v={p.scriptPasses} on={(v) => void set("production.scriptPasses", v)} min={1} max={3} /></Row>
       <Row label="Revisión de datos"><Sel v={p.verifyMode} on={(v) => void set("production.verifyMode", v)} opts={[["auto", "Automática"], ["off", "Desactivada"]]} /></Row>
       <Row label="Reanudar al abrir"><Toggle checked={p.autoRunToReview} onChange={(v) => void set("production.autoRunToReview", v)} /></Row>
+      <Row label="Búsquedas a la vez" hint="Medios que se buscan en paralelo"><Num v={s.assets.parallel} on={(v) => void set("assets.parallel", v)} min={1} max={8} /></Row>
     </Tile>
   );
 }

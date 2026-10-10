@@ -21,10 +21,10 @@ import { Card, Empty, Chip, Progress, Spinner } from "../ui/kit";
 import { GROUPS, groupStatus, awaiting, STATUS_DOT, StepIcon } from "../ui/Steps";
 import { useLimits } from "../ui/Usage";
 import { navigate } from "../ui/nav";
-import { ResearchPanel, ScriptPanel, VoicePanel, PackagePanel, RenderPanel, PublishPanel } from "./video/Panels";
-import { StoryboardPanel, AssetsPanel, PolishPanel, MotionPanel } from "./video/EditPanels";
-import { VerifyReview } from "./video/VerifyReview";
+import { VoicePanel, PublishPanel } from "./video/Panels";
 import { FinalReview } from "./video/FinalReview";
+import { ResearchSummary, ScriptFinal, MediaSummary, MotionSummary, RenderSummary, PackageSummary, PersonalFinal, ImprovePanel } from "./video/Summaries";
+import { personalOf } from "../pipeline/personal";
 import type { Shot, MotionItem, SfxCue, MusicBed } from "../pipeline/types";
 
 const KIND: Record<ActivityKind, { icon: LucideIcon; cls: string }> = {
@@ -88,12 +88,12 @@ function Monitor({ video, stages }: { video: Video; stages: StageRow[] }) {
   const render = stages.find((s) => s.stage === "render")?.output as { file?: string; poster?: string; renderedAt?: number } | null;
   const showFinal = !running && render?.file;
   return (
-    <div className="rounded-xl overflow-hidden border border-border bg-black relative aspect-video">
+    <div className="rounded-lg overflow-hidden border border-border bg-black relative aspect-video">
       {showFinal ? <video key={render!.file} src={fileUrl(render!.file!, render!.renderedAt)} poster={render!.poster ? fileUrl(render!.poster, render!.renderedAt) : undefined} controls className="w-full h-full" /> :
         live?.frame ? <img src={src(live.frame)} className="w-full h-full object-contain" /> :
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white/60 gap-2"><MonitorPlay size={34} /><span className="text-sm">{running ? "Preparando…" : "Sin vista previa"}</span></div>}
       {!showFinal && (live?.caption || running?.progress) && (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-3 pt-8">
+        <div className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2">
           <div className="text-white text-[13px] font-medium">{live?.caption || running?.progress}</div>
           {running?.progress && live?.caption !== running.progress && <div className="text-white/70 text-[11.5px]">{running.progress}</div>}
           {live?.progress != null && <Progress className="mt-2 bg-white/20" value={live.progress * 100} />}
@@ -197,24 +197,26 @@ function UsageMeter({ videoId, group }: { videoId: string; group: (typeof GROUPS
 function StepResult({ video, stages, group }: { video: Video; stages: StageRow[]; group: (typeof GROUPS)[number] }) {
   const get = (s: StageId) => stages.find((x) => x.stage === s);
   const out = (s: StageId) => get(s)?.output;
+  // Lo esencial de cada paso; el detalle completo (tomas, animaciones, voz) está en la revisión final
+  const personal = !!personalOf(video);
+  const finalRow = get("final");
+  const reviewing = finalRow?.status === "review" || finalRow?.status === "approved";
   const panels = group.stages.map((id) => {
     const row = get(id); if (!row) return null;
     switch (id) {
-      case "research": return row.output ? <ResearchPanel key={id} data={row.output} /> : null;
-      case "script": return row.output ? <ScriptPanel key={id} video={video} data={row.output} /> : null;
-      case "verify": return row.output && out("script") ? <VerifyReview key={id} video={video} row={row} script={out("script")} research={out("research")} /> : null;
+      case "research": return row.output ? <ResearchSummary key={id} data={row.output} /> : null;
+      case "script": return row.output ? <ScriptFinal key={id} data={row.output} verify={out("verify")} /> : null;
       case "voice": return row.output ? <VoicePanel key={id} video={video} row={row} script={out("script")} /> : null;
-      case "storyboard": return row.output ? <StoryboardPanel key={id} data={row.output} /> : null;
-      case "assets": return row.output ? <AssetsPanel key={id} video={video} data={row.output} /> : null;
-      case "polish": return row.output ? <PolishPanel key={id} video={video} data={row.output} /> : null;
-      case "motion": return row.output ? <MotionPanel key={id} video={video} data={row.output} /> : null;
-      case "render": return row.output ? <RenderPanel key={id} data={row.output} /> : null;
-      case "package": return row.output ? <PackagePanel key={id} data={row.output} /> : null;
-      case "final": return row.status === "review" || row.status === "approved" ? <FinalReview key={id} video={video} stages={stages} /> : null;
-      case "publish": return row.status !== "pending" || video.status === "approved" ? <PublishPanel key={id} video={video} row={row} /> : null;
+      case "assets": return out("polish") ? <MediaSummary key={id} polish={out("polish")} motion={out("motion")} /> : null;
+      case "motion": return row.output ? <MotionSummary key={id} data={row.output} /> : null;
+      case "render": return row.output ? <RenderSummary key={id} data={row.output} /> : null;
+      case "package": return row.output && !reviewing ? <PackageSummary key={id} data={row.output} /> : null;
+      case "final": return reviewing ? (personal ? <PersonalFinal key={id} video={video} stages={stages} /> : <FinalReview key={id} video={video} stages={stages} />) : null;
+      case "publish": return !personal && (row.status !== "pending" || video.status === "approved") ? <PublishPanel key={id} video={video} row={row} /> : null;
       default: return null;
     }
   }).filter(Boolean);
+  if (group.id === "publicacion" && personalOf(video)?.iterate) panels.push(<ImprovePanel key="mejora" video={video} stages={stages} />);
   const failed = group.stages.map(get).find((r) => r?.status === "failed");
   const running = group.stages.map(get).find((r) => r?.status === "running");
   return (

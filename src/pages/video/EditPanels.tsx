@@ -1,8 +1,7 @@
-// Paneles de la edición v2: storyboard, medios y casting, retoques de Opus y
-// animaciones; editor de una toma y camas musicales.
+// Paneles de la revisión final: miniaturas de tomas, animaciones, editor de una toma y camas musicales.
 import { useEffect, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Image as ImageIcon, Film, Sparkles, RotateCcw, Search, Type, Music2, Wand2, AlertTriangle, ExternalLink } from "lucide-react";
+import { Image as ImageIcon, Film, Sparkles, RotateCcw, Search, Type, Music2, AlertTriangle, ExternalLink } from "lucide-react";
 import { fileUrl } from "../../lib/ipc";
 import { listMusic, type Video, type Track } from "../../lib/repo";
 import { getAssets, searchLibrary, type Asset } from "../../media/library";
@@ -10,7 +9,7 @@ import { replaceShotAsset, shotToCard, setBedTrack, redoMotionItem } from "../..
 import { rerenderFrom } from "../../pipeline/runner";
 import { Card, Chip, Modal, AsyncButton, Field, Empty } from "../../ui/kit";
 import { toast } from "../../lib/events";
-import type { StoryboardOut, AssetsOut, PolishOut, MotionOut, Shot, MusicBed } from "../../pipeline/types";
+import type { MotionOut, Shot, MusicBed } from "../../pipeline/types";
 
 const VIS_LABEL: Record<string, string> = {
   photo: "Foto", archival: "Archivo", clip: "Clip", meme: "Meme", motion: "Animación", map: "Mapa",
@@ -33,81 +32,6 @@ export function ShotThumb({ s, onClick, motion }: { s: Shot; onClick?: () => voi
   );
 }
 
-function bySegment(shots: Shot[]) {
-  const ids = [...new Set(shots.map((s) => s.segment_id))];
-  return ids.map((id) => ({ id, shots: shots.filter((s) => s.segment_id === id) }));
-}
-
-export function StoryboardPanel({ data }: { data: StoryboardOut }) {
-  const c = (k: string[]) => data.shots.filter((s) => k.includes(s.visual)).length;
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2 flex-wrap text-xs">
-        <Chip>{data.shots.length} tomas</Chip><Chip tone="green">{c(["photo", "archival"])} imágenes</Chip><Chip tone="primary">{c(["clip", "meme"])} clips</Chip>
-        <Chip tone="amber">{c(["motion", "map"])} animaciones</Chip><Chip>{c(["source_card", "quote_card", "title_card", "text_card"])} tarjetas</Chip><Chip>{data.sfx.length} efectos</Chip><Chip>{data.music.length} camas musicales</Chip>
-      </div>
-      {data.notes_es && <Card><div className="text-sm">{data.notes_es}</div></Card>}
-      <Card title="Plan por tomas" pad={false}>
-        <table className="w-full text-xs">
-          <thead><tr className="text-muted-foreground text-left border-b border-border"><th className="px-3 py-2">Toma</th><th>Tiempo</th><th>Tipo</th><th>Qué se busca / muestra</th><th className="px-3">Debe verse</th></tr></thead>
-          <tbody>{data.shots.map((s) => (
-            <tr key={s.id} className="border-b border-border/50 align-top">
-              <td className="px-3 py-1.5 tabular">{s.id}</td><td className="tabular whitespace-nowrap">{(s.start ?? 0).toFixed(1)}–{((s.start ?? 0) + (s.dur ?? 0)).toFixed(1)} s</td>
-              <td><Chip>{VIS_LABEL[s.visual]}</Chip></td>
-              <td>{s.query_en ?? s.card_text ?? s.motion_brief_en ?? s.source_id}{s.alt_queries_en?.length ? <div className="text-muted-foreground">alt: {s.alt_queries_en.join(" · ")}</div> : null}</td>
-              <td className="px-3 text-muted-foreground">{s.must_show_es}{s.avoid_es ? <div className="text-amber-600">evitar: {s.avoid_es}</div> : null}</td>
-            </tr>))}</tbody>
-        </table>
-      </Card>
-      <Card title="Música y efectos">
-        <div className="text-xs space-y-1">
-          {data.music.map((b, i) => <div key={i}><Music2 size={11} className="inline mr-1 text-teal-500" />{b.mood_en} <span className="text-muted-foreground">({b.segment_ids.join(", ")})</span></div>)}
-          <div className="text-muted-foreground pt-1">{data.sfx.map((x) => `${x.type} @ ${x.at.toFixed(1)} s`).join(" · ")}</div>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-export function AssetsPanel({ video, data, editable = true }: { video: Video; data: AssetsOut; editable?: boolean }) {
-  const [edit, setEdit] = useState<Shot | null>(null);
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-2 text-xs flex-wrap">
-        <Chip tone="green">{data.reused} de la biblioteca</Chip><Chip tone="primary">{data.downloaded} descargados</Chip>
-        <Chip>{data.described} descritos</Chip>{data.fallbacks > 0 && <Chip tone="amber">{data.fallbacks} con tarjeta</Chip>}
-      </div>
-      {bySegment(data.shots).map((g) => (
-        <div key={g.id} className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
-          {g.shots.map((s) => <ShotThumb key={s.id} s={s} onClick={editable ? () => setEdit(s) : undefined} />)}
-        </div>
-      ))}
-      <ShotEditorV2 video={video} shot={edit} onClose={() => setEdit(null)} />
-    </div>
-  );
-}
-
-export function PolishPanel({ video, data }: { video: Video; data: PolishOut }) {
-  const [edit, setEdit] = useState<Shot | null>(null);
-  const motionShots = new Set(data.motion.flatMap((m) => m.shot_ids));
-  return (
-    <div className="space-y-3">
-      <Card title="Cambios de Opus" icon={Wand2}><div className="text-sm whitespace-pre-wrap">{data.notes_es || "—"}</div>
-        <div className="flex gap-2 mt-2 text-xs flex-wrap"><Chip>Etalonaje: {data.grade}</Chip><Chip>{data.shots.filter((s) => s.transition_in && s.transition_in !== "cut").length} transiciones</Chip>
-          <Chip>{data.shots.filter((s) => s.punch_at != null).length} golpes de zoom</Chip><Chip>{data.sfx.length} efectos</Chip><Chip tone="primary">{data.motion.length} animaciones</Chip></div>
-      </Card>
-      {data.motion.length > 0 && <Card title="Animaciones">
-        <div className="space-y-2 text-xs">{data.motion.map((m) => <div key={m.id}><b>{m.id}</b> · {m.kind === "overlay" ? "capa" : "pantalla completa"} · {m.duration.toFixed(1)} s — {m.brief_en}{m.text ? <span className="text-muted-foreground"> · «{m.text}»</span> : null}</div>)}</div>
-      </Card>}
-      {bySegment(data.shots).map((g) => (
-        <div key={g.id} className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
-          {g.shots.map((s) => <ShotThumb key={s.id} s={s} motion={motionShots.has(s.id)} onClick={() => setEdit(s)} />)}
-        </div>
-      ))}
-      <ShotEditorV2 video={video} shot={edit} onClose={() => setEdit(null)} />
-    </div>
-  );
-}
 
 export function MotionPanel({ video, data }: { video: Video; data: MotionOut }) {
   if (!data.items.length) return <Card><Empty icon={Sparkles} title="Sin animaciones" /></Card>;

@@ -19,7 +19,7 @@ type KindTab = "all" | AssetKind;
 const KIND_LABEL: Record<AssetKind, string> = { image: "Imagen", video: "Clip", sfx: "Efecto", music: "Música", icon: "Ícono" };
 
 function Thumb({ a, className = "" }: { a: Asset; className?: string }) {
-  if (a.kind === "icon") return <div className={`grid place-items-center bg-gradient-to-b from-primary/10 to-transparent ${className}`}><img src={fileUrl(a.path)} className="w-1/3 h-1/3 object-contain dark:invert opacity-90" loading="lazy" /></div>;
+  if (a.kind === "icon") return <div className={`grid place-items-center bg-primary/5 ${className}`}><img src={fileUrl(a.path)} className="w-1/3 h-1/3 object-contain dark:invert opacity-90" loading="lazy" /></div>;
   if (a.thumb) return <img src={fileUrl(a.thumb)} className={`object-cover ${className}`} loading="lazy" />;
   return <div className={`flex items-center justify-center bg-muted ${className}`}><Music2 size={20} className="text-muted-foreground" /></div>;
 }

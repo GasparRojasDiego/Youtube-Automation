@@ -10,14 +10,16 @@ export default {
         card: c("card"), popover: c("popover"),
         primary: { DEFAULT: c("primary"), foreground: c("primary-foreground"), strong: c("primary-strong") },
         soft: { DEFAULT: c("soft"), foreground: c("soft-foreground") },
+        "nav-active": { DEFAULT: c("nav-active"), foreground: c("nav-active-foreground") },
         secondary: c("secondary"), muted: { DEFAULT: c("muted"), foreground: c("muted-foreground") },
         accent: c("accent"), destructive: c("destructive"),
         border: c("border"), input: c("input"), ring: c("ring"),
       },
-      borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 4px)" },
+      borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 3px)" },
       fontFamily: {
-        sans: ["Poppins", "Segoe UI", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "Cascadia Code", "Consolas", "monospace"],
+        // Una sola tipografía en toda la app: la del sistema de Windows (sobria y la más común)
+        sans: ["Segoe UI Variable Text", "Segoe UI", "system-ui", "-apple-system", "Helvetica Neue", "Arial", "sans-serif"],
+        mono: ["Segoe UI Variable Text", "Segoe UI", "system-ui", "-apple-system", "Helvetica Neue", "Arial", "sans-serif"],
       },
       transitionTimingFunction: { frame: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
       keyframes: {

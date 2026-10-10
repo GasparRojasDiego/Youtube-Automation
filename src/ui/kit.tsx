@@ -64,8 +64,8 @@ export function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title
   return (
     <div className="flex flex-col items-center justify-center text-center py-12 px-6">
       <span className="relative mb-4">
-        <span className="absolute inset-0 rounded-2xl bg-primary/20 blur-xl" />
-        <span className="icon-box relative w-12 h-12 rounded-2xl"><Icon size={22} /></span>
+        <span className="absolute inset-0 rounded-lg bg-primary/20 blur-xl" />
+        <span className="icon-box relative w-12 h-12 rounded-lg"><Icon size={22} /></span>
       </span>
       <div className="font-semibold tracking-tight">{title}</div>
       {children && <div className="text-sm text-muted-foreground mt-1.5 max-w-md leading-relaxed">{children}</div>}
@@ -76,7 +76,7 @@ export function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title
 export function Progress({ value, className = "" }: { value: number; className?: string }) {
   return (
     <div className={`h-1.5 rounded-full bg-secondary overflow-hidden ${className}`}>
-      <div className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary shadow-[0_0_10px_hsl(var(--primary)/.6)] transition-[width] duration-500 ease-frame" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      <div className="h-full rounded-full bg-primary transition-[width] duration-500 ease-frame" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
   );
 }
@@ -125,7 +125,7 @@ export function AsyncButton({ onClick, children, className = "btn-brand", disabl
 /** Control segmentado: el activo se eleva sobre un riel. */
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string; icon?: LucideIcon }[]; value: T; onChange: (t: T) => void }) {
   return (
-    <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl bg-secondary/60 border border-border/70">
+    <div className="inline-flex flex-wrap gap-1 p-1 rounded-lg bg-secondary/60 border border-border/70">
       {tabs.map((t) => {
         const I = t.icon; const on = value === t.id;
         return (
@@ -178,5 +178,5 @@ export function Avatar({ size = 32, className = "" }: { size?: number; className
   const initials = (p.name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
   return p.avatar
     ? <img src={fileUrl(p.avatar.split("?")[0], p.avatar.split("?")[1])} alt="" style={{ width: size, height: size }} className={`rounded-full object-cover ring-1 ring-border shrink-0 ${className}`} />
-    : <span style={{ width: size, height: size, fontSize: size * 0.38 }} className={`rounded-full grid place-items-center font-semibold text-white shrink-0 bg-gradient-to-br from-primary-strong to-primary ${className}`}>{initials}</span>;
+    : <span style={{ width: size, height: size, fontSize: size * 0.38 }} className={`rounded-full grid place-items-center font-semibold text-white shrink-0 bg-primary-strong ${className}`}>{initials}</span>;
 }

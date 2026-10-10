@@ -197,11 +197,6 @@ export async function saveArtifact(videoId: string, kind: string, json: unknown,
   return version;
 }
 
-export async function listArtifacts(videoId: string, kind: string) {
-  const rows = await db.query("SELECT id,version,note,created_at,json FROM artifacts WHERE video_id=? AND kind=? ORDER BY version DESC", [videoId, kind]);
-  return rows.map((r) => ({ ...r, json: safeJson(r.json, null) }));
-}
-
 // ---------- Revisiones (tiempo invertido) ----------
 export async function addReview(videoId: string, stage: string, decision: string, notes: string, seconds: number) {
   await db.execute("INSERT INTO reviews(video_id,stage,decision,notes,seconds,created_at) VALUES(?,?,?,?,?,?)", [videoId, stage, decision, notes, Math.round(seconds), now()]);

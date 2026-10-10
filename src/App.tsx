@@ -92,15 +92,16 @@ export default function App() {
     <div className="relative h-full flex isolate">
       <Ambient />
       <aside className={`${collapsed ? "w-[72px]" : "w-[236px]"} relative z-10 shrink-0 border-r border-border/70 bg-card/55 backdrop-blur-xl flex flex-col transition-[width] duration-300 ease-frame`}>
-        <div className="h-16 flex items-center justify-center px-3">
+        <div className="h-[72px] flex items-center justify-center px-3">
           <button onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Mostrar menú" : "Ocultar menú"}
-            className="flex items-center justify-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-accent/50">
-            <AtrilLogo size={28} className="text-primary shrink-0 drop-shadow-[0_0_10px_hsl(var(--primary)/.45)]" />
-            {!collapsed && <span className="font-extrabold tracking-[0.32em] -mr-[0.32em] text-[15px]">ATRIL</span>}
+            className="flex items-center justify-center gap-3 rounded-md px-2.5 py-1.5 transition-colors hover:bg-accent/50">
+            <AtrilLogo size={collapsed ? 32 : 36} className="text-primary shrink-0" />
+            {!collapsed && <span className="font-bold tracking-[0.3em] -mr-[0.3em] text-[19px]">ATRIL</span>}
           </button>
         </div>
+        <div className="mx-4 h-px bg-border" />
         <nav ref={navRef} className="relative flex-1 overflow-y-auto no-scrollbar px-3 pt-2 pb-3">
-          {ind && <span aria-hidden className="absolute left-3 right-3 rounded-md bg-primary-strong shadow-[0_6px_18px_-8px_hsl(var(--primary-strong))] transition-[top,height] duration-300 ease-frame" style={{ top: ind.top, height: ind.height }} />}
+          {ind && <span aria-hidden className="absolute left-3 right-3 rounded-md bg-nav-active transition-[top,height] duration-300 ease-frame" style={{ top: ind.top, height: ind.height }} />}
           {NAV.map((group, gi) => (
             <div key={gi}>
               {gi > 0 && <div className="mx-2.5 my-3 h-px bg-border" />}
@@ -109,10 +110,10 @@ export default function App() {
                   const on = activeId === id;
                   return (
                     <button key={id} ref={(el) => { items.current[id] = el; }} onClick={() => navigate({ page: id })} title={collapsed ? label : undefined}
-                      className={`relative z-10 w-full flex items-center gap-3 px-2.5 h-9 text-[13.5px] transition-colors duration-200 ${collapsed ? "justify-center" : ""} ${on ? "rounded-md text-white font-medium" : "rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50"}`}>
+                      className={`relative z-10 w-full flex items-center gap-3 px-2.5 h-9 text-[13.5px] transition-colors duration-200 ${collapsed ? "justify-center" : ""} ${on ? "rounded-md text-nav-active-foreground font-semibold" : "rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50"}`}>
                       <I size={17} className="shrink-0" />
                       {!collapsed && <span className="truncate">{label}</span>}
-                      {id === "produccion" && running && <span className={`${collapsed ? "absolute top-1.5 right-2" : "ml-auto"} relative w-2 h-2`}><span className={`absolute inset-0 rounded-full ${on ? "bg-white" : "bg-primary"}`} /><span className={`absolute inset-0 rounded-full animate-pulse-dot ${on ? "bg-white" : "bg-primary"}`} /></span>}
+                      {id === "produccion" && running && <span className={`${collapsed ? "absolute top-1.5 right-2" : "ml-auto"} relative w-2 h-2`}><span className="absolute inset-0 rounded-full bg-primary" /><span className="absolute inset-0 rounded-full animate-pulse-dot bg-primary" /></span>}
                     </button>
                   );
                 })}

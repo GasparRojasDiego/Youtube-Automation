@@ -1,11 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+// Fuentes para las tarjetas y miniaturas que se dibujan en la app (la interfaz usa la tipografía del sistema)
 import "@fontsource/poppins/400.css";
 import "@fontsource/poppins/500.css";
 import "@fontsource/poppins/600.css";
 import "@fontsource/poppins/700.css";
 import "@fontsource/poppins/800.css";
-// Fuentes disponibles para las tarjetas y miniaturas de los canales
 import "@fontsource/anton/400.css";
 import "@fontsource/archivo/500.css";
 import "@fontsource/archivo/700.css";

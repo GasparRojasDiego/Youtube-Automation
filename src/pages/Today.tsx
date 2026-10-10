@@ -97,7 +97,7 @@ export function Today() {
             {personal ? "Un video a tu medida: tarea, proyecto o promoción. Sube tus archivos o tu guion, describe cómo lo quieres y elige la duración."
               : "Escribe la idea o usa un tema investigado. La app hace todo y solo te pide revisar el video final."}
           </p>
-          <div className="mt-4 rounded-lg border border-border/80 bg-background/60 focus-within:border-primary/60 focus-within:ring-4 focus-within:ring-primary/15 transition-all">
+          <div className="mt-4 rounded-lg border border-border/80 bg-background/90 focus-within:border-primary/60 focus-within:ring-4 focus-within:ring-primary/15 transition-all">
             <textarea className="w-full bg-transparent outline-none resize-none px-4 pt-3.5 pb-1 text-[15px] min-h-[76px] placeholder:text-muted-foreground/70" value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={personal ? (script ? "Opcional: indicaciones extra sobre tu guion" : "Ej.: Video para mi exposición de biología sobre la fotosíntesis") : "Ej.: ¿Qué pasaría si 200 soldados modernos aparecieran en la antigua Roma?"}
@@ -124,12 +124,12 @@ export function Today() {
           </div>
           {personal && (
             <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-start">
-              <textarea className="input min-h-[60px] resize-none text-[13.5px]" value={description} onChange={(e) => setDescription(e.target.value)}
+              <textarea className="input min-h-[60px] resize-none text-[13.5px] bg-background/90" value={description} onChange={(e) => setDescription(e.target.value)}
                 placeholder="Cómo será el video: para quién es, el tono, el estilo y qué debe lograr (distinto del guion)" aria-label="Descripción del video" />
-              <label className="text-[11px] font-semibold text-muted-foreground">Duración
+              <label className="flex flex-col text-[11px] font-semibold text-muted-foreground">Duración
                 <select className="input mt-1 h-9 w-28" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>{DURATIONS.map(([m, l]) => <option key={m} value={m}>{l}</option>)}</select>
               </label>
-              <div className="text-[11px] font-semibold text-muted-foreground">Idioma
+              <div className="flex flex-col text-[11px] font-semibold text-muted-foreground">Idioma
                 <div className="mt-1 inline-flex h-9 p-0.5 rounded-md border border-border bg-background/60">
                   {([["es", "Español"], ["en", "Inglés"]] as const).map(([k, l]) => <button key={k} onClick={() => setLanguage(k)} className={`px-3 rounded text-[13px] font-medium ${language === k ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground"}`}>{l}</button>)}
                 </div>
@@ -147,7 +147,7 @@ export function Today() {
             {videos.map(({ v, stages }) => {
               const a = awaiting(v, stages);
               return (
-                <div key={v.id} className="rounded-xl border border-border/80 bg-background/30 p-4 hover:border-primary/40 transition-colors">
+                <div key={v.id} className="rounded-lg border border-border/80 bg-background/30 p-4 hover:border-primary/40 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="font-semibold truncate">{v.title}</div>

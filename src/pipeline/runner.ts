@@ -188,41 +188,6 @@ export async function retryStage(videoId: string, stage: StageId) {
   runVideo(videoId);
 }
 
-export async function saveVerification(videoId: string, v: VerifyOut) {
-  await db.execute("UPDATE stages SET output=? WHERE video_id=? AND stage='verify'", [JSON.stringify(v), videoId]);
-  emit("stages");
-}
-
-/** Aprueba el guion y continúa (las marcas rojas ya no bloquean). */
-export async function approveScript(videoId: string) {
-  await setStage(videoId, "verify", { status: "approved" });
-  runVideo(videoId);
-}
-
-/** Corrige el guion con las marcas y notas, y lo vuelve a verificar. */
-export async function applyScriptFixes(videoId: string, notes: string) {
-  const stages = await getStages(videoId);
-  const v = stages.find((s) => s.stage === "verify")?.output as VerifyOut;
-  const issues = scriptIssues(v, stages, false);
-  const video = await getVideo(videoId);
-  if (!video) return;
-  // Ejecuta la corrección dentro de la cola para no competir con otro trabajo.
-  await setStage(videoId, "verify", { status: "running", progress: "Aplicando correcciones…" });
-  const jobId = uid("job_");
-  const ctx: St.Ctx = { video, jobId, cancelled: () => false, progress: async (t) => { await db.execute("UPDATE stages SET progress=? WHERE video_id=? AND stage='verify'", [t, videoId]); emit("stages"); } };
-  try {
-    const revised = await St.stageScript(ctx, { issues, notes });
-    await setStage(videoId, "script", { status: "done", output: revised });
-    await setStage(videoId, "verify", { status: "pending", progress: null });
-    // Las etapas posteriores deben rehacerse con el nuevo guion
-    for (const s of ["voice", "storyboard", "assets", "polish", "motion", "render", "package", "final", "publish"] as StageId[]) await setStage(videoId, s, { status: "pending" });
-    runVideo(videoId);
-  } catch (e) {
-    await setStage(videoId, "verify", { status: "review", progress: null });
-    await logError(e, videoId, "Corrección del guion");
-  }
-}
-
 /** Rehace la voz de un segmento y, en cadena, tiempos, metadatos y montaje. */
 export async function redoVoiceSegment(videoId: string, segmentId: string) {
   const st = (await getStages(videoId)).find((s) => s.stage === "voice");
@@ -238,8 +203,11 @@ export async function rerenderFrom(videoId: string, stage: StageId) {
 }
 
 export async function approveFinal(videoId: string, scheduledAt: number | null) {
-  await updateVideo(videoId, { status: "approved", scheduled_at: scheduledAt });
+  const v = await getVideo(videoId);
   await setStage(videoId, "final", { status: "approved", progress: null });
+  // Un video personal no se publica: queda aprobado (y ya está en Descargas)
+  if (v && personalOf(v)) { await updateVideo(videoId, { status: "published", stage: null }); return; }
+  await updateVideo(videoId, { status: "approved", scheduled_at: scheduledAt });
   await setStage(videoId, "publish", { status: "pending" });
   runVideo(videoId);
 }

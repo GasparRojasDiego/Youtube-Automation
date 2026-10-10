@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Identidad VT Asvent: primario azul, Poppins, mono para etiquetas. */
+/* Identidad VT Asvent: primario azul, una sola tipografía (la del sistema), bordes sobrios y sin degradados. */
 :root {
   --background: 40 30% 94%; --foreground: 228 14% 12%;
   --card: 40 40% 98%; --popover: 40 40% 98%;
@@ -10,8 +10,9 @@
   --secondary: 40 22% 89%; --muted: 40 22% 89%; --muted-foreground: 228 6% 40%;
   --accent: 40 22% 86%; --destructive: 0 72% 48%;
   --border: 38 16% 82%; --input: 40 30% 96%; --ring: 228 80% 60%;
-  --radius: 0.75rem;
+  --radius: 0.375rem;
   --primary-strong: 228 78% 58%; --soft: 228 10% 87%; --soft-foreground: 228 14% 14%;
+  --nav-active: 214 100% 91%; --nav-active-foreground: 226 72% 36%;
   --shadow-card: 0 1px 0 0 hsl(0 0% 100% / .7) inset, 0 10px 30px -18px hsl(228 30% 20% / .35);
 }
 .dark {
@@ -22,6 +23,7 @@
   --accent: 230 8% 15%; --destructive: 0 70% 52%;
   --border: 230 8% 17%; --input: 230 10% 8%; --ring: 228 100% 73%;
   --primary-strong: 228 74% 60%; --soft: 228 9% 82%; --soft-foreground: 230 14% 10%;
+  --nav-active: 214 82% 86%; --nav-active-foreground: 228 52% 18%;
   --shadow-card: 0 1px 0 0 hsl(0 0% 100% / .04) inset, 0 18px 40px -24px rgb(0 0 0 / .8);
 }
 
@@ -31,7 +33,6 @@ html, body, #root { height: 100%; }
 body {
   @apply bg-background text-foreground font-sans antialiased;
   transition: background-color .4s, color .4s;
-  font-feature-settings: "ss01", "cv11";
 }
 select.input {
   appearance: none; -webkit-appearance: none; padding-right: 2rem;
@@ -52,7 +53,7 @@ option { background: hsl(var(--popover)); color: hsl(var(--foreground)); }
 
 @layer components {
   .card {
-    @apply bg-card/80 border border-border/80 rounded-xl backdrop-blur-md;
+    @apply bg-card/80 border border-border/80 rounded-lg backdrop-blur-md;
     box-shadow: var(--shadow-card);
   }
   .card-hover { @apply transition-[transform,border-color,box-shadow] duration-300 ease-frame hover:-translate-y-0.5 hover:border-primary/40; }
@@ -63,8 +64,8 @@ option { background: hsl(var(--popover)); color: hsl(var(--foreground)); }
   }
   .btn-primary {
     @apply btn text-primary-foreground font-semibold hover:brightness-110;
-    background: linear-gradient(180deg, hsl(var(--primary)) 0%, hsl(var(--primary) / .86) 100%);
-    box-shadow: 0 0 0 1px hsl(var(--primary) / .55), 0 1px 0 0 hsl(0 0% 100% / .25) inset, 0 8px 22px -10px hsl(var(--primary) / .75);
+    background: hsl(var(--primary));
+    box-shadow: 0 0 0 1px hsl(var(--primary) / .55), 0 6px 18px -10px hsl(var(--primary) / .7);
   }
   .btn-brand { @apply btn border border-primary/35 bg-primary/10 text-primary hover:bg-primary/[.16] hover:border-primary/60; }
   .btn-ghost { @apply btn text-foreground/85 hover:bg-accent hover:text-foreground; }
@@ -77,11 +78,10 @@ option { background: hsl(var(--popover)); color: hsl(var(--foreground)); }
   }
   .label { @apply font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground; }
   .kicker { @apply font-mono text-[11px] uppercase tracking-[0.28em] text-primary; }
-  .icon-box { @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border border-primary/25 text-primary shrink-0 bg-gradient-to-b from-primary/20 to-primary/[.04]; }
-  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border whitespace-nowrap; }
+  .icon-box { @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border border-primary/25 text-primary shrink-0 bg-primary/10; }
+  .chip { @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium border whitespace-nowrap; }
   .tabular { font-variant-numeric: tabular-nums; }
-  .hairline { @apply h-px bg-gradient-to-r from-transparent via-border to-transparent; }
-  .text-gradient { @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary to-foreground/80; }
+  .hairline { @apply h-px bg-border; }
 }
 
 @media (prefers-reduced-motion: reduce) {
