@@ -47,8 +47,12 @@ describe("metadatos", () => {
   it("capítulos, subtítulos y descripción", () => {
     const ch = L.chapters([{ id: "a", title: "A" }, { id: "b", title: "B" }, { id: "c", title: "C" }], { a: 30, b: 5, c: 40 });
     expect(ch[0].t).toBe(0); expect(ch.map((c) => c.title)).toEqual(["A", "B"]);
-    const desc = L.composeDescription({ body: "Body", chapters: [{ t: 0, title: "A" }, { t: 60, title: "B" }, { t: 130, title: "C" }], sources: research.sources, credits: ["Music: x"], disclosure: "AI voice." });
-    expect(desc).toContain("0:00 A"); expect(desc).toContain("2:10 C"); expect(desc).toContain("[1] Report — A (2022): https://a.org/r");
+    const desc = L.composeDescription({ body: "Body", chapters: [{ t: 0, title: "A" }, { t: 60, title: "B" }, { t: 130, title: "C" }], disclosure: "AI voice." });
+    expect(desc).toContain("0:00 A"); expect(desc).toContain("2:10 C");
+    // Sin lista de fuentes ni créditos en el campo; los créditos obligatorios se añaden al subir
+    expect(desc).not.toMatch(/Sources|Credits/);
+    expect(L.withCredits(desc, ["Image: x — CC BY 4.0 — https://a.org"])).toMatch(/Credits\nImage: x/);
+    expect(L.withCredits(desc, [])).toBe(desc);
     expect(L.sanitizeTags(["a", "a", "b<c"])).toEqual(["a", "bc"]);
   });
 });

@@ -246,7 +246,6 @@ export async function stageVoice(ctx: Ctx): Promise<VoiceOut> {
 export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}): Promise<PackageOut> {
   const v = ctx.video;
   const script = await need<ScriptOut>(v, "script", "Guion");
-  const research = await need<ResearchOut>(v, "research", "Investigación");
   const verify = await need<VerifyOut>(v, "verify", "Verificación");
   const voice = await need<VoiceOut>(v, "voice", "Voz");
   const polish = await need<PolishOut>(v, "polish", "Retoques");
@@ -311,10 +310,10 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
   pkg.chapters = L.chapters(script.segments, Object.fromEntries(segs.map((x) => [x.id, segmentLength(x, montage.pauseBetweenSegments)])));
   pkg.srt = L.buildSrtAligned(segs, offsets);
-  // Créditos: atribución obligatoria (CC BY / BY-SA) completa; el resto, resumido
-  pkg.description = L.composeDescription({ body: pkg.description_body_en, chapters: pkg.chapters, sources: L.usedSources(script, research),
-    credits: L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || iconIds.includes(a.id) || sfxIds.includes(a.id) || polish.music.some((x) => x.asset_id === a.id)),
-      polish.music.filter((b) => b.path && !b.asset_id).map((b) => b.title ?? ""), (await listMusic()).filter((m) => polish.music.some((b) => b.path === m.path)).map((m) => m.attribution).filter(Boolean)),
+  // Descripción sin lista de fuentes; los créditos que la licencia exige (CC BY / BY-SA) van aparte y se añaden al subir
+  pkg.credits = L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || iconIds.includes(a.id) || sfxIds.includes(a.id) || polish.music.some((x) => x.asset_id === a.id)),
+    polish.music.filter((b) => b.path && !b.asset_id).map((b) => b.title ?? ""), (await listMusic()).filter((m) => polish.music.some((b) => b.path === m.path)).map((m) => m.attribution).filter(Boolean));
+  pkg.description = L.composeDescription({ body: pkg.description_body_en, chapters: pkg.chapters,
     disclosure: L.adaptDisclosure(s.publishing.aiDisclosure, { generatedImages: generatedUsedNow, aiVoice: true }) });
   pkg.tags = L.sanitizeTags(pkg.tags);
   pkg.motion_count = motion?.items.filter((m) => m.file).length ?? 0;
@@ -340,7 +339,7 @@ export async function stagePublish(ctx: Ctx): Promise<PublishOut> {
     const offS = await onUploadSession((p) => { if (p.id === ctx.jobId) void updateVideo(v.id, { upload_session: p.session }); });
     try {
       res = await uploadVideo(ctx.jobId, render.file, {
-      title: pkg.chosen_title, description: pkg.description, tags: pkg.tags, categoryId: s.categoryId,
+      title: pkg.chosen_title, description: L.withCredits(pkg.description, pkg.credits ?? []), tags: pkg.tags, categoryId: s.categoryId,
       defaultLanguage: s.defaultLanguage, privacy: publishAt ? "private" : "public", publishAt, containsSyntheticMedia: pkg.synthetic_media,
       }, v.upload_session);
     } catch (e) {

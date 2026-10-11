@@ -31,6 +31,7 @@ export function awaiting(video: Video, stages: StageRow[]): { text: string; tone
   if (video.status === "published") return { text: video.data?.personal ? "Terminado" : "Publicado", tone: "green" };
   if (video.status === "scheduled") return { text: `Programado${video.scheduled_at ? " para " + new Date(video.scheduled_at).toLocaleString("es-PE", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}`, tone: "green" };
   if (video.status === "rejected") return { text: "Rechazado", tone: "muted" };
+  if (video.status === "ready") return { text: "Aceptado · listo para publicar", tone: "green", action: "Publicar" };
   const label = (id: string) => STAGES.find((x) => x.id === id)?.label;
   const failed = stages.find((s) => s.status === "failed");
   if (failed) return { text: `Falló: ${label(failed.stage)}`, tone: "red", action: "Ver error" };

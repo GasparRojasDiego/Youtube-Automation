@@ -80,7 +80,7 @@ export async function importUploads(v: Pick<Video, "id" | "dir" | "title">, path
     const dest = joinPath(dir, `${String(i + 1).padStart(2, "0")}-${slugify(name.replace(/\.\w+$/, ""), 50)}.${extName(src).toLowerCase()}`);
     await fs.copy(src, dest);
     let asset: Asset | null = null;
-    if (kind !== "document") asset = await importLocalFile(dest, kind === "audio" ? "music" : kind, { title: name.replace(/\.\w+$/, ""), note: `Subido para «${v.title}»`, license: "Del usuario" }).catch(() => null);
+    if (kind !== "document") asset = await importLocalFile(dest, kind === "audio" ? "music" : kind, { title: name.replace(/\.\w+$/, ""), note: `Subido para «${v.title}»`, license: "Del usuario", personal: true }).catch(() => null);
     out.push({ path: dest, name, kind, asset_id: asset?.id ?? null });
   }
   return out;

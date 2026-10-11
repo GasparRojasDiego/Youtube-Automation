@@ -1,15 +1,18 @@
 // Revisión final: el video completo con su miniatura y metadatos. Se puede
 // aprobar, rechazar o pedir cambios puntuales sin rehacer todo.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, XCircle, RotateCcw, CalendarClock, Image as ImageIcon, Mic, Wand2, Sparkles } from "lucide-react";
-import { db, fileUrl } from "../../lib/ipc";
+import { CheckCircle2, XCircle, RotateCcw, CalendarClock, Image as ImageIcon, Mic, Wand2, Sparkles, Check, FolderOpen, Smartphone, X } from "lucide-react";
+import { db, fs, fileUrl } from "../../lib/ipc";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ffmpeg } from "../../providers/ffmpeg";
+import { personalOf } from "../../pipeline/personal";
 import { emit } from "../../lib/bus";
 import { addReview, type Video, type StageRow } from "../../lib/repo";
 import { getSettings } from "../../lib/settings";
 import { skillParams, THUMBNAIL_DEFAULTS, VISUAL_DEFAULTS } from "../../lib/skills";
 import type { PackageOut, RenderOut, ScriptOut, VoiceOut, PolishOut, MotionOut, Shot } from "../../pipeline/types";
-import { approveFinal, rejectVideo, redoVoiceSegment } from "../../pipeline/runner";
+import { approveFinal, rejectVideo, redoVoiceSegment, acceptVideo } from "../../pipeline/runner";
 import { renderThumbnail } from "../../pipeline/cards";
 import { Card, Chip, Field, Toggle, AsyncButton, Modal, Tabs } from "../../ui/kit";
 import { ExportButton } from "./Panels";
@@ -42,7 +45,8 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
   const [thumbText, setThumbText] = useState(pkg.thumbnails[pkg.chosen_thumbnail]?.text ?? "");
   const [bust, setBust] = useState(Date.now());
   const secs = useRef(0);
-  const editable = stages.find((s) => s.stage === "final")?.status === "review";
+  // Aceptado (listo para publicar): se puede publicar o programar después, con los mismos controles
+  const editable = stages.find((s) => s.stage === "final")?.status === "review" || video.status === "ready";
   const p = getSettings().publishing;
 
   useEffect(() => { void nextSlot().then(setSlot); }, []);
@@ -52,6 +56,32 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
     setPkg(next);
     await db.execute("UPDATE stages SET output=? WHERE video_id=? AND stage='package'", [JSON.stringify(next), video.id]);
     emit("stages");
+  };
+  const pickImage = async () => {
+    const f = await openDialog({ multiple: false, filters: [{ name: "Imagen", extensions: ["jpg", "jpeg", "png", "webp", "bmp"] }] });
+    return f && !Array.isArray(f) ? f : null;
+  };
+  // Imagen propia como miniatura: se ajusta a 1280×720 (recorte centrado) y queda elegida
+  const ownThumbnail = async () => {
+    const f = await pickImage(); if (!f) return;
+    const dir = joinPath(video.dir, "thumbs"); await fs.mkdir(dir);
+    const stamp = Date.now();
+    const image = joinPath(dir, `propia-${stamp}-fondo.jpg`), path = joinPath(dir, `propia-${stamp}.jpg`);
+    await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", f, "-vf", "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1", "-frames:v", "1", "-q:v", "2", image]);
+    await fs.copy(image, path);   // «Recomponer» escribe en path; el fondo queda intacto
+    const thumbnails = [...pkg.thumbnails, { concept_es: "Imagen propia", text: "", highlight: "", image_prompt_en: "", layout: "center" as const, image, path }];
+    await save({ ...pkg, thumbnails, chosen_thumbnail: thumbnails.length - 1 });
+    setBust(Date.now());
+  };
+  // Portada de TikTok: los primeros cuadros de cada parte la muestran (se aplica al cortar las partes)
+  const tiktokCover = async () => {
+    const f = await pickImage(); if (!f) return;
+    const dir = joinPath(video.dir, "thumbs"); await fs.mkdir(dir);
+    const dst = joinPath(dir, "tiktok-portada.jpg");
+    await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", f, "-vf", "scale='min(1920,iw)':-2,setsar=1", "-frames:v", "1", "-q:v", "2", dst]);
+    await save({ ...pkg, tiktok_cover: dst });
+    setBust(Date.now());
+    if (video.data?.tiktok?.parts?.length) toast("info", "Portada guardada", "Las partes ya estaban cortadas: vuelve a cortarlas en TikTok para que la muestren.");
   };
   const scheduledUtc = useMemo(() => slot ? zonedTimeToUtc(slot.date, slot.time, p.timeZone) : null, [slot, p.timeZone]);
 
@@ -145,6 +175,9 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
             ))}
           </div>
           {editable && (
+            <AsyncButton className="btn-ghost btn-sm mt-2" onClick={ownThumbnail}><FolderOpen size={13} /> Imagen propia…</AsyncButton>
+          )}
+          {editable && (
             <div className="flex gap-2 mt-2">
               <input className="input text-xs" value={thumbText} onChange={(e) => setThumbText(e.target.value)} placeholder="Texto de la miniatura" />
               <AsyncButton className="btn-brand btn-sm" onClick={async () => {
@@ -154,6 +187,18 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
                 await save({ ...pkg, thumbnails: pkg.thumbnails.map((x, i) => (i === pkg.chosen_thumbnail ? { ...x, text: thumbText, path } : x)) });
                 setBust(Date.now());
               }}><Wand2 size={13} /> Recomponer</AsyncButton>
+            </div>
+          )}
+          {!personalOf(video) && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <div className="text-xs font-medium flex items-center gap-1.5"><Smartphone size={13} /> Portada de TikTok</div>
+              <div className="text-[11px] text-muted-foreground mb-2">La imagen inicial de cada parte de TikTok.</div>
+              <div className="flex items-center gap-2">
+                {pkg.tiktok_cover && <img src={fileUrl(pkg.tiktok_cover, bust)} className="h-14 rounded border border-border object-cover" />}
+                {editable && <AsyncButton className="btn-ghost btn-sm" onClick={tiktokCover}><FolderOpen size={13} /> {pkg.tiktok_cover ? "Cambiar…" : "Elegir imagen…"}</AsyncButton>}
+                {editable && pkg.tiktok_cover && <button className="btn-ghost btn-sm" title="Quitar la portada" onClick={() => void save({ ...pkg, tiktok_cover: null })}><X size={13} /></button>}
+                {!pkg.tiktok_cover && !editable && <span className="text-[11px] text-muted-foreground">Sin portada</span>}
+              </div>
             </div>
           )}
         </Card>
@@ -184,6 +229,13 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
                 await approveFinal(video.id, when);
                 toast("success", "Aprobado");
               }}><CheckCircle2 size={15} /> Aprobar y {now ? "publicar" : "programar"}</AsyncButton>
+              {video.status !== "ready" && (
+                <AsyncButton className="btn-brand w-full" title="Lo guarda en Videos sin publicarlo: lo publicas cuando quieras" onClick={async () => {
+                  await addReview(video.id, "final", "accepted", "", secs.current);
+                  await acceptVideo(video.id);
+                  toast("success", "Aceptado", "Queda en Videos, listo para publicarlo cuando quieras.");
+                }}><Check size={15} /> Aceptar (publicar después)</AsyncButton>
+              )}
               <div className="flex gap-2">
                 <ExportButton video={video} label="Exportar" />
                 <button className="btn-ghost flex-1 text-red-600 dark:text-red-500" onClick={() => setReject(true)}><XCircle size={14} /> Rechazar</button>

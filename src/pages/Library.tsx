@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, openPath } from "@tauri-apps/plugin-opener";
-import { Library as LibraryIcon, Search, Eye, Upload, Globe, Star, Trash2, ExternalLink, FolderOpen, Ban, CheckCircle2, Music2, Plus, UserRound } from "lucide-react";
+import { Library as LibraryIcon, Search, Eye, Upload, Globe, Star, Trash2, ExternalLink, FolderOpen, Ban, CheckCircle2, Music2, Plus, UserRound, Bot } from "lucide-react";
 import { useBus } from "../lib/bus";
 import { fileUrl } from "../lib/ipc";
-import { listAssets, libraryStats, libraryRoot, updateAsset, deleteAsset, importLocalFile, importCandidate, getAsset, type Asset } from "../media/library";
+import { listAssets, libraryStats, libraryRoot, updateAsset, deleteAsset, importLocalFile, importCandidate, getAsset, type Asset, type Scope } from "../media/library";
 import { searchSources, rankCandidates, SOURCE_LABEL, type AssetKind, type Candidate } from "../media/sources";
 import { describeAssets, describePending } from "../media/vision";
 import { searchIcons, importIcon, createIcon, type IconHit } from "../media/icons";
@@ -35,10 +35,12 @@ export function LibraryPage() {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof libraryStats>>>({});
   const [sel, setSel] = useState<Asset | null>(null);
   const [web, setWeb] = useState(false);
+  // Dos bibliotecas que no se mezclan: la de los videos automáticos y tus archivos personales
+  const [scope, setScope] = useState<Scope>("auto");
   useEffect(() => { void (async () => {
-    setList(await listAssets({ kind: kind === "all" ? null : kind, q: query, favorites: fav, limit: 240 }));
-    setStats(await libraryStats());
-  })(); }, [tick, kind, query, fav]);
+    setList(await listAssets({ kind: kind === "all" ? null : kind, q: query, favorites: fav, limit: 240, scope }));
+    setStats(await libraryStats(scope));
+  })(); }, [tick, kind, query, fav, scope]);
   const undescribed = (stats.image?.undescribed ?? 0) + (stats.video?.undescribed ?? 0);
   const bytes = Object.values(stats).reduce((a, s) => a + (s?.bytes ?? 0), 0);
 
@@ -65,6 +67,17 @@ export function LibraryPage() {
             <Eye size={15} /> Describir ({undescribed})
           </AsyncButton>
         </>} />
+      <div className="flex items-center gap-3">
+        <div className="inline-flex p-0.5 rounded-lg border border-border bg-background/60" role="tablist" aria-label="Biblioteca">
+          {([["auto", "Automatización", Bot], ["personal", "Mis archivos personales", UserRound]] as const).map(([id, label, I]) => (
+            <button key={id} role="tab" aria-selected={scope === id} onClick={() => setScope(id)}
+              className={`h-8 px-3.5 rounded-md text-[13px] font-medium inline-flex items-center gap-1.5 transition-colors ${scope === id ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`}>
+              <I size={14} /> {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-[12px] text-muted-foreground">{scope === "auto" ? "Material que usan los videos automáticos." : "Lo que subiste para tus videos personales: solo se usa en ellos."}</span>
+      </div>
       <div className="grid grid-cols-6 gap-3">
         <Card><Stat label="Imágenes" value={stats.image?.n ?? 0} /></Card>
         <Card><Stat label="Clips" value={stats.video?.n ?? 0} /></Card>
@@ -93,7 +106,7 @@ export function LibraryPage() {
               <div className="p-2">
                 <div className="text-xs font-medium line-clamp-2 min-h-[2.2em]">{a.described_at ? (a.tags.split(",")[0] || a.title) : a.title}</div>
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground">{(SOURCE_LABEL as Record<string, string>)[a.source] ?? (a.source === "user" ? "Propio" : a.source === "iconify" ? "Iconify" : a.source === "generated" ? "Creado con IA" : a.source)}</span>
+                  <span className="text-[10px] text-muted-foreground">{(SOURCE_LABEL as Record<string, string>)[a.source] ?? (a.source === "user" ? "Propio" : a.source === "personal" ? "Personal" : a.source === "iconify" ? "Iconify" : a.source === "generated" ? "Creado con IA" : a.source)}</span>
                   {!a.described_at && (a.kind === "image" || a.kind === "video") && <span className="text-[10px] text-amber-500">· sin describir</span>}
                   {a.real_person ? <UserRound size={10} className="text-amber-500" /> : null}
                   {a.used_count > 0 && <span className="text-[10px] text-muted-foreground">· usado {a.used_count}×</span>}

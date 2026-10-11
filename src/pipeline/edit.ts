@@ -130,8 +130,8 @@ async function sceneCuts(path: string, from: number, to: number, key: string): P
 export function assetProvenance(a: Asset): Provenance {
   const stock = a.source === "pexels" || a.source === "pixabay";
   return {
-    kind: a.source === "user" ? "user" : stock ? "stock" : "archival",
-    provider: a.source === "user" ? "Propio" : (SOURCE_LABEL as Record<string, string>)[a.source] ?? a.source,
+    kind: a.source === "user" || a.source === "personal" ? "user" : stock ? "stock" : "archival",
+    provider: a.source === "user" || a.source === "personal" ? "Propio" : (SOURCE_LABEL as Record<string, string>)[a.source] ?? a.source,
     license: a.license, attribution: a.attribution, sourceUrl: a.page_url ?? undefined, title: a.title, assetId: a.id,
   };
 }

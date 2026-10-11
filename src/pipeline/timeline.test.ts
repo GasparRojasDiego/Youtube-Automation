@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, applyPolish, repairMusic, buildEdl, ensureMotionCadence, keywordsQuery, fallbackQueries, motionCues, coverCount, sceneSafeIn, parseSceneCuts, type SegInfo } from "./timeline";
-import { buildSrtAligned, creditLines, composeDescription, adaptDisclosure } from "./logic";
+import { buildSrtAligned, creditLines, withCredits, adaptDisclosure } from "./logic";
 import { normLicense, rankCandidates, type Candidate } from "../media/sources";
 import { ftsQuery } from "../media/library";
 
@@ -141,25 +141,25 @@ describe("subtítulos, créditos y licencias", () => {
     expect(srt).toContain("00:00:00,200 --> ");
     expect(srt).toContain("00:00:08,500 --> ");
   });
-  it("créditos: atribución completa para CC BY y resumen para el resto", () => {
+  it("créditos: solo lo que la licencia exige atribuir, añadido al subir dentro del límite", () => {
     const lines = creditLines([
       { kind: "image", source: "wikimedia", title: "Tower", author: "Ann", license: "CC BY-SA 4.0", page_url: "https://commons.wikimedia.org/x" },
       { kind: "image", source: "pexels", title: "City", author: "Bob", license: "Licencia de Pexels", page_url: "https://pexels.com/1" },
       { kind: "sfx", source: "freesound", title: "whoosh", author: "c", license: "CC0", page_url: "" },
     ]);
+    expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("CC BY-SA 4.0");
-    expect(lines[1]).toContain("Pexels (1)");
-    expect(lines[1]).toContain("Freesound (sound effects) (1)");
     const many = Array.from({ length: 200 }, (_, i) => `Image: "T${i}" by A — CC BY 4.0 — https://commons.wikimedia.org/wiki/File:${"x".repeat(40)}${i}`);
-    const d = composeDescription({ body: "Body", chapters: [], sources: [], credits: many, disclosure: "AI voice." });
+    const d = withCredits("Body\n\nAI voice.", many);
     expect(d.length).toBeLessThanOrEqual(4900);
-    expect(d.trim().endsWith("AI voice.")).toBe(true);
+    expect(d.startsWith("Body")).toBe(true);
   });
   it("el aviso de IA describe lo que el video contiene", () => {
     const t = "Narration in this video uses an AI-generated voice. Some illustrations are AI-generated; every factual claim is sourced below.";
-    expect(adaptDisclosure(t, { generatedImages: false, aiVoice: true })).toBe("Narration in this video uses an AI-generated voice. Every factual claim is sourced below.");
-    expect(adaptDisclosure(t, { generatedImages: false, aiVoice: false })).toBe("Every factual claim is sourced below.");
-    expect(adaptDisclosure(t, { generatedImages: true, aiVoice: true })).toBe(t);
+    // La descripción ya no lista fuentes: el aviso no lo promete
+    expect(adaptDisclosure(t, { generatedImages: false, aiVoice: true })).toBe("Narration in this video uses an AI-generated voice.");
+    expect(adaptDisclosure(t, { generatedImages: true, aiVoice: true })).toBe("Narration in this video uses an AI-generated voice. Some illustrations are AI-generated.");
+    expect(adaptDisclosure("Narration in this video uses an AI-generated voice. Sources are listed below.", { generatedImages: false, aiVoice: true })).toBe("Narration in this video uses an AI-generated voice.");
   });
   it("normaliza licencias y descarta NC/ND", () => {
     expect(normLicense("cc0")?.rank).toBe(3);

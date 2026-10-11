@@ -82,15 +82,17 @@ export function Today() {
     <div className="space-y-6">
       <section className="card relative overflow-hidden">
         <div className="relative px-8 pt-7 pb-6">
-          <div className="inline-flex p-0.5 rounded-lg border border-border bg-background/60 mb-4" role="tablist">
-            {([["auto", "Automatización", Bot], ["personal", "Personal", UserRound]] as const).map(([id, label, I]) => (
-              <button key={id} role="tab" aria-selected={mode === id} onClick={() => setMode(id)}
-                className={`h-8 px-3.5 rounded-md text-[13px] font-medium inline-flex items-center gap-1.5 transition-colors ${mode === id ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`}>
-                <I size={14} /> {label}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-[27px] leading-tight font-bold tracking-tight">¿Qué video hacemos hoy?</h1>
+            <div className="inline-flex p-0.5 rounded-lg border border-border bg-background/60 shrink-0" role="tablist">
+              {([["auto", "Automatización", Bot], ["personal", "Personal", UserRound]] as const).map(([id, label, I]) => (
+                <button key={id} role="tab" aria-selected={mode === id} onClick={() => setMode(id)}
+                  className={`h-8 px-3.5 rounded-md text-[13px] font-medium inline-flex items-center gap-1.5 transition-colors ${mode === id ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`}>
+                  <I size={14} /> {label}
+                </button>
+              ))}
+            </div>
           </div>
-          <h1 className="text-[27px] leading-tight font-bold tracking-tight">¿Qué video hacemos hoy?</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             {personal ? "Un video a tu medida: tarea, proyecto o promoción. Sube tus archivos o tu guion, describe cómo lo quieres y elige la duración."
               : "Escribe la idea o usa un tema investigado. La app hace todo y solo te pide revisar el video final."}

@@ -10,7 +10,7 @@ import { ffmpeg, probeMedia } from "../providers/ffmpeg";
 import { resolveNasa, attributionText, type Candidate, type AssetKind, type SourceId } from "./sources";
 
 export interface Asset {
-  id: string; kind: AssetKind; source: SourceId | "user" | "atril" | "iconify" | "generated"; source_id: string;
+  id: string; kind: AssetKind; source: SourceId | "user" | "personal" | "atril" | "iconify" | "generated"; source_id: string;
   url: string | null; page_url: string | null; title: string; author: string; license: string; license_url: string; attribution: string;
   path: string; thumb: string | null; width: number | null; height: number | null; duration: number | null; bytes: number | null;
   sha: string | null; query: string; description: string; tags: string; mood: string; quality: number; real_person: number;
@@ -93,16 +93,21 @@ export async function importCandidate(c: Candidate): Promise<Asset> {
 }
 
 /** Importa un archivo propio (con derechos del usuario) a la biblioteca. */
-export async function importLocalFile(src: string, kind: AssetKind, meta: { title?: string; license?: string; attribution?: string; note?: string } = {}): Promise<Asset> {
+/**
+ * Importa un archivo propio. `personal`: subido para un video personal; queda en su propia carpeta
+ * («Mis archivos personales») y nunca se usa en videos automáticos.
+ */
+export async function importLocalFile(src: string, kind: AssetKind, meta: { title?: string; license?: string; attribution?: string; note?: string; personal?: boolean } = {}): Promise<Asset> {
+  const source = meta.personal ? "personal" : "user";
   // El mismo archivo importado otra vez: se devuelve el que ya está en la biblioteca
   const hash = await sha256(`${src}|${await fs.size(src)}`);
-  const dup = await db.query<{ id: string }>("SELECT id FROM assets WHERE source='user' AND source_id=?", [hash.slice(0, 24)]);
+  const dup = await db.query<{ id: string }>("SELECT id FROM assets WHERE source=? AND source_id=?", [source, hash.slice(0, 24)]);
   if (dup[0]) { const a = await getAsset(dup[0].id); if (a && (await fs.exists(a.path))) return a; await db.execute("DELETE FROM assets WHERE id=?", [dup[0].id]); }
   const root = await libraryRoot();
   const id = uid("as_");
   const ext = extName(src) || (kind === "image" ? "jpg" : kind === "video" ? "mp4" : "mp3");
   const title = meta.title || src.split(/[\\/]/).pop()!.replace(/\.\w+$/, "");
-  const path = joinPath(root, FOLDER[kind], `propio-${slugify(title, 40)}-${id.slice(-6)}.${ext}`);
+  const path = meta.personal ? joinPath(root, "Personal", FOLDER[kind], `${slugify(title, 40)}-${id.slice(-6)}.${ext}`) : joinPath(root, FOLDER[kind], `propio-${slugify(title, 40)}-${id.slice(-6)}.${ext}`);
   await fs.copy(src, path);
   const m = await probeMedia(path);
   const thumb = joinPath(root, ".miniaturas", `${id}.${kind === "sfx" || kind === "music" ? "png" : "jpg"}`);
@@ -110,7 +115,7 @@ export async function importLocalFile(src: string, kind: AssetKind, meta: { titl
   await db.execute(
     `INSERT INTO assets(id,kind,source,source_id,url,page_url,title,author,license,license_url,attribution,path,thumb,width,height,duration,bytes,sha,query,issues,created_at,usable)
      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
-    [id, kind, "user", hash.slice(0, 24), null, null, title, "Propio", meta.license || "Derechos del usuario", "", meta.attribution || "", path,
+    [id, kind, source, hash.slice(0, 24), null, null, title, "Propio", meta.license || "Derechos del usuario", "", meta.attribution || "", path,
       (await fs.exists(thumb)) ? thumb : null, m.width || null, m.height || null, m.duration || null, await fs.size(path), hash, "", meta.note ?? "", now()]);
   await indexFts({ id, title, description: "", tags: "", query: "" });
   emit("assets");
@@ -139,12 +144,16 @@ export function ftsQuery(q: string): string {
 export interface LibraryHit extends Asset { score: number }
 
 /** Búsqueda por texto en la biblioteca (descripciones, etiquetas y consultas). */
-export async function searchLibrary(q: string, kind: AssetKind | null, limit = 12, opts: { excludeIds?: string[]; onlyUsable?: boolean; minDur?: number } = {}): Promise<LibraryHit[]> {
+/** Ámbito de la biblioteca: lo compartido por los videos automáticos o tus archivos personales (nunca se mezclan). */
+export type Scope = "auto" | "personal";
+const scopeSql = (scope: Scope, col = "source") => (scope === "personal" ? `${col} = 'personal'` : `${col} <> 'personal'`);
+
+export async function searchLibrary(q: string, kind: AssetKind | null, limit = 12, opts: { excludeIds?: string[]; onlyUsable?: boolean; minDur?: number; scope?: Scope } = {}): Promise<LibraryHit[]> {
   const fq = ftsQuery(q);
   if (!fq) return [];
   const rows = await db.query<LibraryHit>(
     `SELECT a.*, bm25(assets_fts, 0, 2.0, 1.0, 3.0, 1.0) AS score FROM assets_fts JOIN assets a ON a.id = assets_fts.asset_id
-     WHERE assets_fts MATCH ? ${kind ? "AND a.kind = ?" : ""} ${opts.onlyUsable !== false ? "AND a.usable = 1" : ""}
+     WHERE assets_fts MATCH ? AND ${scopeSql(opts.scope ?? "auto", "a.source")} ${kind ? "AND a.kind = ?" : ""} ${opts.onlyUsable !== false ? "AND a.usable = 1" : ""}
      ORDER BY score LIMIT ?`, kind ? [fq, kind, limit * 3] : [fq, limit * 3]);
   const ex = new Set(opts.excludeIds ?? []);
   return rows.filter((r) => !ex.has(r.id) && (!opts.minDur || (r.duration ?? 0) >= opts.minDur))
@@ -152,9 +161,9 @@ export async function searchLibrary(q: string, kind: AssetKind | null, limit = 1
     .sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-export async function listAssets(f: { kind?: AssetKind | null; q?: string; source?: string; onlyUndescribed?: boolean; favorites?: boolean; limit?: number; offset?: number } = {}): Promise<Asset[]> {
-  if (f.q?.trim()) return searchLibrary(f.q, f.kind ?? null, f.limit ?? 120, { onlyUsable: false });
-  const w: string[] = []; const p: unknown[] = [];
+export async function listAssets(f: { kind?: AssetKind | null; q?: string; source?: string; onlyUndescribed?: boolean; favorites?: boolean; limit?: number; offset?: number; scope?: Scope } = {}): Promise<Asset[]> {
+  if (f.q?.trim()) return searchLibrary(f.q, f.kind ?? null, f.limit ?? 120, { onlyUsable: false, scope: f.scope });
+  const w: string[] = [scopeSql(f.scope ?? "auto")]; const p: unknown[] = [];
   if (f.kind) { w.push("kind=?"); p.push(f.kind); }
   if (f.source) { w.push("source=?"); p.push(f.source); }
   if (f.onlyUndescribed) w.push("described_at IS NULL AND kind IN ('image','video')");
@@ -163,9 +172,9 @@ export async function listAssets(f: { kind?: AssetKind | null; q?: string; sourc
   return db.query<Asset>(`SELECT * FROM assets ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY created_at DESC LIMIT ? OFFSET ?`, p);
 }
 
-export async function libraryStats() {
+export async function libraryStats(scope: Scope = "auto") {
   const r = await db.query<{ kind: string; n: number; bytes: number; undescribed: number }>(
-    "SELECT kind, COUNT(*) n, COALESCE(SUM(bytes),0) bytes, SUM(CASE WHEN described_at IS NULL AND kind IN ('image','video') THEN 1 ELSE 0 END) undescribed FROM assets GROUP BY kind");
+    `SELECT kind, COUNT(*) n, COALESCE(SUM(bytes),0) bytes, SUM(CASE WHEN described_at IS NULL AND kind IN ('image','video') THEN 1 ELSE 0 END) undescribed FROM assets WHERE ${scopeSql(scope)} GROUP BY kind`);
   return Object.fromEntries(r.map((x) => [x.kind, x])) as Partial<Record<AssetKind, { n: number; bytes: number; undescribed: number }>>;
 }
 

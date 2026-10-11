@@ -7,6 +7,9 @@ import { updateVideo, getStages, getVideo, type Video } from "../lib/repo";
 import { skillParams, MONTAGE_DEFAULTS } from "../lib/skills";
 import { ffmpeg } from "../providers/ffmpeg";
 import { joinPath } from "../lib/util";
+import { getSettings } from "../lib/settings";
+import { pickEncoder, probeMedia } from "../providers/ffmpeg";
+import { encoderArgs } from "./montage";
 import { segInfos, segmentOffsets } from "./timeline";
 import type { ScriptOut, VoiceOut, PackageOut, RenderOut } from "./types";
 
@@ -81,13 +84,19 @@ export async function keyframes(file: string): Promise<number[]> {
   return [...log.matchAll(/pts_time:\s*([\d.]+)/g)].map((m) => Number(m[1])).filter((x) => isFinite(x)).sort((a, b) => a - b);
 }
 
-/** Texto y hashtags para TikTok: los del paquete del video (sin llamadas extra a Claude). */
-export function tiktokText(v: Video, pkg?: PackageOut | null): { caption: string; hashtags: string[] } {
+/**
+ * Texto para TikTok en una sola pieza lista para pegar: «Descripción #a #b #c #d #e».
+ * La descripción invita a ver el video completo en el canal de YouTube; como mucho 5 hashtags.
+ */
+export function tiktokText(v: Video, pkg?: PackageOut | null, lang = (getSettings().publishing.defaultLanguage || "en").slice(0, 2)): { text: string; caption: string; hashtags: string[] } {
   const tag = (t: string) => `#${t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "")}`;
   const fromPkg = (pkg?.tiktok_hashtags ?? []).map(tag).filter((t) => t.length > 2);
-  const hashtags = fromPkg.length ? fromPkg.slice(0, 8) : ["#fyp", ...(pkg?.tags ?? []).slice(0, 6).map(tag)].filter((t, i, a) => t.length > 2 && a.indexOf(t) === i);
+  const pool = fromPkg.length ? fromPkg : ["#fyp", ...(pkg?.tags ?? []).slice(0, 6).map(tag)];
+  const hashtags = pool.filter((t, i, a) => t.length > 2 && a.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i).slice(0, 5);
   const first = (pkg?.description_body_en ?? "").split(/(?<=[.!?])\s/)[0] ?? "";
-  return { caption: pkg?.tiktok_caption_en || (first.length > 20 && first.length <= 150 ? first : pkg?.chosen_title || v.title), hashtags };
+  const caption = (pkg?.tiktok_caption_en || (first.length > 20 && first.length <= 150 ? first : pkg?.chosen_title || v.title)).replace(/\s+/g, " ").trim();
+  const cta = lang === "es" ? "🎬 Mira el video completo en mi canal de YouTube: el enlace está en la descripción de mi perfil." : "🎬 Watch the whole video on my YouTube channel — link in my profile description.";
+  return { text: `${caption} ${cta} ${hashtags.join(" ")}`.trim(), caption, hashtags };
 }
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "video";
@@ -142,11 +151,25 @@ export async function cutParts(v: Video, onProgress: (text: string) => void): Pr
     catch (e) { if (!inUse(e)) throw e; }
   }
   if (!dir) throw busyError("las partes en Descargas");
+  // Portada propia de TikTok: cada parte empieza con ella (3 cuadros), así todas comparten la misma portada.
+  // Eso obliga a recodificar el video de cada parte; sin portada, se copia sin recodificar (segundos).
+  const pkg = (await getStages(v.id)).find((x) => x.stage === "package")?.output as PackageOut | undefined;
+  const cover = pkg?.tiktok_cover && (await fs.exists(pkg.tiktok_cover)) ? pkg.tiktok_cover : null;
+  const enc = cover ? encoderArgs(await pickEncoder()) : [];
+  const dim = cover ? await probeMedia(src).catch(() => null) : null;
+  const W = dim?.width || 1920, H = dim?.height || 1080;
   for (const [i, p] of parts.entries()) {
-    onProgress(`Copiando ${partName(i, parts.length)} (${i + 1}/${parts.length})…`);
-    // Copia directa: entra en el fotograma clave del corte y no recodifica nada
-    await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (i ? p.start + 0.02 : 0).toFixed(3), "-i", src, "-t", (p.end - p.start).toFixed(3),
-      "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", `${partName(i, parts.length)}.mp4`], { cwd: dir, timeoutS: 600 });
+    const name = `${partName(i, parts.length)}.mp4`;
+    onProgress(`${cover ? "Preparando" : "Copiando"} ${partName(i, parts.length)} (${i + 1}/${parts.length})…`);
+    if (cover) {
+      await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (i ? p.start : 0).toFixed(3), "-i", src, "-loop", "1", "-i", cover, "-t", (p.end - p.start).toFixed(3),
+        "-filter_complex", `[1:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,format=yuv420p[c];[0:v][c]overlay=0:0:enable='lt(n\\,3)':shortest=1,format=yuv420p[out]`,
+        "-map", "[out]", "-map", "0:a:0?", ...enc, "-c:a", "copy", "-movflags", "+faststart", name], { cwd: dir, timeoutS: 1800 });
+    } else {
+      // Copia directa: entra en el fotograma clave del corte y no recodifica nada
+      await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (i ? p.start + 0.02 : 0).toFixed(3), "-i", src, "-t", (p.end - p.start).toFixed(3),
+        "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", name], { cwd: dir, timeoutS: 600 });
+    }
   }
   const data: TikTokData = { parts, exportedTo: dir, exportedAt: Date.now() };
   await updateVideo(v.id, { data: { tiktok: data } });

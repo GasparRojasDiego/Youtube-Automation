@@ -186,7 +186,7 @@ ${JSON.stringify(o.script)}`;
 // ---------- Miniatura y metadatos ----------
 export const PACKAGE_SCHEMA = obj({
   titles: arr(obj({ title: str("Max 70 characters; intriguing, honest, supported by the video"), note_es: str() })),
-  description_body_en: str("2-3 short paragraphs for the YouTube description; no chapters, no source list, no hashtags spam"),
+  description_body_en: str("YouTube description: 1-2 short paragraphs, 45-90 words in total. Hook + what the viewer learns. No chapters, no source list, no hashtags, no methodology or documented/alleged disclaimer paragraph"),
   tags: arr(str()),
   thumbnails: arr(obj({
     concept_es: str(), text: str("Thumbnail text, max 4 words, may be empty"), highlight: str("One word of the text to highlight, or empty"),
@@ -194,8 +194,8 @@ export const PACKAGE_SCHEMA = obj({
     background_asset_id: str("Id of the listed video image to use as background, or empty"),
     layout: en(["left", "right", "center"], "Where the text goes"),
   })),
-  tiktok_caption_en: str("Short TikTok caption (max 120 characters) that hooks the viewer and says what the series is about"),
-  tiktok_hashtags: arr(str("Hashtag starting with #, no spaces"), "5-8 hashtags for the TikTok series cut from this video: 2-3 broad + the rest specific to the topic"),
+  tiktok_caption_en: str("TikTok caption (max 110 characters): a hook about the topic, 1-2 fitting emojis allowed. Do NOT mention YouTube (ATRIL adds that line)"),
+  tiktok_hashtags: arr(str("Hashtag starting with #, no spaces"), "Exactly 5 hashtags for the TikTok series: 2 broad + 3 specific to the topic"),
   synthetic_media: bool("true if the video contains realistic AI-generated scenes that viewers could mistake for real footage"),
   synthetic_reason_es: str(),
   skills_check_es: SKILLS_CHECK,

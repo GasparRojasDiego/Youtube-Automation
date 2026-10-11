@@ -51,6 +51,8 @@ export interface PackageOut {
   chosen_title: string;
   description_body_en: string;
   description: string;
+  credits?: string[];        // atribución que exige la licencia (CC BY / BY-SA): se añade al subir, no se edita
+  tiktok_cover?: string | null;   // portada propia para las partes de TikTok
   tags: string[];
   thumbnails: ThumbCandidate[];
   chosen_thumbnail: number;

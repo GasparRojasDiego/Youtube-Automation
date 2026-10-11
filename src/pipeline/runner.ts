@@ -11,7 +11,7 @@ import * as St from "./stages";
 import * as Ed from "./edit";
 import { activity, setLive } from "../lib/activity";
 import type { VerifyOut, ScriptOut } from "./types";
-import { downloadVideo } from "./tiktok";
+import { downloadVideo, cutParts } from "./tiktok";
 import { importUploads, personalOf, type PersonalSpec } from "./personal";
 import { finishRevision } from "./improve";
 
@@ -90,6 +90,7 @@ async function runOnce(r: Running) {
       const output = await runStage(stage, ctx);
       await activity(video.id, stage, "done", `${label} terminada en ${Math.max(1, Math.round((Date.now() - t0) / 1000))} s`);
       await setStage(video.id, stage, { status: "done", output, finishedNow: true, progress: null });
+      if (stage === "publish") void autoTikTok(video.id);
     } catch (e) {
       if (e instanceof St.NeedsUser) {
         await setStage(video.id, stage, { status: "review", progress: e.messageEs });
@@ -222,6 +223,27 @@ export async function approveFinal(videoId: string, scheduledAt: number | null) 
   await updateVideo(videoId, { status: "approved", scheduled_at: scheduledAt });
   await setStage(videoId, "publish", { status: "pending" });
   runVideo(videoId);
+}
+
+/**
+ * Aceptar: el video queda guardado en Videos, listo para publicarlo cuando quieras (ni se sube
+ * ni se rechaza). En Automatización, sus partes para TikTok se preparan solas.
+ */
+export async function acceptVideo(videoId: string) {
+  const v = await getVideo(videoId);
+  if (!v) return;
+  await setStage(videoId, "final", { status: "approved", progress: null });
+  if (personalOf(v)) { await updateVideo(videoId, { status: "published", stage: null }); return; }
+  await updateVideo(videoId, { status: "ready", stage: null });
+  void autoTikTok(videoId);
+}
+
+/** Partes de TikTok automáticas al aceptar o publicar un video automático (nunca en los personales). */
+async function autoTikTok(videoId: string) {
+  const v = await getVideo(videoId);
+  if (!v || personalOf(v) || v.data?.tiktok?.parts?.length) return;
+  try { await cutParts(v, () => undefined); await activity(videoId, "final", "done", "Partes de TikTok listas en Descargas"); }
+  catch (e) { await logError(e, videoId, "TikTok automático"); }
 }
 
 export async function rejectVideo(videoId: string, reason: string) {

@@ -35,9 +35,13 @@ describe("partes de TikTok", () => {
     expect(p[0].end).toBe(88.5);
     for (let i = 1; i < p.length; i++) expect(p[i].start).toBe(p[i - 1].end);
   });
-  it("texto y hashtags salen del paquete, sin llamadas extra", () => {
+  it("un solo texto: descripción, enlace al canal y como mucho 5 hashtags", () => {
     const v = { title: "T" } as any;
-    expect(tiktokText(v, { tiktok_caption_en: "Hook", tiktok_hashtags: ["history", "#Harvard Report"], tags: [] } as any)).toEqual({ caption: "Hook", hashtags: ["#history", "#HarvardReport"] });
-    expect(tiktokText(v, { tags: ["slavery", "harvard"], description_body_en: "Short.", chosen_title: "Title" } as any)).toEqual({ caption: "Title", hashtags: ["#fyp", "#slavery", "#harvard"] });
+    const a = tiktokText(v, { tiktok_caption_en: "Hook 🔥", tiktok_hashtags: ["history", "#Harvard Report", "HISTORY", "a", "b1", "c2", "d3", "e4"], tags: [] } as any, "en");
+    expect(a.hashtags).toEqual(["#history", "#HarvardReport", "#b1", "#c2", "#d3"]);
+    expect(a.text).toBe("Hook 🔥 🎬 Watch the whole video on my YouTube channel — link in my profile description. #history #HarvardReport #b1 #c2 #d3");
+    const b = tiktokText(v, { tags: ["slavery", "harvard"], description_body_en: "Short.", chosen_title: "Title" } as any, "es");
+    expect(b).toMatchObject({ caption: "Title", hashtags: ["#fyp", "#slavery", "#harvard"] });
+    expect(b.text).toMatch(/^Title .*YouTube.* #fyp #slavery #harvard$/);
   });
 });

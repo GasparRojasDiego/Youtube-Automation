@@ -128,6 +128,10 @@ const MIGRATIONS: string[] = [
   `
   CREATE INDEX IF NOT EXISTS idx_assets_source ON assets(source, source_id);
   `,
+  // 5 — 2.5.7: los archivos subidos para videos personales quedan aparte (nunca entran en videos automáticos)
+  `
+  UPDATE assets SET source='personal' WHERE source='user' AND COALESCE(issues,'') LIKE 'Subido para «%';
+  `,
 ];
 
 export async function migrate(): Promise<void> {

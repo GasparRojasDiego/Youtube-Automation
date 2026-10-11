@@ -107,26 +107,38 @@ const SRC_NAME: Record<string, string> = { iconify: "Iconify", pexels: "Pexels",
  * Líneas de créditos: las licencias que exigen atribución (CC BY, CC BY-SA)
  * van completas; el resto (CC0, dominio público, Pexels, Pixabay) se resume.
  */
+/**
+ * Créditos obligatorios: solo lo que la licencia exige atribuir (CC BY y CC BY-SA) y la música propia
+ * con atribución. Lo de dominio público o con licencia libre sin atribución no se lista.
+ */
 export function creditLines(assets: { kind: string; source: string; title: string; author: string; license: string; page_url: string | null }[], ownTrackTitles: string[] = [], ownAttributions: string[] = []): string[] {
   const lines: string[] = [];
   const label = (k: string) => (k === "video" ? "Footage" : k === "sfx" ? "Sound" : k === "music" ? "Music" : k === "icon" ? "Icon" : "Image");
-  const req = assets.filter((a) => /^CC BY/i.test(a.license));
-  for (const a of req) lines.push(`${label(a.kind)}: "${a.title.slice(0, 80)}" by ${a.author.slice(0, 60) || "Unknown"} — ${a.license} — ${a.page_url ?? SRC_NAME[a.source] ?? a.source}`);
-  const rest = assets.filter((a) => !/^CC BY/i.test(a.license) && a.source !== "user" && a.source !== "atril" && a.source !== "generated");
-  const bySrc = new Map<string, number>();
-  for (const a of rest) { const k = `${SRC_NAME[a.source] ?? a.source}${a.kind === "sfx" ? " (sound effects)" : a.kind === "music" ? " (music)" : a.kind === "icon" ? " (icons)" : ""}`; bySrc.set(k, (bySrc.get(k) ?? 0) + 1); }
-  if (bySrc.size) lines.push(`Additional public-domain and royalty-free media: ${[...bySrc.entries()].map(([k, n]) => `${k} (${n})`).join(", ")}.`);
+  for (const a of assets.filter((x) => /^CC BY/i.test(x.license))) lines.push(`${label(a.kind)}: "${a.title.slice(0, 80)}" by ${a.author.slice(0, 60) || "Unknown"} — ${a.license} — ${a.page_url ?? SRC_NAME[a.source] ?? a.source}`);
   for (const a of ownAttributions) if (a.trim()) lines.push(`Music: ${a.trim()}`);
   void ownTrackTitles;
   return lines;
 }
 
+/** Los créditos obligatorios se añaden al subir (no se ven en el campo de la descripción); caben en el límite de YouTube. */
+export function withCredits(description: string, credits: string[]): string {
+  if (!credits.length) return description;
+  const room = 4900 - description.length - 12;
+  let list = credits.slice();
+  const fits = (c: string[]) => ("Credits\n" + c.join("\n")).length <= room;
+  if (!fits(list)) list = list.map((c) => c.replace(/ — https?:\/\/\S+$/, ""));
+  while (list.length > 1 && !fits([...list, "…and 9999 more (full list on request)."])) list.pop();
+  if (list.length < credits.length) list.push(`…and ${credits.length - list.length} more (full list on request).`);
+  return room > 80 ? `${description}\n\nCredits\n${list.join("\n")}`.slice(0, 4900) : description;
+}
+
 /** Ajusta el aviso de IA a lo que el video realmente contiene (voz e ilustraciones). */
 export function adaptDisclosure(text: string, o: { generatedImages: boolean; aiVoice: boolean }): string {
-  let t = text;
+  // La descripción ya no lista fuentes: no se promete «sourced below»
+  let t = text.replace(/;?\s*every factual claim is sourced below\.?/i, ".").replace(/\s*Sources are listed below\.?/i, "").replace(/\.\./g, ".");
   if (!o.generatedImages) t = t.replace(/\s*Some illustrations are AI-generated;?\s*/i, " ");
   if (!o.aiVoice) t = t.replace(/\s*Narration in this video uses an AI-generated voice\.?\s*/i, " ");
-  return t.replace(/\s+/g, " ").trim().replace(/(^|[.!?] )([a-z])/g, (_m, a: string, b: string) => a + b.toUpperCase());
+  return t.replace(/\s+/g, " ").replace(/\.(\s*\.)+/g, ".").trim().replace(/(^|[.!?] )([a-z])/g, (_m, a: string, b: string) => a + b.toUpperCase());
 }
 
 // ---------- Descripción ----------
@@ -136,26 +148,13 @@ export function usedSources(script: ScriptOut, research: ResearchOut): Source[] 
   return research.sources.filter((s) => ids.has(s.id));
 }
 
-export function composeDescription(o: {
-  body: string; chapters: { t: number; title: string }[]; sources: Source[];
-  credits: string[]; disclosure: string;
-}): string {
+/** Descripción: el texto, los capítulos y el aviso de IA (sin lista de fuentes; los créditos se añaden al subir). */
+export function composeDescription(o: { body: string; chapters: { t: number; title: string }[]; disclosure: string }): string {
   const parts = [o.body.trim()];
   if (o.chapters.length >= 3) parts.push("Chapters\n" + o.chapters.map((c) => `${fmtDuration(c.t)} ${c.title}`).join("\n"));
-  if (o.sources.length) parts.push("Sources\n" + o.sources.map((s, i) => `[${i + 1}] ${s.title} — ${s.publisher}${s.date && s.date !== "n.d." ? ` (${s.date})` : ""}: ${s.url}`).join("\n"));
   if (o.disclosure.trim()) parts.push(o.disclosure.trim());
-  // Los créditos se ajustan al espacio que queda (límite de YouTube: 5000 caracteres)
-  const room = 4900 - parts.join("\n\n").length - 12;
-  if (o.credits.length && room > 80) {
-    let credits = o.credits.slice();
-    const fits = (c: string[]) => ("Credits\n" + c.join("\n")).length <= room;
-    if (!fits(credits)) credits = credits.map((c) => c.replace(/ — https?:\/\/\S+$/, ""));
-    while (credits.length > 1 && !fits([...credits, "…and 9999 more (full list on request)."])) credits.pop();
-    if (credits.length < o.credits.length) credits.push(`…and ${o.credits.length - credits.length} more (full list on request).`);
-    parts.splice(parts.length - (o.disclosure.trim() ? 1 : 0), 0, "Credits\n" + credits.join("\n"));
-  }
   let text = parts.join("\n\n");
-  if (text.length > 4900) text = text.slice(0, 4890) + "…";
+  if (text.length > 4000) text = text.slice(0, 3990) + "…";
   return text.replace(/[<>]/g, "");
 }
 

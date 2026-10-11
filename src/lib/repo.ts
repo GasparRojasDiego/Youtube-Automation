@@ -93,7 +93,7 @@ export type StageStatus = "pending" | "running" | "done" | "failed" | "review" |
 
 export interface Video {
   id: string; channel_id: string; topic_id: string | null; title: string; mode: "standard" | "premium";
-  voice_mode: "ai" | "own"; status: "active" | "approved" | "scheduled" | "published" | "rejected" | "archived";
+  voice_mode: "ai" | "own"; status: "active" | "approved" | "ready" | "scheduled" | "published" | "rejected" | "archived";
   stage: StageId | null; dir: string; created_at: number; updated_at: number; scheduled_at: number | null;
   published_at: number | null; youtube_id: string | null; upload_session: string | null; data: Record<string, any>;
 }
@@ -175,6 +175,25 @@ export async function setStage(videoId: string, stage: StageId, patch: Partial<P
   params.push(videoId, stage);
   await db.execute(`UPDATE stages SET ${sets.join(",")} WHERE video_id=? AND stage=?`, params);
   emit("stages");
+}
+
+/**
+ * Quita un video de la app (y del conteo). Los archivos usados para crearlo —biblioteca, clips,
+ * música, voz y el video en su carpeta y en Descargas— se conservan; solo se borra su registro.
+ */
+export async function deleteVideo(videoId: string) {
+  await db.batch([
+    ...["stages", "activity", "artifacts", "reviews"].map((t) => ({ sql: `DELETE FROM ${t} WHERE video_id=?`, params: [videoId] })),
+    { sql: "UPDATE topics SET used_video_id=NULL WHERE used_video_id=?", params: [videoId] },
+    { sql: "DELETE FROM videos WHERE id=?", params: [videoId] },
+  ]);
+  emit("videos", "stages");
+}
+
+/** Número de cada video del canal (1 = el más antiguo), según los que siguen en la app. */
+export async function videoNumbers(channelId: string): Promise<Map<string, number>> {
+  const rows = await db.query<{ id: string }>("SELECT id FROM videos WHERE channel_id=? ORDER BY created_at, id", [channelId]);
+  return new Map(rows.map((r, i) => [r.id, i + 1]));
 }
 
 /** Marca una etapa y todas las posteriores como pendientes (para rehacer). */
