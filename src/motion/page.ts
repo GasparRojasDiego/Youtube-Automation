@@ -99,7 +99,7 @@ export const HARNESS = String.raw`
 `;
 
 /** Expresión que comprueba que las bibliotecas cargaron (si no, el fallo es del motor, no del código de Opus). */
-export const LIBS_CHECK = "JSON.stringify({gsap: typeof gsap !== 'undefined', split: typeof SplitText !== 'undefined', kit: !!(window.K && window.ATRIL && ATRIL.kit)})";
+export const LIBS_CHECK = "JSON.stringify({gsap: typeof gsap !== 'undefined', split: typeof SplitText !== 'undefined', kit: !!(window.K && window.ATRIL && ATRIL.kit), pieces: !!window.P})";
 
 export interface PageOpts {
   width: number; height: number;
@@ -135,6 +135,7 @@ ${libFiles(c.libs).map((f) => scriptTag(need(f))).join("\n")}
 ${scriptTag(HARNESS)}
 <script>try{gsap.registerPlugin(${GSAP_PLUGINS.filter((p) => p !== "EasePack").map((p) => `window.${p}`).join(",")});}catch(e){ATRIL.errors.push("Plugins: "+e.message);}</script>
 ${o.code["kit.js"] ? scriptTag(o.code["kit.js"]) : ""}
+${o.code["pieces.js"] ? scriptTag(o.code["pieces.js"]) : ""}
 </head><body><div id="stage">
 ${c.html}
 </div>

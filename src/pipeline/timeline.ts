@@ -5,6 +5,7 @@ import { splitSentences } from "../lib/util";
 import type { Span } from "./align";
 import type { Shot, SfxCue, MusicBed, MotionItem, Transition, Grade, ScriptOut, VisualType } from "./types";
 import { TRANSITIONS, GRADES } from "./types";
+import { pieceById } from "../motion/pieces";
 
 export interface SegInfo { id: string; title: string; sentences: string[]; spans: Span[]; narration: number }
 
@@ -211,13 +212,20 @@ export interface PolishRaw {
   shots: { id: string; transition_in: string; transition_s: number; motion: string; grade: string; punch_at: number; clip_audio_db: number }[];
   sfx_add: { at: number; type: string; query_en: string; gain_db: number }[];
   sfx_remove: string[];
-  motion: { kind: "fullscreen" | "overlay"; shot_ids: string[]; start_s: number; duration_s: number; brief_en: string; text: string; libs: ("map" | "d3")[]; asset_ids: string[]; icons_en?: string[] }[];
+  motion: { kind: "fullscreen" | "overlay"; shot_ids: string[]; start_s: number; duration_s: number; brief_en: string; text: string; libs: ("map" | "d3")[]; asset_ids: string[]; icons_en?: string[]; pieces?: string[]; piece_use?: string }[];
   notes_es: string;
   verify_es?: string[];
   skills_check_es?: string[];
 }
 
 const MOTIONS = ["zoom_in", "zoom_out", "pan_left", "pan_right", "static", "punch_in", "drift"];
+
+/** Piezas listas válidas para el tipo de animación (las de capa solo sobre el video, y al revés); como mucho 3. */
+export function pickPieces(kind: "fullscreen" | "overlay", ids: string[] | undefined, use: string | undefined): { pieces?: string[]; piece_use?: "as_is" | "modify" | "none"; libs: ("map" | "d3")[] } {
+  const ok = [...new Set((ids ?? []).map((x) => String(x).trim().replace(/^P\./, "")))].map(pieceById).filter((p) => p && p.kind === kind).slice(0, kind === "overlay" ? 1 : 3);
+  if (!ok.length || use === "none") return { libs: [] };
+  return { pieces: ok.map((p) => p!.id), piece_use: use === "modify" ? "modify" : "as_is", libs: [...new Set(ok.flatMap((p) => p!.libs ?? []))] };
+}
 /** Duración buscada de una animación a pantalla completa y tope del motor (s). */
 export const FULLSCREEN_TARGET = 20, FULLSCREEN_MAX = 30;
 
@@ -275,12 +283,14 @@ export function applyPolish(p: PolishRaw, shots: Shot[], sfx: SfxCue[], offsets:
       run.forEach((id) => usedFull.add(id));
       const start = byId.get(run[0])!.start ?? 0;
       const end = run.reduce((a, id) => Math.max(a, (byId.get(id)!.start ?? 0) + (byId.get(id)!.dur ?? 0)), 0);
-      motion.push({ id: `m${++m}`, kind: "fullscreen", shot_ids: run, segment_id: seg, start, duration: Math.min(FULLSCREEN_MAX, end - start), brief_en: it.brief_en, text: it.text ?? "", libs: (it.libs ?? []).filter((l) => l === "map" || l === "d3"), asset_ids: it.asset_ids ?? [], icons: cleanIcons(it.icons_en) });
+      const pk = pickPieces("fullscreen", it.pieces, it.piece_use);
+      motion.push({ id: `m${++m}`, kind: "fullscreen", shot_ids: run, segment_id: seg, start, duration: Math.min(FULLSCREEN_MAX, end - start), brief_en: it.brief_en, text: it.text ?? "", libs: [...new Set([...(it.libs ?? []), ...pk.libs])].filter((l) => l === "map" || l === "d3"), asset_ids: it.asset_ids ?? [], icons: cleanIcons(it.icons_en), ...(pk.pieces ? { pieces: pk.pieces, piece_use: pk.piece_use } : {}) });
     } else {
       const start = (first.start ?? 0) + clamp(Number(it.start_s) || 0, 0, Math.max(0, (first.dur ?? 0) - 0.5));
       const segEnd = segShots.reduce((a, s) => Math.max(a, (s.start ?? 0) + (s.dur ?? 0)), 0);
       const duration = clamp(Number(it.duration_s) || 4, 1.5, Math.max(1.5, Math.min(12, segEnd - start)));
-      motion.push({ id: `m${++m}`, kind: "overlay", shot_ids: ids, segment_id: seg, start, duration, brief_en: it.brief_en, text: it.text ?? "", libs: (it.libs ?? []).filter((l) => l === "map" || l === "d3"), asset_ids: it.asset_ids ?? [], icons: cleanIcons(it.icons_en) });
+      const pk = pickPieces("overlay", it.pieces, it.piece_use);
+      motion.push({ id: `m${++m}`, kind: "overlay", shot_ids: ids, segment_id: seg, start, duration, brief_en: it.brief_en, text: it.text ?? "", libs: (it.libs ?? []).filter((l) => l === "map" || l === "d3"), asset_ids: it.asset_ids ?? [], icons: cleanIcons(it.icons_en), ...(pk.pieces ? { pieces: pk.pieces, piece_use: pk.piece_use } : {}) });
     }
   }
   void offsets;

@@ -128,6 +128,8 @@ export interface MotionItem {
   brief_en: string; text?: string; data_es?: string; libs?: ("map" | "d3")[]; icons?: string[]; icon_ids?: string[];
   asset_ids?: string[];
   revise_en?: string;        // pedidos de mejora continua: se aplican como corrección del código anterior
+  pieces?: string[];         // piezas listas elegidas en Retoques (resources/motion/pieces.js)
+  piece_use?: "as_is" | "modify" | "none"; // tal cual, modificando una parte o desde cero
   // resultado
   file?: string | null; error?: string | null; attempts?: number; critique_es?: string; hash?: string;
   code?: { css: string; html: string; js: string; libs: ("map" | "d3")[]; duration: number; sfx?: { at: number; type: string; query_en: string }[] };

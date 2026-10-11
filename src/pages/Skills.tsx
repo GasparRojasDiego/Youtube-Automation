@@ -1,6 +1,6 @@
 // Instrucciones: directrices de contenido (guion, títulos, descripción) arriba y
 // directrices visuales (imágenes, animaciones, montaje, miniatura) abajo, en una
-// sola página. Se inyectan como reglas obligatorias.
+// sola página. Se inyectan como reglas obligatorias. Al final, el repositorio de piezas listas.
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles, Plus, Upload, Download, History, Trash2, Save, AlertTriangle, RotateCcw, Wand2, Check, Type, Eye } from "lucide-react";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -13,12 +13,14 @@ import { lineDiff, fmtDate, slugify } from "../lib/util";
 import { refineSkill } from "../pipeline/extras";
 import { toast, logError } from "../lib/events";
 import { askConfirm } from "../ui/Ask";
+import { PieceLibrary } from "./Pieces";
 
 export function Skills() {
   return (
     <div className="space-y-10">
       <SkillEditor kind="script" />
       <SkillEditor kind="visual" />
+      <PieceLibrary />
     </div>
   );
 }

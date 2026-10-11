@@ -2,6 +2,7 @@
 // «Instrucciones» (cómo debe salir el guion) y «Visuales» (imágenes, montaje,
 // animaciones). Los referentes añaden sus puntos fuertes como recordatorio.
 // Los parámetros se escriben en bloques ```atril:<nombre> {json}```.
+import { claudeMemory } from "./obsidian";
 import { db } from "./ipc";
 import { emit } from "./bus";
 import { now, uid, safeJson } from "./util";
@@ -221,6 +222,11 @@ export async function composeSkills(channelId: string | null, scope: Scope | Sco
   for (const s of (await listSkills(channelId)).filter((x) => x.enabled)) {
     const body = sectionsFor(stripParamBlocks(s.content), s.scopes, scopes);
     if (body) parts.push(`<skill name="${s.name}">\n${body}\n</skill>`);
+  }
+  // Memoria breve del canal escrita por el usuario en Obsidian (temas, guion e investigación)
+  if (scopes.some((x) => x === "topics" || x === "research" || x === "script")) {
+    const mem = await claudeMemory().catch(() => "");
+    if (mem) parts.push(`<skill name="Memoria del canal (Obsidian)">\n${mem}\n</skill>`);
   }
   return parts.join("\n\n");
 }

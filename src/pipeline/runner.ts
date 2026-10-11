@@ -1,6 +1,7 @@
 // Orquestador: ejecuta todas las etapas sin detenerse hasta la revisión final
 // (lo único que espera al usuario), guarda cada resultado y se reanuda donde
 // quedó tras un fallo.
+import { syncVault } from "./vault";
 import { db, proc, fs } from "../lib/ipc";
 import { emit } from "../lib/bus";
 import { getSettings } from "../lib/settings";
@@ -67,6 +68,7 @@ async function runOnce(r: Running) {
       await finishRevision(video.id);
       await setStage(video.id, "final", { status: "review", progress: iterate ? "Primera versión lista: pide mejoras o apruébala" : "Lista para tu revisión final" });
       notifyReview(video.id, `${dest ? `Video terminado y guardado en Descargas: ${dest.split(/[\\/]/).pop()}` : "Video listo para la revisión final."}${iterate ? " Puedes pedir mejoras en Producción." : ""}`);
+      void syncVault(video.id);
       return;
     }
     // Un video personal nunca se sube (aunque un «Rehacer» o una mejora haya reiniciado las etapas)
@@ -90,7 +92,7 @@ async function runOnce(r: Running) {
       const output = await runStage(stage, ctx);
       await activity(video.id, stage, "done", `${label} terminada en ${Math.max(1, Math.round((Date.now() - t0) / 1000))} s`);
       await setStage(video.id, stage, { status: "done", output, finishedNow: true, progress: null });
-      if (stage === "publish") void autoTikTok(video.id);
+      if (stage === "publish") { void autoTikTok(video.id); void syncVault(video.id); }
     } catch (e) {
       if (e instanceof St.NeedsUser) {
         await setStage(video.id, stage, { status: "review", progress: e.messageEs });
@@ -219,7 +221,7 @@ export async function approveFinal(videoId: string, scheduledAt: number | null) 
   const v = await getVideo(videoId);
   await setStage(videoId, "final", { status: "approved", progress: null });
   // Un video personal no se publica: queda aprobado (y ya está en Descargas)
-  if (v && personalOf(v)) { await updateVideo(videoId, { status: "published", stage: null }); return; }
+  if (v && personalOf(v)) { await updateVideo(videoId, { status: "published", stage: null }); void syncVault(videoId); return; }
   await updateVideo(videoId, { status: "approved", scheduled_at: scheduledAt });
   await setStage(videoId, "publish", { status: "pending" });
   runVideo(videoId);
@@ -233,9 +235,10 @@ export async function acceptVideo(videoId: string) {
   const v = await getVideo(videoId);
   if (!v) return;
   await setStage(videoId, "final", { status: "approved", progress: null });
-  if (personalOf(v)) { await updateVideo(videoId, { status: "published", stage: null }); return; }
+  if (personalOf(v)) { await updateVideo(videoId, { status: "published", stage: null }); void syncVault(videoId); return; }
   await updateVideo(videoId, { status: "ready", stage: null });
   void autoTikTok(videoId);
+  void syncVault(videoId);
 }
 
 /** Partes de TikTok automáticas al aceptar o publicar un video automático (nunca en los personales). */
@@ -249,6 +252,7 @@ async function autoTikTok(videoId: string) {
 export async function rejectVideo(videoId: string, reason: string) {
   await updateVideo(videoId, { status: "rejected", data: { rejected_reason: reason } });
   await log("info", "pipeline", "Video rechazado.", reason, videoId, false);
+  void syncVault(videoId);
 }
 
 // ---------- Arranque y automatización diaria ----------

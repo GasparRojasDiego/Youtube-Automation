@@ -65,6 +65,7 @@ export interface AppSettings {
   };
   assets: { parallel: number };         // tomas que se buscan y descargan a la vez
   ffmpeg: { path: string; encoder: "auto" | "h264_qsv" | "h264_mf" | "libx264"; quality: number };
+  obsidian: { enabled: boolean; vault: string; folder: string };   // vault vacío = la detectada
 }
 
 export const SETTINGS_VERSION = 24;
@@ -124,6 +125,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   motion: { enabled: true, browserPath: "", perVideo: 10, critique: true, parallel: 4, renders: 2, maxFixes: 2 },
   assets: { parallel: 4 },
   ffmpeg: { path: "", encoder: "auto", quality: 21 },
+  obsidian: { enabled: true, vault: "", folder: "ATRIL" },
 };
 
 function deepMerge<T>(base: T, over: any): T {

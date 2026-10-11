@@ -13,7 +13,7 @@
     "dialog:allow-ask",
     "opener:default",
     { "identifier": "opener:allow-open-path", "allow": [{ "path": "**" }] },
-    { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://*" }, { "url": "http://localhost:*" }] },
+    { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://*" }, { "url": "http://localhost:*" }, { "url": "obsidian://*" }] },
     "opener:allow-reveal-item-in-dir"
   ]
 }

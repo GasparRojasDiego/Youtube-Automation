@@ -3,6 +3,7 @@
 import { obj, str, num, bool, arr, en, wrapSkills, SKILLS_CHECK } from "./prompts";
 import { TRANSITIONS, GRADES } from "./types";
 import { FONT_FAMILIES } from "../motion/page";
+import { PIECES, pieceCatalog, pieceSource, pieceById } from "../motion/pieces";
 
 const VISUALS = ["photo", "archival", "clip", "meme", "ai_image", "motion", "map", "source_card", "quote_card", "title_card", "text_card"];
 /** Máximo de tarjetas de texto por video: se ven pobres, solo para énfasis fuerte. */
@@ -120,6 +121,8 @@ export const POLISH_SCHEMA = obj({
     libs: arr(en(["map", "d3"])),
     asset_ids: arr(str(), "Library images to use inside the animation (ids from the shot list)"),
     icons_en: arr(str("Simple icon concept in English, 1-3 words, e.g. 'police officer', 'money', 'arrow up', 'clock', 'smartphone', 'person raising hand'"), "0-6 icons that would make this animation clearer"),
+    pieces: arr(str("Id of a ready-made piece from the READY-MADE PIECES list"), "fullscreen: 0-3 pieces chained in order (they share the duration); overlay: 0-1. Empty = design from scratch"),
+    piece_use: en(["as_is", "modify", "none"], "as_is: the pieces fit, only their content changes; modify: start from their code and change one part the brief needs; none: from scratch"),
   })),
   notes_es: str("Qué mejoraste y por qué (3-6 frases)"),
   skills_check_es: SKILLS_CHECK,
@@ -138,6 +141,9 @@ You can:
 6. Motion graphics (max ${o.motionBudget} in total, at least one every ~60 s of video): "fullscreen" sequences replace shots — premium, visual-first motion design with 2–5 scenes (geometric shapes and icons that build, morph and connect, camera moves into details, diagrams, maps, charts, counters, 3D point fields, cover/flash/blackout/whip transitions; text only as short labels); "overlay" animations play over a shot with a transparent background (callouts, arrows, highlights, lower thirds, labels, counters). Replace every remaining static text card (title_card/quote_card/text_card/source_card) with a fullscreen motion sequence when the budget allows, and make it SHOW the idea (shapes, icons, a diagram, a camera move) instead of animating the card's sentence. A fullscreen sequence lasts exactly the summed duration of the shots it replaces: keep any scene timings in the brief inside that duration. Overlay text must be short. Brand palette: ${JSON.stringify(o.palette)} (if a channel skill restricts colours or style, the skill wins: never write a colour or style it forbids into a brief).
 ${o.captions ? "Burned-in captions occupy the bottom 22% of the frame: keep overlays out of that area.\n" : ""}
 Every text you place on screen must come from the narration or the verified facts, never stronger than the narration.
+
+READY-MADE PIECES (tested, premium, universal; pick by id in "pieces"): use one as_is when it already shows the idea (fast and reliable), modify when it is close but one part must change, none when nothing fits or a more original sequence adds real value. A fullscreen item may chain 2-3 pieces (e.g. map → stat → timeline). Vary them across the video: the same piece at most twice.
+${PIECES.map((p) => `- ${p.id} [${p.kind}, ~${p.dur}s${p.libs?.length ? `, ${p.libs.join("+")}` : ""}]: ${p.en}`).join("\n")}
 
 THE CUT (times in seconds; each line = one shot):
 ${o.edl}`;
@@ -182,6 +188,10 @@ const s2 = K.scene(); const n = K.bigNumber(s2, {text:'0', label:'DONORS'});
 K.swap(tl, s1, s2, 3.4, {fx:'cover', from:'right'}); K.counter(tl, n.num, 3.5, {to:353, suffix:'+'}); K.blackout(tl, 5.2, {hold:0.4});
 ATRIL.register(tl, 6);
 
+READY-MADE PIECES — global P (built on K, tested and premium). Each P.<id>(tl, at, opts) builds a complete scene (or overlay) from \`at\`, returns {scene|layer, end, …elements} and accepts opts.dur, opts.enter (K.show fx: cut|fade|zoom|blur|iris|slide|whip) and opts.bg ('field'|'dots'|'grid'|'paper'|'none'). Chain several with transitions: P.seq(tl, 0, [{p:'map', dur:6, country:'Brazil'}, {p:'stat', dur:5, fx:'cover', value:37, suffix:'%', label:'OF WORLD COFFEE'}]) (fx between pieces: cover|tiles|whip|push|zoom|fade|cut). Helpers: P.ease {out, arrive, inOut, in, drift}, P.rise(tl, el, at, {by}) masked word/char rise, P.fadeUp, P.count, P.pulse, P.glyph(parent, iconKey, {x, y, size}) (icon or geometric fallback), P.text, P.label, P.markWord + P.sweepMark (highlighter), P.stage(tl, at, {dur, bg}) → {s, cam, w} (scene + camera + slow drift).
+${pieceCatalog()}
+Three ways to use them (the item says which): AS_IS — call the pieces with this item's content and nothing else (minimal js); MODIFY — the item includes the piece code: copy it into your js as a local function, change only what the brief needs and keep the rest of its choreography; FROM SCRATCH — design your own with K (you may still borrow P helpers). Pieces already follow the style rules below.
+
 STYLE — visual impact first (mandatory):
 - The picture tells the story; text only labels it. In fullscreen pieces every scene's hero is visual: shapes, icons, a diagram, a map, a chart, an image, a generator or a camera move; a scene that is only a line of text on a plain background is a defect. Overlays sit on footage and may be just a label, a source line or a stamp.
 - Text budget per fullscreen piece: at most 6 words on screen at once (a number plus a 1–3 word label is ideal); frames where text is the main content ≤ 30% of the duration; never more than one text block entering at a time; never the narration as a sentence. Long ideas become diagrams, icons and motion.
@@ -190,9 +200,12 @@ STYLE — visual impact first (mandatory):
 - Visual language: flat colour fields or textured paper with a faint grid, geometric systems (circles, triangles, squares, hexagons, patterns), icons, arrows and connecting lines, at most 3 colours from the brand palette (accent sparingly), mono caps labels. One hero element per scene.
 - Type supports the image: one strong word or number per scene, heavy grotesk or condensed caps for impact, mono for labels and figures; elegant italic serif only as a rare accent. Strong scale contrast.
 - Show numbers as counters, bars, rings or patterns where a few items light up; lists as slabs, tags or icons; comparisons as bars, split screens or scales; flows of money or power as networks and arrows; processes as diagrams that expand, morph and collapse; abstract ideas with generators (3D points, flow lines, particles, ripples, blobs).
-- Easing with intent: entrances 0.4–0.8 s expo.out/power3.out, exits faster (expo.in), staggers 0.03–0.08 s, back.out only for accents; hold labels long enough to read (≈3 words/s).
+- Easing with intent: entrances ease-out (P.ease.out = cubic-bezier(.23,1,.32,1) or P.ease.arrive = (.16,1,.3,1)), 0.5–0.9 s; moves inside the frame and camera moves ease-in-out (P.ease.inOut = (.77,0,.175,1)); continuous progress (lines drawing at constant speed, timers, drifts) linear; never ease-in on an entrance. Exits ~70% of the entrance, along the path they came. Staggers 0.03–0.08 s, total stagger under ~0.7 s. No reflexive bounce or elastic: back.out only for one accent (a stamp, a slam). Never scale from 0: materialise from scale 0.85–0.95 + opacity + a little blur. Hold labels long enough to read (≈3 words/s).
+- One authored moment per scene, not the same entrance on every element: vary rise, fade-blur, draw, wipe and camera; one dominant move at a time.
 - Overlays stay light: one callout, arrow, highlight, label, stamp or counter over the footage.
-- Hierarchy and fit: headline 90–240 px, secondary 40–60 px, labels 24–34 px (never smaller than 22 px). No overflow, no overlap, no clipping.
+- Hierarchy and fit: headline 90–240 px, secondary 40–60 px, labels 24–34 px (never smaller than 22 px); at least 1.25× between steps, ~2–3× between headline and label. Display type tracking about −0.02em; caps labels +0.08–0.12em; counters with tabular figures. No overflow, no overlap, no clipping.
+- Colour discipline: one accent, used on the hero and little else (≈10–15% of the frame) unless the scene is a deliberate accent moment; text on the accent uses the background colour. Never gradient text, neon glows or halos behind titles, or purple-blue "AI" gradients.
+- Composition: when the message is not the whole design, prefer asymmetric layouts (text on one side, the visual on the other) over everything centred.
 - Balance (fullscreen): use the whole frame above the caption band — the visual centre of mass sits around y≈470 and content spans roughly y 120–840; never cram a scene into the top third or leave the lower half empty. Only the bottom 240 px stay free of key text.
 - Accuracy: texts, numbers, dates and names exactly as given; a counter ends on the exact value.
 - Integrity: never real logos, real brand colours or a faithful copy of a real product's interface; use generic UI (K.ui), neutral wordmarks and icons.
@@ -222,7 +235,16 @@ export function motionSystem(o: { skills: string; palette: unknown }) {
 Brand palette and fonts: ${JSON.stringify(o.palette)}`;
 }
 
-export interface MotionBrief { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string; cut?: boolean }[]; icons: string[] }
+export interface MotionBrief { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string; cut?: boolean }[]; icons: string[]; pieces?: string[]; pieceUse?: string }
+
+/** Cómo usar las piezas elegidas en Retoques (el código solo viaja cuando hay que modificarlas). */
+function piecesPart(it: MotionBrief): string {
+  const ps = (it.pieces ?? []).map(pieceById).filter(Boolean);
+  if (!ps.length || it.pieceUse === "none") return "Pieces: none chosen — design it from scratch (P helpers allowed).";
+  const sig = ps.map((p) => `P.${p!.id}(tl, at, ${p!.opts})`).join(" · ");
+  if (it.pieceUse === "modify") return `Pieces: MODIFY ${sig}. Copy the code below into your js, change only what this brief needs (layout, an element, a scene, timing) and keep the rest of the choreography:\n${ps.map((p) => `<piece id="${p!.id}">\n${pieceSource(p!.id) ?? ""}\n</piece>`).join("\n")}`;
+  return `Pieces: AS_IS ${sig}${ps.length > 1 ? " — chain them with P.seq and split the duration by content" : ""}. Fill their options from the brief, on-screen text, icons and images; do not restyle them. Keep the js minimal.`;
+}
 
 export function motionPrompt(it: MotionBrief) {
   return `Create this animation. Return exactly one composition with id "${it.id}". Fullscreen items are multi-scene motion-design sequences; overlays are short, clean graphics over footage.
@@ -233,7 +255,8 @@ On-screen text (verbatim): ${it.text || "(none)"}
 Narration at that moment: "${it.context}"
 Libraries: ${it.libs.join(", ") || "none"}
 Images: ${it.assets.length ? it.assets.map((a) => `ATRIL.asset("${a.key}") = ${a.description}${a.cut ? ` (also "${a.key}_cut": subject without background)` : ""}`).join("; ") : "none"}
-Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}`;
+Icons: ${it.icons.length ? it.icons.map((k) => `"${k}"`).join(", ") : "none"}
+${piecesPart(it)}`;
 }
 
 /** Regla de prioridad: el canal manda, salvo un pedido explícito del operador (mejora continua), que manda sobre el estilo. */
@@ -324,6 +347,6 @@ export function critiquePrompt(o: { kind: string; brief: string; text: string; o
   return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a documentary.
 Brief: ${o.brief}
 Expected text (verbatim): ${o.text || "(none)"}
-Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects.${o.operator ? `\nThe operator explicitly asked for: "${o.operator}". That is correct even where it departs from the channel rules: never report it as a defect; do report it if it was NOT applied.` : ""}${o.kind === "overlay" ? " This is an overlay." : `
+Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects. Generic "template" tells count as defects (severity "minor" unless they dominate): the same entrance on every element, cartoonish bounce on everything, glowing halos or gradient text, more than one accent colour, flat hierarchy (all text about the same size), a second element competing with the hero at the same scale, text touching the frame edge.${o.operator ? `\nThe operator explicitly asked for: "${o.operator}". That is correct even where it departs from the channel rules: never report it as a defect; do report it if it was NOT applied.` : ""}${o.kind === "overlay" ? " This is an overlay." : `
 Also a defect (severity "major"): the piece is dominated by text — in 4 or more of the 6 frames the main content is text on a plain background — or it is visually static (one element, nothing building or transforming). Name what visual should replace the text.`}`;
 }

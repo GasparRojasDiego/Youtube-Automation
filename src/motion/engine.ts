@@ -88,7 +88,7 @@ export class EngineError extends Error {}
 /** Lee las bibliotecas y copia las fuentes a la carpeta de trabajo (una vez por sesión). */
 async function ensureKit(b: Browser, resources: string, fontsDir: string, files: string[]) {
   const host = b.host;
-  for (const f of [...files, "kit.js", "kit.css"]) {
+  for (const f of [...files, "kit.js", "kit.css", "pieces.js"]) {
     if (b.code[f] != null) continue;
     const txt = await host.readText(host.join(resources, f)).catch(() => null);
     if (!txt) throw new EngineError(`No encuentro ${f} en ${plainPath(resources)}. Reinstala ATRIL (faltan recursos de animación).`);

@@ -611,7 +611,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   await fs.mkdir(dir);
   const assetMap = await getAssets([...new Set(items.flatMap((m) => m.asset_ids ?? []))]);
   const skillsKey = (await sha256(skills)).slice(0, 12);
-  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette, skillsKey, m.revise_en ?? ""]));
+  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette, skillsKey, m.revise_en ?? "", ...(m.pieces?.length ? [m.pieces, m.piece_use] : [])]));
   // Reutilizar lo ya renderizado
   for (const m of items) {
     const old = prev?.items.find((p) => p.hash === m.hash && p.file);
@@ -699,7 +699,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 
   const compose = async (m: MotionItem): Promise<Code | null> => {
     const r = await run<{ compositions: Code[] }>({ stage: "motion", label: `Animación ${m.id}`, system: sys, schema: P2.MOTION_SCHEMA,
-      prompt: P2.motionPrompt({ ...brief(m), libs: m.libs ?? [], context: contextOf(m), icons: Object.keys(iconsFor(m)),
+      prompt: P2.motionPrompt({ ...brief(m), libs: m.libs ?? [], context: contextOf(m), icons: Object.keys(iconsFor(m)), pieces: m.pieces, pieceUse: m.piece_use,
         assets: assetsFor(m).map((x) => ({ key: x.key, description: (x.a!.tags.split(",")[0] || x.a!.title).slice(0, 120), cut: cutReady.has(x.a!.id) })) }) });
     const cs = r.data.compositions ?? [];
     return cs.find((x) => x.id === m.id) ?? cs[0] ?? null;

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, Sparkles, Factory, Trash2, Plus, Check, Copy, Sun, Moon, Camera,
-  FolderOpen, Download, AlertTriangle, ClipboardCopy, Wand2, Info, MonitorPlay, type LucideIcon,
+  FolderOpen, Download, AlertTriangle, ClipboardCopy, Wand2, Info, MonitorPlay, NotebookPen, type LucideIcon,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, openPath } from "@tauri-apps/plugin-opener";
@@ -25,6 +25,7 @@ import { monthUnits } from "../lib/costs";
 import { openErrors, clearErrors, buildReport, type ErrorRow } from "../lib/report";
 import { appVersion, updateState } from "../lib/updater";
 import { toast, logError } from "../lib/events";
+import { detectVaults, atrilFolder, claudeMemory, MEMORY_NOTE, type Vault } from "../lib/obsidian";
 import { joinPath, uid, baseName } from "../lib/util";
 import { fmtK } from "../lib/usage";
 
@@ -74,6 +75,7 @@ export function SettingsPage() {
         <ProductionTile className="col-span-4" />
         <MontageTile className="col-span-4" />
         <AboutTile className="col-span-4" />
+        <ObsidianTile className="col-span-12" />
         <MusicTile className="col-span-12" />
       </div>
     </div>
@@ -409,6 +411,35 @@ function MusicTile({ className }: { className: string }) {
 }
 
 // ---------- Acerca de ----------
+function ObsidianTile({ className }: { className: string }) {
+  const { s, set } = useSetting();
+  const [vaults, setVaults] = useState<Vault[] | null>(null);
+  const [folder, setFolder] = useState<string | null>(null);
+  const refresh = async () => { setVaults(await detectVaults().catch(() => [])); setFolder(await atrilFolder().catch(() => null)); };
+  useEffect(() => { void refresh(); }, [s.obsidian.enabled, s.obsidian.vault, s.obsidian.folder]);
+  const o = s.obsidian;
+  return (
+    <Tile title="Obsidian" icon={NotebookPen} className={className}>
+      <div className="grid grid-cols-2 gap-x-8">
+        <div>
+          <Row label="Activado" hint="ATRIL escribe una nota por video y un índice del canal en tu bóveda"><Toggle checked={o.enabled} onChange={(v) => void set("obsidian.enabled", v)} /></Row>
+          <Row label="Bóveda" hint={vaults == null ? "Buscando…" : vaults.length ? `${vaults.length} encontrada(s) en Obsidian` : "No encontré Obsidian en este equipo"}>
+            <Sel v={o.vault} on={(v) => void set("obsidian.vault", v)} opts={[["", vaults?.[0] ? `Automática (${vaults[0].name})` : "Automática"], ...(vaults ?? []).map((v) => [v.path, v.name] as [string, string])]} />
+          </Row>
+          <Row label="Carpeta" hint="Dentro de la bóveda"><Txt v={o.folder} on={(v) => void set("obsidian.folder", v)} placeholder="ATRIL" /></Row>
+        </div>
+        <div>
+          <Row label="Memoria para Claude" hint="Notas breves que Claude lee al elegir temas, investigar y escribir el guion (máx. 1 500 caracteres)">
+            <AsyncButton className="btn-ghost btn-sm" disabled={!folder} onClick={async () => { await claudeMemory(); const f = joinPath(folder!, MEMORY_NOTE); await openUrl(`obsidian://open?path=${encodeURIComponent(f)}`).catch(() => openPath(f)); }}><NotebookPen size={13} /> Abrir</AsyncButton>
+          </Row>
+          <Row label="Carpeta de ATRIL" hint={folder ?? "Sin bóveda"}><button className="btn-ghost btn-sm" disabled={!folder} onClick={async () => { await fs.mkdir(folder!); await openPath(folder!); }}><FolderOpen size={13} /> Abrir</button></Row>
+          <Row label="Buscar de nuevo"><AsyncButton className="btn-ghost btn-sm" onClick={refresh}>Detectar</AsyncButton></Row>
+        </div>
+      </div>
+    </Tile>
+  );
+}
+
 function AboutTile({ className }: { className: string }) {
   useBus("update");
   const [ver, setVer] = useState("");
