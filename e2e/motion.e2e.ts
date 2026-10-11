@@ -31,7 +31,7 @@ describe.skipIf(!nfs.existsSync(path.join(WORK, "atril.db")))("animaciones con l
       const prev = (await sk.listSkills(v.channel_id)).find((s) => s.name === name);
       await sk.saveSkill({ id: prev?.id, name, content, scopes: sk.KIND_SCOPES[kind], enabled: true, channel_id: v.channel_id });
     }
-    await repo.resetFrom(v.id, "polish");
+    await repo.resetFrom(v.id, "polish", !process.env.FRESH);   // FRESH=1: sin reutilizar retoques ni animaciones
     const { runVideo, runningVideoId } = await import("../src/pipeline/runner");
     runVideo(v.id);
     do { await new Promise((r) => setTimeout(r, 3000)); } while (runningVideoId());

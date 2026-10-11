@@ -3,7 +3,7 @@ import * as nfs from "node:fs";
 import * as path from "node:path";
 import { PIECES, pieceSource, pieceCatalog, pieceUsage } from "./pieces";
 import { pickPieces } from "../pipeline/timeline";
-import { motionPrompt } from "../pipeline/prompts2";
+import { motionPrompt, pieceAdherence } from "../pipeline/prompts2";
 
 const JS = nfs.readFileSync(path.resolve(__dirname, "../../src-tauri/resources/motion/pieces.js"), "utf8");
 
@@ -41,5 +41,15 @@ describe("piezas listas", () => {
     expect(mod).toContain('<piece id="stat">');
     expect(mod).toContain("P.stat = function (tl, at, o)");
     expect(motionPrompt(base)).toContain("from scratch");
+  });
+
+  it("detecta cuando Claude no usó la pieza pedida", () => {
+    expect(pieceAdherence(["stat"], "as_is", "const tl=gsap.timeline(); P.stat(tl, 0, {value: 3}); ATRIL.register(tl, 5);")).toBeNull();
+    expect(pieceAdherence(["map", "stat"], "as_is", "P.seq(tl, 0, [{p:'map', country:'Peru'}, {p: \"stat\", value: 3}])")).toBeNull();
+    expect(pieceAdherence(["stat"], "as_is", "const s = K.scene(); K.counter(tl, n, 0, {to: 3});")).toMatch(/AS_IS/);
+    const src = pieceSource("stat", JS)!;
+    expect(pieceAdherence(["stat"], "modify", src.replace("P.stat = function", "const piece_stat = function").replace("rotation: 10", "rotation: 20"))).toBeNull();
+    expect(pieceAdherence(["stat"], "modify", "const s = K.scene(); K.counter(tl, n, 0, {to: 3});")).toContain('<piece id="stat">');
+    expect(pieceAdherence(undefined, undefined, "x")).toBeNull();
   });
 });

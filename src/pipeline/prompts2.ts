@@ -142,7 +142,7 @@ You can:
 ${o.captions ? "Burned-in captions occupy the bottom 22% of the frame: keep overlays out of that area.\n" : ""}
 Every text you place on screen must come from the narration or the verified facts, never stronger than the narration.
 
-READY-MADE PIECES (tested, premium, universal; pick by id in "pieces"): use one as_is when it already shows the idea (fast and reliable), modify when it is close but one part must change, none when nothing fits or a more original sequence adds real value. A fullscreen item may chain 2-3 pieces (e.g. map → stat → timeline). Vary them across the video: the same piece at most twice.
+READY-MADE PIECES (tested, premium, universal; pick by id in "pieces"): prefer as_is whenever a piece already shows the idea (fast and reliable: only its content changes); choose modify only when one concrete part must change, and say in the brief which part; none when nothing fits or a more original sequence adds real value. A fullscreen item may chain 2-3 pieces (e.g. map → stat → timeline). Vary them across the video: the same piece at most twice.
 ${PIECES.map((p) => `- ${p.id} [${p.kind}, ~${p.dur}s${p.libs?.length ? `, ${p.libs.join("+")}` : ""}]: ${p.en}`).join("\n")}
 
 THE CUT (times in seconds; each line = one shot):
@@ -237,12 +237,32 @@ Brand palette and fonts: ${JSON.stringify(o.palette)}`;
 
 export interface MotionBrief { id: string; kind: string; duration: number; brief: string; text: string; libs: string[]; context: string; assets: { key: string; description: string; cut?: boolean }[]; icons: string[]; pieces?: string[]; pieceUse?: string }
 
+/**
+ * ¿La composición usó las piezas como se pidió? Tal cual: llama a P.<id> (o la encadena con P.seq).
+ * Modificada: conserva al menos una cuarta parte de las líneas propias de la pieza. Devuelve el problema o null.
+ */
+export function pieceAdherence(pieces: string[] | undefined, use: string | undefined, js: string): string | null {
+  const ps = (pieces ?? []).filter((id) => pieceById(id));
+  if (!ps.length || use === "none") return null;
+  const norm = (x: string) => x.replace(/\s+/g, "");
+  const code = norm(js);
+  if (use === "modify") {
+    const miss = ps.filter((id) => {
+      const lines = (pieceSource(id) ?? "").split("\n").map((l) => norm(l)).filter((l) => l.length > 40 && !l.startsWith("/**") && !l.startsWith("*"));
+      return lines.length && lines.filter((l) => code.includes(l)).length / lines.length < 0.25;
+    });
+    return miss.length ? `You were asked to MODIFY the ready-made piece(s) ${miss.map((id) => `P.${id}`).join(", ")}, but the code was written from scratch. Start again from the piece code: paste the piece function(s) into the js, change only what the brief needs and call them.\n${miss.map((id) => `<piece id="${id}">\n${pieceSource(id) ?? ""}\n</piece>`).join("\n")}` : null;
+  }
+  const miss = ps.filter((id) => !code.includes(`P.${id}(`) && !new RegExp(`p:['"]${id}['"]`).test(code));
+  return miss.length ? `You were asked to use the ready-made piece(s) ${miss.map((id) => `P.${id}`).join(", ")} AS_IS, but the code does not call them. Rewrite the js to call ${miss.map((id) => `P.${id}(tl, at, {…})`).join(" and ")} (chain with P.seq if several) with this brief's content; do not rebuild them by hand.` : null;
+}
+
 /** Cómo usar las piezas elegidas en Retoques (el código solo viaja cuando hay que modificarlas). */
 function piecesPart(it: MotionBrief): string {
   const ps = (it.pieces ?? []).map(pieceById).filter(Boolean);
   if (!ps.length || it.pieceUse === "none") return "Pieces: none chosen — design it from scratch (P helpers allowed).";
   const sig = ps.map((p) => `P.${p!.id}(tl, at, ${p!.opts})`).join(" · ");
-  if (it.pieceUse === "modify") return `Pieces: MODIFY ${sig}. Copy the code below into your js, change only what this brief needs (layout, an element, a scene, timing) and keep the rest of the choreography:\n${ps.map((p) => `<piece id="${p!.id}">\n${pieceSource(p!.id) ?? ""}\n</piece>`).join("\n")}`;
+  if (it.pieceUse === "modify") return `Pieces: MODIFY ${sig}. Your js MUST start from the code below: paste each piece function as is (e.g. \`const piece_${ps[0]!.id} = function (tl, at, o) { … }\`, with \`P.\` helpers still available), edit only the lines this brief needs (layout, one element, a scene, timing, content) and call it. Keep the rest of its choreography and code; rewriting it from scratch is a defect:\n${ps.map((p) => `<piece id="${p!.id}">\n${pieceSource(p!.id) ?? ""}\n</piece>`).join("\n")}`;
   return `Pieces: AS_IS ${sig}${ps.length > 1 ? " — chain them with P.seq and split the duration by content" : ""}. Fill their options from the brief, on-screen text, icons and images; do not restyle them. Keep the js minimal.`;
 }
 

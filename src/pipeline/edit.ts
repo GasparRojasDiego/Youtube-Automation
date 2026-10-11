@@ -762,6 +762,12 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
       } else {
         report(m.id, "diseñando");
         c = await compose(m);
+        // ¿Usó la pieza elegida en Retoques (tal cual o como punto de partida)? Si no, se le pide una vez
+        const miss = c ? P2.pieceAdherence(m.pieces, m.piece_use, c.js) : null;
+        if (c && miss) {
+          await activity(v.id, "motion", "warn", `${m.id}: no usó la pieza elegida (${(m.pieces ?? []).map((x) => `P.${x}`).join(", ")}); se le pide de nuevo`);
+          c = (await fix(m, c, [miss])) ?? c;
+        }
       }
       if (!c) throw new Error("Claude no devolvió esta animación");
       let fixes = 0;
