@@ -3,13 +3,17 @@
 import { fs } from "../lib/ipc";
 import type { VisualParams, ThumbnailParams } from "../lib/skills";
 
-const W = 1920, H = 1080;
+/** Cuadro de las tarjetas: el del video (16:9 o 9:16). */
+export interface CardFrame { width: number; height: number }
+const HD: CardFrame = { width: 1920, height: 1080 };
+/** Medidas de la composición: en vertical el texto se centra arriba (abajo van los subtítulos y la interfaz de la app). */
+const dims = (f: CardFrame) => ({ W: f.width, H: f.height, k: Math.min(f.width, f.height) / 1080, cy: f.width >= f.height ? f.height / 2 : f.height * 0.37 });
 
 async function ensureFonts(families: string[]) {
   await Promise.all(families.flatMap((f) => [document.fonts.load(`400 48px "${f}"`), document.fonts.load(`700 48px "${f}"`)]).map((p) => p.catch(() => null)));
 }
 
-function canvas(w = W, h = H) {
+function canvas(w: number, h: number) {
   const c = document.createElement("canvas"); c.width = w; c.height = h;
   const ctx = c.getContext("2d")!; ctx.textBaseline = "alphabetic";
   return { c, ctx };
@@ -48,18 +52,19 @@ function grain(ctx: CanvasRenderingContext2D, w: number, h: number, alpha = 0.03
   ctx.putImageData(img, 0, 0);
 }
 
-function background(ctx: CanvasRenderingContext2D, v: VisualParams) {
+function background(ctx: CanvasRenderingContext2D, v: VisualParams, W: number, H: number) {
   ctx.fillStyle = v.background; ctx.fillRect(0, 0, W, H);
   const g = ctx.createRadialGradient(W * 0.3, H * 0.2, 50, W * 0.5, H * 0.5, W * 0.8);
   g.addColorStop(0, "rgba(255,255,255,0.05)"); g.addColorStop(1, "rgba(0,0,0,0.25)");
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 }
 
-export async function renderSourceCard(o: { publisher: string; title: string; date: string; quote: string; url: string; label?: string }, v: VisualParams, out: string) {
+export async function renderSourceCard(o: { publisher: string; title: string; date: string; quote: string; url: string; label?: string }, v: VisualParams, out: string, f: CardFrame = HD) {
   await ensureFonts([v.fontTitle, v.fontBody, v.fontMono]);
-  const { c, ctx } = canvas(); background(ctx, v);
-  // "documento"
-  const px = 260, py = 150, pw = W - 520, ph = H - 300;
+  const { W, H } = dims(f);
+  const { c, ctx } = canvas(W, H); background(ctx, v, W, H);
+  // "documento" (en vertical, más angosto y sin invadir la franja de subtítulos)
+  const px = Math.round(W * 0.135), py = W >= H ? 150 : 240, pw = W - 2 * px, ph = W >= H ? H - 300 : 920;
   ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(px + 14, py + 18, pw, ph);
   ctx.fillStyle = "#F4F1EA"; ctx.fillRect(px, py, pw, ph);
   ctx.fillStyle = v.accent; ctx.fillRect(px, py, 10, ph);
@@ -83,39 +88,45 @@ export async function renderSourceCard(o: { publisher: string; title: string; da
   return save(c, out);
 }
 
-export async function renderTitleCard(o: { kicker?: string; title: string }, v: VisualParams, out: string) {
+export async function renderTitleCard(o: { kicker?: string; title: string }, v: VisualParams, out: string, f: CardFrame = HD) {
   await ensureFonts([v.fontTitle, v.fontMono]);
-  const { c, ctx } = canvas(); background(ctx, v);
+  const { W, H, cy } = dims(f);
+  const { c, ctx } = canvas(W, H); background(ctx, v, W, H);
   ctx.textAlign = "center";
-  if (o.kicker) { ctx.fillStyle = v.accent; ctx.font = `600 30px "${v.fontMono}"`; ctx.fillText(o.kicker.toUpperCase().split("").join(" "), W / 2, H / 2 - 120); }
+  if (o.kicker) { ctx.fillStyle = v.accent; ctx.font = `600 30px "${v.fontMono}"`; ctx.fillText(o.kicker.toUpperCase().split("").join(" "), W / 2, cy - (W >= H ? 120 : 260)); }
   ctx.fillStyle = v.foreground;
-  const t = fit(ctx, o.title.toUpperCase(), (n) => `700 ${n}px "${v.fontTitle}"`, W - 400, 420, 120, 56, 1.08);
-  const top = H / 2 - (t.lines.length * t.px * 1.08) / 2 + t.px * 0.8;
+  const t = fit(ctx, o.title.toUpperCase(), (n) => `700 ${n}px "${v.fontTitle}"`, Math.round(W * (W >= H ? 0.79 : 0.84)), W >= H ? 420 : 640, 120, 56, 1.08);
+  const top = cy - (t.lines.length * t.px * 1.08) / 2 + t.px * 0.8;
   t.lines.forEach((l, i) => ctx.fillText(l, W / 2, top + i * t.px * 1.08));
   ctx.fillStyle = v.accent; ctx.fillRect(W / 2 - 60, top + t.lines.length * t.px * 1.08, 120, 6);
   grain(ctx, W, H);
   return save(c, out);
 }
 
-export async function renderQuoteCard(o: { quote: string; attribution?: string }, v: VisualParams, out: string) {
+export async function renderQuoteCard(o: { quote: string; attribution?: string }, v: VisualParams, out: string, f: CardFrame = HD) {
   await ensureFonts([v.fontBody, v.fontMono]);
-  const { c, ctx } = canvas(); background(ctx, v);
-  ctx.fillStyle = v.accent; ctx.font = `700 260px "${v.fontBody}"`; ctx.fillText("“", 200, 420);
+  const { W, H, cy } = dims(f);
+  const wide = W >= H;
+  const x = wide ? 340 : 110;
+  const { c, ctx } = canvas(W, H); background(ctx, v, W, H);
   ctx.fillStyle = v.foreground;
-  const q = fit(ctx, o.quote, (n) => `italic 400 ${n}px "${v.fontBody}"`, W - 600, 560, 76, 40, 1.3);
-  const top = H / 2 - (q.lines.length * q.px * 1.3) / 2 + q.px;
-  q.lines.forEach((l, i) => ctx.fillText(l, 340, top + i * q.px * 1.3));
-  if (o.attribution) { ctx.fillStyle = v.muted; ctx.font = `600 30px "${v.fontMono}"`; ctx.fillText(`— ${o.attribution}`.slice(0, 80), 340, top + q.lines.length * q.px * 1.3 + 30); }
+  const q = fit(ctx, o.quote, (n) => `italic 400 ${n}px "${v.fontBody}"`, wide ? W - 600 : W - 2 * x, wide ? 560 : 720, 76, 40, 1.3);
+  const top = cy - (q.lines.length * q.px * 1.3) / 2 + q.px;
+  ctx.fillStyle = v.accent; ctx.font = `700 260px "${v.fontBody}"`; ctx.fillText("“", wide ? 200 : x - 20, wide ? 420 : top - q.px - 20);
+  ctx.fillStyle = v.foreground; ctx.font = `italic 400 ${q.px}px "${v.fontBody}"`;
+  q.lines.forEach((l, i) => ctx.fillText(l, x, top + i * q.px * 1.3));
+  if (o.attribution) { ctx.fillStyle = v.muted; ctx.font = `600 30px "${v.fontMono}"`; ctx.fillText(`— ${o.attribution}`.slice(0, 80), x, top + q.lines.length * q.px * 1.3 + 30); }
   grain(ctx, W, H);
   return save(c, out);
 }
 
-export async function renderTextCard(o: { text: string }, v: VisualParams, out: string) {
+export async function renderTextCard(o: { text: string }, v: VisualParams, out: string, f: CardFrame = HD) {
   await ensureFonts([v.fontTitle]);
-  const { c, ctx } = canvas(); background(ctx, v);
+  const { W, H, cy } = dims(f);
+  const { c, ctx } = canvas(W, H); background(ctx, v, W, H);
   ctx.textAlign = "center"; ctx.fillStyle = v.foreground;
-  const t = fit(ctx, o.text, (n) => `700 ${n}px "${v.fontTitle}"`, W - 500, 600, 110, 50, 1.12);
-  const top = H / 2 - (t.lines.length * t.px * 1.12) / 2 + t.px * 0.85;
+  const t = fit(ctx, o.text, (n) => `700 ${n}px "${v.fontTitle}"`, W >= H ? W - 500 : Math.round(W * 0.84), W >= H ? 600 : 720, 110, 50, 1.12);
+  const top = cy - (t.lines.length * t.px * 1.12) / 2 + t.px * 0.85;
   t.lines.forEach((l, i) => {
     ctx.fillText(l, W / 2, top + i * t.px * 1.12);
   });

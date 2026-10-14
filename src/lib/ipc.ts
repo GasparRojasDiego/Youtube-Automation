@@ -66,6 +66,8 @@ export const proc = {
   which: (program: string) => invoke<string | null>("which", { program }),
   spawn: (id: string, program: string, args: string[]) => invoke<number>("proc_spawn", { id, program, args }),
   stop: (id: string) => invoke<boolean>("proc_stop", { id }),
+  /** Evita que Windows suspenda el equipo mientras corre la cola (la pantalla sí puede apagarse). */
+  keepAwake: (on: boolean) => invoke<void>("keep_awake", { on }).catch(() => undefined),
   onLine: (cb: (e: { id: string; stream: string; line: string }) => void): Promise<UnlistenFn> =>
     listen<{ id: string; stream: string; line: string }>("proc-line", (ev) => cb(ev.payload)),
 };

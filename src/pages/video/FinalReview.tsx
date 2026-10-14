@@ -2,13 +2,14 @@
 // aprobar, rechazar o pedir cambios puntuales sin rehacer todo.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, XCircle, RotateCcw, CalendarClock, Image as ImageIcon, Mic, Wand2, Sparkles, Check, FolderOpen, Smartphone, X } from "lucide-react";
-import { db, fs, fileUrl } from "../../lib/ipc";
+import { db, fileUrl } from "../../lib/ipc";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { ffmpeg } from "../../providers/ffmpeg";
-import { personalOf } from "../../pipeline/personal";
+import { saveCover, removeCover, COVER_EXT, type CoverKind } from "../../pipeline/covers";
+import { downloadVideo } from "../../pipeline/tiktok";
+import { isVertical } from "../../pipeline/format";
 import { emit } from "../../lib/bus";
-import { addReview, type Video, type StageRow } from "../../lib/repo";
+import { addReview, getVideo, type Video, type StageRow } from "../../lib/repo";
 import { getSettings } from "../../lib/settings";
 import { skillParams, THUMBNAIL_DEFAULTS, VISUAL_DEFAULTS } from "../../lib/skills";
 import type { PackageOut, RenderOut, ScriptOut, VoiceOut, PolishOut, MotionOut, Shot } from "../../pipeline/types";
@@ -58,30 +59,37 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
     emit("stages");
   };
   const pickImage = async () => {
-    const f = await openDialog({ multiple: false, filters: [{ name: "Imagen", extensions: ["jpg", "jpeg", "png", "webp", "bmp"] }] });
+    const f = await openDialog({ multiple: false, filters: [{ name: "Imagen", extensions: COVER_EXT }] });
     return f && !Array.isArray(f) ? f : null;
   };
-  // Imagen propia como miniatura: se ajusta a 1280×720 (recorte centrado) y queda elegida
+  // Portada propia de YouTube: se guarda tal cual (mismos bytes) y queda elegida como miniatura
   const ownThumbnail = async () => {
     const f = await pickImage(); if (!f) return;
-    const dir = joinPath(video.dir, "thumbs"); await fs.mkdir(dir);
-    const stamp = Date.now();
-    const image = joinPath(dir, `propia-${stamp}-fondo.jpg`), path = joinPath(dir, `propia-${stamp}.jpg`);
-    await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", f, "-vf", "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1", "-frames:v", "1", "-q:v", "2", image]);
-    await fs.copy(image, path);   // «Recomponer» escribe en path; el fondo queda intacto
-    const thumbnails = [...pkg.thumbnails, { concept_es: "Imagen propia", text: "", highlight: "", image_prompt_en: "", layout: "center" as const, image, path }];
-    await save({ ...pkg, thumbnails, chosen_thumbnail: thumbnails.length - 1 });
+    const path = await saveCover(video, "youtube", f);
+    const thumbnails = [{ concept_es: "Tu portada", text: "", highlight: "", image_prompt_en: "", layout: "center" as const, image: path, path, own: true }, ...pkg.thumbnails.filter((t) => !t.own)];
+    await save({ ...pkg, thumbnails, chosen_thumbnail: 0 });
     setBust(Date.now());
+    await refreshDownload();
   };
-  // Portada de TikTok: los primeros cuadros de cada parte la muestran (se aplica al cortar las partes)
+  // Portada de TikTok: tal cual; va incrustada en cada parte y en sus primeros cuadros (se aplica al cortar las partes)
   const tiktokCover = async () => {
     const f = await pickImage(); if (!f) return;
-    const dir = joinPath(video.dir, "thumbs"); await fs.mkdir(dir);
-    const dst = joinPath(dir, "tiktok-portada.jpg");
-    await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-i", f, "-vf", "scale='min(1920,iw)':-2,setsar=1", "-frames:v", "1", "-q:v", "2", dst]);
+    const dst = await saveCover(video, "tiktok", f);
     await save({ ...pkg, tiktok_cover: dst });
     setBust(Date.now());
-    if (video.data?.tiktok?.parts?.length) toast("info", "Portada guardada", "Las partes ya estaban cortadas: vuelve a cortarlas en TikTok para que la muestren.");
+    await refreshDownload();
+    if (video.data?.tiktok?.parts?.length) toast("info", "Portada guardada", "Las partes ya estaban cortadas: vuelve a cortarlas en TikTok para que la lleven.");
+  };
+  const dropCover = async (kind: CoverKind) => {
+    await removeCover(video, kind);
+    await save(kind === "tiktok" ? { ...pkg, tiktok_cover: null } : { ...pkg, thumbnails: pkg.thumbnails.filter((t) => !t.own), chosen_thumbnail: 0 });
+    await refreshDownload();
+  };
+  // La copia en Descargas se rehace con la portada nueva
+  const refreshDownload = async () => {
+    if (!video.data?.download) return;
+    const fresh = await getVideo(video.id);
+    if (fresh) await downloadVideo(fresh).then(() => toast("info", "Copia en Descargas actualizada con tu portada")).catch(() => undefined);
   };
   const scheduledUtc = useMemo(() => slot ? zonedTimeToUtc(slot.date, slot.time, p.timeZone) : null, [slot, p.timeZone]);
 
@@ -115,7 +123,7 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
         })()}
         {tab === "video" && (
           <Card>
-            <video controls className="w-full rounded-lg bg-black aspect-video" src={fileUrl(render.file, render.renderedAt)} poster={render.poster ? fileUrl(render.poster, render.renderedAt) : undefined} />
+            <video controls className={`rounded-lg bg-black ${isVertical(video) ? "aspect-[9/16] max-h-[72vh] mx-auto block" : "w-full aspect-video"}`} src={fileUrl(render.file, render.renderedAt)} poster={render.poster ? fileUrl(render.poster, render.renderedAt) : undefined} />
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
               <span>{fmtDuration(render.duration)} · capítulos: {pkg.chapters.length} · <button className="text-primary hover:underline" onClick={() => void openPath(render.file)}>Abrir en el reproductor del sistema</button></span>
               
@@ -170,14 +178,17 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
           <div className="grid grid-cols-3 gap-2">
             {pkg.thumbnails.map((t, i) => t.path && (
               <button key={i} disabled={!editable} onClick={() => void save({ ...pkg, chosen_thumbnail: i })} className={`rounded-md overflow-hidden border-2 ${i === pkg.chosen_thumbnail ? "border-primary" : "border-transparent opacity-70 hover:opacity-100"}`}>
-                <img src={fileUrl(t.path, bust)} className="aspect-video object-cover" />
+                <img src={fileUrl(t.path, bust)} className={`aspect-video ${t.own ? "object-contain bg-black" : "object-cover"}`} />
               </button>
             ))}
           </div>
           {editable && (
-            <AsyncButton className="btn-ghost btn-sm mt-2" onClick={ownThumbnail}><FolderOpen size={13} /> Imagen propia…</AsyncButton>
+            <div className="flex items-center gap-1 mt-2">
+              <AsyncButton className="btn-ghost btn-sm" onClick={ownThumbnail}><FolderOpen size={13} /> {pkg.thumbnails.some((t) => t.own) ? "Cambiar tu portada…" : "Tu portada…"}</AsyncButton>
+              {pkg.thumbnails.some((t) => t.own) && <button className="btn-ghost btn-sm" title="Quitar tu portada" onClick={() => void dropCover("youtube")}><X size={13} /></button>}
+            </div>
           )}
-          {editable && (
+          {editable && !pkg.thumbnails[pkg.chosen_thumbnail]?.own && (
             <div className="flex gap-2 mt-2">
               <input className="input text-xs" value={thumbText} onChange={(e) => setThumbText(e.target.value)} placeholder="Texto de la miniatura" />
               <AsyncButton className="btn-brand btn-sm" onClick={async () => {
@@ -189,14 +200,14 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
               }}><Wand2 size={13} /> Recomponer</AsyncButton>
             </div>
           )}
-          {!personalOf(video) && (
+          {(
             <div className="mt-3 pt-3 border-t border-border">
               <div className="text-xs font-medium flex items-center gap-1.5"><Smartphone size={13} /> Portada de TikTok</div>
-              <div className="text-[11px] text-muted-foreground mb-2">La imagen inicial de cada parte de TikTok.</div>
+              <div className="text-[11px] text-muted-foreground mb-2">Tal cual la subas: va incrustada en cada parte y en la copia vertical de Descargas.</div>
               <div className="flex items-center gap-2">
                 {pkg.tiktok_cover && <img src={fileUrl(pkg.tiktok_cover, bust)} className="h-14 rounded border border-border object-cover" />}
                 {editable && <AsyncButton className="btn-ghost btn-sm" onClick={tiktokCover}><FolderOpen size={13} /> {pkg.tiktok_cover ? "Cambiar…" : "Elegir imagen…"}</AsyncButton>}
-                {editable && pkg.tiktok_cover && <button className="btn-ghost btn-sm" title="Quitar la portada" onClick={() => void save({ ...pkg, tiktok_cover: null })}><X size={13} /></button>}
+                {editable && pkg.tiktok_cover && <button className="btn-ghost btn-sm" title="Quitar la portada" onClick={() => void dropCover("tiktok")}><X size={13} /></button>}
                 {!pkg.tiktok_cover && !editable && <span className="text-[11px] text-muted-foreground">Sin portada</span>}
               </div>
             </div>

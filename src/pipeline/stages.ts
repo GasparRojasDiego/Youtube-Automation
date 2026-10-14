@@ -2,7 +2,7 @@
 // pagado) se reutiliza comparando huellas (hash) de sus entradas.
 import { fs, db } from "../lib/ipc";
 import { getSettings } from "../lib/settings";
-import { skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS, THUMBNAIL_DEFAULTS, SCRIPT_DEFAULTS } from "../lib/skills";
+import { skillParams, MONTAGE_DEFAULTS, THUMBNAIL_DEFAULTS, SCRIPT_DEFAULTS } from "../lib/skills";
 import { getStage, saveArtifact, updateVideo, listMusic, type Video, type StageId } from "../lib/repo";
 import { UserError, log } from "../lib/events";
 import { joinPath, sha256, now, extName, splitSentences, mapLimit, limiter } from "../lib/util";
@@ -21,7 +21,9 @@ import { transcribeWords, disableTool } from "../media/toolkit";
 import { segInfos, segmentOffsets, segmentLength } from "./timeline";
 import { getAssets } from "../media/library";
 import { activity } from "../lib/activity";
-import { personalOf, systemFor, skillsFor, documentsOf, extractText, voiceFor } from "./personal";
+import { personalOf, systemFor, skillsFor, documentsOf, extractText, voiceFor, visualFor } from "./personal";
+import { minutesRangeOf, isVertical, SHORTS_MAX_S, VERTICAL_SCRIPT_EN } from "./format";
+import { coversOf, youtubeThumbFile } from "./covers";
 import type { ResearchOut, ScriptOut, VerifyOut, VoiceOut, VoiceSegmentV2, PackageOut, RenderOut, PublishOut, PolishOut, MotionOut } from "./types";
 
 export interface Ctx {
@@ -52,9 +54,14 @@ export async function readMark<T extends { hash: string }>(file: string, hash: s
 async function wordsTarget(v: Video): Promise<[number, number, number]> {
   const s = getSettings().production;
   const p = await skillParams(v.channel_id, "guion", SCRIPT_DEFAULTS);
-  const personal = personalOf(v);
-  const [lo, hi] = personal ? [personal.minutes * 0.88, personal.minutes * 1.08] : s.targetMinutes;
+  const [lo, hi] = minutesRangeOf(v, s.targetMinutes);
   return [Math.round(lo * p.wordsPerMinute), Math.round(hi * p.wordsPerMinute), p.wordsPerMinute];
+}
+
+/** Duración objetivo para la investigación (minutos), solo si el video tiene una propia. */
+function targetMid(v: Video): number | null {
+  const [lo, hi] = minutesRangeOf(v, [0, 0]);
+  return hi ? Math.round(((lo + hi) / 2) * 10) / 10 : null;
 }
 
 // ---------- 2. Investigación ----------
@@ -70,7 +77,7 @@ export async function stageResearch(ctx: Ctx): Promise<ResearchOut> {
   const r = await claudeRun<ResearchOut>({
     stage: "research", label: "Investigación", system: systemFor(v), schema: P.RESEARCH_SCHEMA, tools: docs.pdfs.length ? ["WebSearch", "WebFetch", "Read"] : ["WebSearch", "WebFetch"],
     addDirs: docs.pdfs.length ? [joinPath(v.dir, "entregado")] : undefined,
-    prompt: P.researchPrompt({ skills: await skillsFor(v, "research"), topic: topic.title, angle: topic.angle ?? "", notes, seedSources: topic.sources ?? [], minutes: personal?.minutes ?? null }),
+    prompt: P.researchPrompt({ skills: await skillsFor(v, "research"), topic: topic.title, angle: topic.angle ?? "", notes, seedSources: topic.sources ?? [], minutes: targetMid(v) }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId, timeoutMin: Math.max(getSettings().claude.timeoutMin, 45),
   });
   const d = r.data;
@@ -84,7 +91,7 @@ export async function stageResearch(ctx: Ctx): Promise<ResearchOut> {
 export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes: string }): Promise<ScriptOut> {
   const v = ctx.video;
   const research = await need<ResearchOut>(v, "research", "Investigación");
-  const skills = await skillsFor(v, "script");
+  const skills = [await skillsFor(v, "script"), isVertical(v) ? VERTICAL_SCRIPT_EN : ""].filter(Boolean).join("\n\n");
   const [minW, maxW] = await wordsTarget(v);
   const personal = personalOf(v);
   const system = systemFor(v);
@@ -138,8 +145,10 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
   const words = L.scriptWords(script);
   if (words < minW * 0.7 && !personal?.script) await log("warn", "guion", `El guion quedó corto (${words} palabras; objetivo ${minW}–${maxW}).`, "", v.id);
   await saveArtifact(v.id, "script", script, revision ? "corrección" : "inicial");
-  const best = script.title_options?.[0]?.title;
-  if (best) await updateVideo(v.id, { title: best });
+  // El título fijo de la tarjeta (o del video personal) manda; si no hay, el mejor que propuso el guion
+  const fixed = (personal?.title || (v.data?.fixedTitle as string | undefined) || "").trim();
+  const best = fixed || script.title_options?.[0]?.title;
+  if (best && best !== v.title) await updateVideo(v.id, { title: best });
   if (script.skills_check_es?.length) await activity(v.id, "script", "decision", `Habilidades aplicadas al guion (${script.skills_check_es.length})`, script.skills_check_es.join("\n"));
   if (!revision) await fs.remove(passFile(v)).catch(() => undefined);
   return script;
@@ -251,9 +260,13 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   const polish = await need<PolishOut>(v, "polish", "Retoques");
   const motion = await out<MotionOut>(v, "motion");
   const prev = await out<PackageOut>(v, "package");
-  const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
+  const visual = await visualFor(v);
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
   const thumbP = await skillParams(v.channel_id, "miniatura", THUMBNAIL_DEFAULTS);
+  // Portadas subidas por el usuario: la de YouTube es la miniatura (tal cual, sin recomponer ni crear fondos con IA)
+  const covers = coversOf(v, prev);
+  const ownCover = covers.youtube && (await fs.exists(covers.youtube)) ? covers.youtube : null;
+  const fixedTitle = (personalOf(v)?.title || (v.data?.fixedTitle as string | undefined) || "").trim();
   const s = getSettings();
   const assetIds = [...new Set(polish.shots.map((x) => x.asset_id).filter(Boolean) as string[])];
   const iconIds = [...new Set((motion?.items ?? []).filter((m) => m.file).flatMap((m) => m.icon_ids ?? []))];
@@ -291,7 +304,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
       checkCancel(ctx);
       await ctx.progress(`Miniatura ${i + 1}/${pkg.thumbnails.length}`);
       let bg: string | null = t.background_asset_id ? assetMap.get(t.background_asset_id)?.path ?? null : null;
-      if (!bg && s.media.allowGenerated && (await imageProvider()) && t.image_prompt_en) {
+      if (!bg && !ownCover && s.media.allowGenerated && (await imageProvider()) && t.image_prompt_en) {
         try { bg = (await generateImage({ prompt: t.image_prompt_en, outBase: joinPath(tdir, `bg${i}`), videoId: v.id, channelId: v.channel_id, label: "fondo de miniatura" })).path; }
         catch (e) { await log("warn", "miniatura", `Fondo ${i + 1}: ${e instanceof UserError ? e.userMessage : String(e)} Se usa una imagen del video.`, "", v.id); }
       }
@@ -299,8 +312,17 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
     }
     await fs.writeText(draftFile, JSON.stringify({ hash: draftKey, pkg })).catch(() => undefined);
   }
-  // Composición de miniaturas (rápida, sin costo): siempre con los parámetros actuales
+  // Título que eligió el usuario en la tarjeta: se usa tal cual (las propuestas quedan como alternativas)
+  if (fixedTitle && (!prev || opts.regenerate)) { pkg.titles = [{ title: fixedTitle.slice(0, 100), note_es: "Tu título" }, ...pkg.titles.filter((t) => t.title !== fixedTitle)]; pkg.chosen_title = fixedTitle.slice(0, 100); }
+  pkg.thumbnails = pkg.thumbnails.filter((t) => !t.own || t.path === ownCover);
+  if (ownCover && !pkg.thumbnails.some((t) => t.own)) {
+    pkg.thumbnails = [{ concept_es: "Tu portada", text: "", highlight: "", image_prompt_en: "", layout: "center", image: ownCover, path: ownCover, own: true }, ...pkg.thumbnails];
+    pkg.chosen_thumbnail = 0;
+  } else if (!ownCover && pkg.chosen_thumbnail >= pkg.thumbnails.length) pkg.chosen_thumbnail = 0;
+  if (covers.tiktok) pkg.tiktok_cover = covers.tiktok;
+  // Composición de miniaturas (rápida, sin costo): siempre con los parámetros actuales (la portada propia no se toca)
   for (const [i, t] of pkg.thumbnails.entries()) {
+    if (t.own) continue;
     t.path = await renderThumbnail({ background: t.image, text: t.text, highlight: t.highlight, layout: t.layout }, thumbP, visual, joinPath(v.dir, "thumbs", `thumb${i}.jpg`));
   }
   // El aviso solo menciona ilustraciones de IA si de verdad las hay
@@ -322,6 +344,11 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
 }
 
 // ---------- 9. Publicación ----------
+/** Un video vertical de hasta 3 min es un Short: se añade #Shorts a la descripción si no está. */
+function shortsTag(v: Video, render: RenderOut, description: string): string {
+  return isVertical(v) && render.duration <= SHORTS_MAX_S && !/#shorts\b/i.test(description) ? `${description.trim()}\n\n#Shorts` : description;
+}
+
 export async function stagePublish(ctx: Ctx): Promise<PublishOut> {
   const v = ctx.video;
   const pkg = await need<PackageOut>(v, "package", "Metadatos");
@@ -339,7 +366,7 @@ export async function stagePublish(ctx: Ctx): Promise<PublishOut> {
     const offS = await onUploadSession((p) => { if (p.id === ctx.jobId) void updateVideo(v.id, { upload_session: p.session }); });
     try {
       res = await uploadVideo(ctx.jobId, render.file, {
-      title: pkg.chosen_title, description: L.withCredits(pkg.description, pkg.credits ?? []), tags: pkg.tags, categoryId: s.categoryId,
+      title: pkg.chosen_title, description: shortsTag(v, render, L.withCredits(pkg.description, pkg.credits ?? [])), tags: pkg.tags, categoryId: s.categoryId,
       defaultLanguage: s.defaultLanguage, privacy: publishAt ? "private" : "public", publishAt, containsSyntheticMedia: pkg.synthetic_media,
       }, v.upload_session);
     } catch (e) {
@@ -351,11 +378,14 @@ export async function stagePublish(ctx: Ctx): Promise<PublishOut> {
   const ytId = res.id as string;
   await updateVideo(v.id, { youtube_id: ytId, upload_session: null, data: { uploaded: { renderedAt: render.renderedAt, status: res.status ?? {} } } });
   let thumbnail_ok = true; let note = "";
-  const thumb = pkg.thumbnails[pkg.chosen_thumbnail]?.path;
+  const chosen = pkg.thumbnails[pkg.chosen_thumbnail];
+  // La portada propia se sube tal cual (solo se convierte si no es JPEG/PNG de hasta 2 MB, el límite de YouTube)
+  const thumb = chosen?.path ? (chosen.own ? await youtubeThumbFile(chosen.path) : chosen.path) : null;
   if (thumb) {
     try { await setThumbnail(ytId, thumb); }
     catch (e) { thumbnail_ok = false; note = e instanceof UserError ? e.userMessage : String(e); await log("warn", "YouTube", note, e instanceof UserError ? e.detail : "", v.id); }
   }
+  if (isVertical(v) && render.duration > SHORTS_MAX_S) note = (note ? note + " " : "") + `Dura más de ${SHORTS_MAX_S / 60} min: YouTube lo trata como video normal, no como Short.`;
   const privacy = res.status?.privacyStatus ?? (publishAt ? "private" : "public");
   if (!publishAt && privacy === "private") {
     note = (note ? note + " " : "") + "YouTube dejó el video en privado: si tu proyecto de API no está auditado, todas las subidas quedan privadas. Cámbialo a público en YouTube Studio mientras se aprueba la auditoría.";

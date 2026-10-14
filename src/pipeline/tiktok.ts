@@ -8,9 +8,10 @@ import { skillParams, MONTAGE_DEFAULTS } from "../lib/skills";
 import { ffmpeg } from "../providers/ffmpeg";
 import { joinPath } from "../lib/util";
 import { getSettings } from "../lib/settings";
-import { pickEncoder, probeMedia } from "../providers/ffmpeg";
-import { encoderArgs } from "./montage";
 import { segInfos, segmentOffsets } from "./timeline";
+import { coversOf, coverForShape, withCover } from "./covers";
+import { isVertical } from "./format";
+import { personalOf } from "./personal";
 import type { ScriptOut, VoiceOut, PackageOut, RenderOut } from "./types";
 
 export interface Part { start: number; end: number }
@@ -101,26 +102,34 @@ export function tiktokText(v: Video, pkg?: PackageOut | null, lang = (getSetting
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "video";
 
-async function finished(v: Video): Promise<{ render: RenderOut; title: string }> {
+async function finished(v: Video): Promise<{ render: RenderOut; title: string; pkg: PackageOut | undefined }> {
   const st = await getStages(v.id);
   const render = st.find((s) => s.stage === "render")?.output as RenderOut | undefined;
   if (!render || !(await fs.exists(render.file))) throw new Error("No encuentro el video final: vuelve a ejecutar el montaje.");
   const pkg = st.find((s) => s.stage === "package")?.output as PackageOut | undefined;
-  return { render, title: pkg?.chosen_title || v.title };
+  return { render, title: pkg?.chosen_title || v.title, pkg };
 }
 
 /** Un archivo abierto en otro programa (reproductor, vista previa del Explorador) no se puede reemplazar ni borrar. */
 const inUse = (e: unknown) => /os error (32|33|1224)|being used|utilizado por otro proceso|sección asignada/i.test(String((e as Error)?.message ?? e));
 const busyError = (what: string) => new UserError(`No se pudo escribir ${what}: está abierto en otro programa.`, "Cierra el video o sus partes en tu reproductor (o la vista previa del Explorador) y vuelve a intentar.", "TikTok", false);
 
-/** Copia el video terminado a Descargas (lo reemplaza si ya estaba; si está abierto, usa otro nombre). */
+/**
+ * Copia el video terminado a Descargas (lo reemplaza si ya estaba; si está abierto, usa otro nombre).
+ * Con portada propia, la copia la lleva incrustada tal cual (la que muestran el Explorador y los
+ * reproductores) y, si es vertical o personal, también en sus primeros cuadros (galerías y TikTok).
+ */
 export async function downloadVideo(v: Video): Promise<string> {
-  const { render, title } = await finished(v);
+  const { render, title, pkg } = await finished(v);
   const dir = (await appPaths()).downloads;
+  await fs.mkdir(dir);   // ffmpeg no crea carpetas (Descargas puede no existir, p. ej. redirigida a OneDrive)
+  const vertical = isVertical(v);
+  const cover = await coverForShape(coversOf(v, pkg), vertical);
   for (let n = 1; n <= 5; n++) {
     const dest = joinPath(dir, `${safeName(title)}${n > 1 ? ` (${n})` : ""}.mp4`);
     try {
-      await fs.copy(render.file, dest);
+      if (cover) await withCover(render.file, dest, cover, { firstFrames: vertical || !!personalOf(v) });
+      else await fs.copy(render.file, dest);
       await updateVideo(v.id, { data: { download: dest } });
       return dest;
     } catch (e) { if (!inUse(e)) throw e; }
@@ -135,10 +144,10 @@ export async function ensureDownloaded(v: Video): Promise<string> {
   return p && (await fs.exists(p)) ? p : downloadVideo(fresh);
 }
 
-/** Recorta el video descargado en partes de ~1:30 dentro de Descargas/<título>/. Devuelve la carpeta. */
+/** Recorta el video terminado en partes de ~1:30 dentro de Descargas/<título>/. Devuelve la carpeta. */
 export async function cutParts(v: Video, onProgress: (text: string) => void): Promise<string> {
-  const src = await ensureDownloaded(v);
-  const { render, title } = await finished(v);
+  const { render, title, pkg } = await finished(v);
+  const src = render.file;
   onProgress("Buscando los puntos de corte…");
   const keys = await keyframes(src).catch(() => null);
   const parts = splitPlan(render.duration, await pauseIntervals(v), keys);
@@ -151,24 +160,20 @@ export async function cutParts(v: Video, onProgress: (text: string) => void): Pr
     catch (e) { if (!inUse(e)) throw e; }
   }
   if (!dir) throw busyError("las partes en Descargas");
-  // Portada propia de TikTok: cada parte empieza con ella (3 cuadros), así todas comparten la misma portada.
-  // Eso obliga a recodificar el video de cada parte; sin portada, se copia sin recodificar (segundos).
-  const pkg = (await getStages(v.id)).find((x) => x.stage === "package")?.output as PackageOut | undefined;
-  const cover = pkg?.tiktok_cover && (await fs.exists(pkg.tiktok_cover)) ? pkg.tiktok_cover : null;
-  const enc = cover ? encoderArgs(await pickEncoder()) : [];
-  const dim = cover ? await probeMedia(src).catch(() => null) : null;
-  const W = dim?.width || 1920, H = dim?.height || 1080;
+  // Portada propia (la de TikTok; si falta, la de YouTube): cada parte la lleva incrustada tal cual y la
+  // muestra en sus 3 primeros cuadros, así todas comparten la misma portada. Eso obliga a recodificar el
+  // video de cada parte; sin portada, se copia sin recodificar (segundos).
+  const cover = await coverForShape(coversOf(v, pkg), true);
   for (const [i, p] of parts.entries()) {
     const name = `${partName(i, parts.length)}.mp4`;
     onProgress(`${cover ? "Preparando" : "Copiando"} ${partName(i, parts.length)} (${i + 1}/${parts.length})…`);
+    // Copia directa: entra en el fotograma clave del corte y no recodifica nada
+    const cut = cover ? `${name}.corte.mp4` : name;
+    await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (i ? p.start + 0.02 : 0).toFixed(3), "-i", src, "-t", (p.end - p.start).toFixed(3),
+      "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", cut], { cwd: dir, timeoutS: 600 });
     if (cover) {
-      await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (i ? p.start : 0).toFixed(3), "-i", src, "-loop", "1", "-i", cover, "-t", (p.end - p.start).toFixed(3),
-        "-filter_complex", `[1:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,format=yuv420p[c];[0:v][c]overlay=0:0:enable='lt(n\\,3)':shortest=1,format=yuv420p[out]`,
-        "-map", "[out]", "-map", "0:a:0?", ...enc, "-c:a", "copy", "-movflags", "+faststart", name], { cwd: dir, timeoutS: 1800 });
-    } else {
-      // Copia directa: entra en el fotograma clave del corte y no recodifica nada
-      await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", (i ? p.start + 0.02 : 0).toFixed(3), "-i", src, "-t", (p.end - p.start).toFixed(3),
-        "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy", "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", name], { cwd: dir, timeoutS: 600 });
+      await withCover(joinPath(dir, cut), joinPath(dir, name), cover, { firstFrames: true, cwd: dir });
+      await fs.remove(joinPath(dir, cut)).catch(() => undefined);
     }
   }
   const data: TikTokData = { parts, exportedTo: dir, exportedAt: Date.now() };

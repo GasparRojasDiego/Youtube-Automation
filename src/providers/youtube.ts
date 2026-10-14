@@ -113,9 +113,10 @@ export async function uploadVideo(jobId: string, file: string, meta: UploadMeta,
 
 export async function setThumbnail(videoId: string, pngPath: string): Promise<void> {
   const b64 = await fs.readB64(pngPath);
+  const jpeg = /\.jpe?g$/i.test(pngPath);
   const res = await http.request({
     method: "POST", url: `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`,
-    headers: { ...(await auth()), "Content-Type": pngPath.endsWith(".jpg") ? "image/jpeg" : "image/png" }, bodyB64: b64, timeoutS: 120,
+    headers: { ...(await auth()), "Content-Type": jpeg ? "image/jpeg" : "image/png" }, bodyB64: b64, timeoutS: 120,
   });
   if (res.status === 403) throw new UserError("YouTube no permitió subir la miniatura personalizada.",
     "El canal debe estar verificado por teléfono (youtube.com/verify). El video ya está subido; puedes poner la miniatura a mano en YouTube Studio.", "YouTube", false);

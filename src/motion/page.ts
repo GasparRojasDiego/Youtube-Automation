@@ -131,7 +131,7 @@ html,body{margin:0;padding:0;width:${o.width}px;height:${o.height}px;overflow:hi
 ${c.css}
 </style>
 ${libFiles(c.libs).map((f) => scriptTag(need(f))).join("\n")}
-<script>window.ATRIL={duration:${Number(c.duration) || 5},transparent:${c.transparent ? "true" : "false"},assets:${JSON.stringify(assets)},palette:${JSON.stringify(c.palette ?? {})},icons:${JSON.stringify(c.icons ?? {}).replace(/<\//g, "<\\/")}};</script>
+<script>window.ATRIL={width:${o.width},height:${o.height},duration:${Number(c.duration) || 5},transparent:${c.transparent ? "true" : "false"},assets:${JSON.stringify(assets)},palette:${JSON.stringify(c.palette ?? {})},icons:${JSON.stringify(c.icons ?? {}).replace(/<\//g, "<\\/")}};</script>
 ${scriptTag(HARNESS)}
 <script>try{gsap.registerPlugin(${GSAP_PLUGINS.filter((p) => p !== "EasePack").map((p) => `window.${p}`).join(",")});}catch(e){ATRIL.errors.push("Plugins: "+e.message);}</script>
 ${o.code["kit.js"] ? scriptTag(o.code["kit.js"]) : ""}

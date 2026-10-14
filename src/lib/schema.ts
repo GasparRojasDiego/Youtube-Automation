@@ -132,6 +132,15 @@ const MIGRATIONS: string[] = [
   `
   UPDATE assets SET source='personal' WHERE source='user' AND COALESCE(issues,'') LIKE 'Subido para «%';
   `,
+  // 6 — 2.5.8: cola de producción (hasta 50 videos seguidos)
+  `
+  CREATE TABLE IF NOT EXISTS queue_items (
+    id TEXT PRIMARY KEY, channel_id TEXT, position REAL, mode TEXT, cfg TEXT, status TEXT,
+    video_id TEXT, error TEXT, attempts INTEGER DEFAULT 0, wait_until INTEGER,
+    created_at INTEGER, updated_at INTEGER, started_at INTEGER, finished_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_queue ON queue_items(channel_id, position);
+  `,
 ];
 
 export async function migrate(): Promise<void> {

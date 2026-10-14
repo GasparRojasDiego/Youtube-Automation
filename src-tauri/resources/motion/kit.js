@@ -4,7 +4,9 @@
 (function () {
   var A = window.ATRIL;
   var K = window.K = {};
-  var W = K.W = 1920, H = K.H = 1080;
+  // Cuadro del video: 1920×1080 (horizontal) o 1080×1920 (vertical, TikTok/Shorts)
+  var W = K.W = (A && A.width) || 1920, H = K.H = (A && A.height) || 1080;
+  var TALL = H > W, MAXW = TALL ? W - 144 : 1640;
   var stage = function () { return document.getElementById('stage'); };
   var NS = 'http://www.w3.org/2000/svg';
   var seed = 98765;
@@ -220,10 +222,10 @@
     o = o || {};
     var css = { fontSize: (o.size || 140) + 'px', fontWeight: o.weight || 800, fontStyle: o.italic ? 'italic' : 'normal', color: o.color || 'currentColor', letterSpacing: (o.tracking != null ? o.tracking : -0.02) + 'em', textAlign: o.align || 'center' };
     if (o.font) css.fontFamily = '"' + o.font + '"';
-    if (o.lines) { css.whiteSpace = 'normal'; css.lineHeight = o.lh || 1.04; css.width = (o.maxW || 1500) + 'px'; }
+    if (o.lines) { css.whiteSpace = 'normal'; css.lineHeight = o.lh || 1.04; css.width = (o.maxW || (TALL ? MAXW : 1500)) + 'px'; }
     var e = K.el('h1', { cls: 'k-title', css: css, html: text }, parent);
     K.place(e, o);
-    if (o.fit !== false) A.fit(e, o.maxW || 1640, o.maxH || 900, 24);
+    if (o.fit !== false) A.fit(e, o.maxW || MAXW, o.maxH || 900, 24);
     K.place(e, o);
     return e;
   };

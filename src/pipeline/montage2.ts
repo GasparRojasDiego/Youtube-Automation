@@ -110,7 +110,9 @@ export function segmentV2Args(c: SegmentV2): { args: string[]; filter: string } 
       const punch = s.punchAt != null ? Math.round(s.punchAt * f.fps) : null;
       const me = cameraExpr(s.motion ?? "zoom_in", c.kenBurns, frames, s.focus, punch, f.fps);
       // Lanczos: las imágenes pequeñas (archivo, IA a 1024 px) se amplían más nítidas que con el bicúbico por defecto
-      filters.push(`[${vi}:v]scale=${W2}:${H2}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W2}:${H2},setsar=1,` +
+      // El recorte respeta el foco (en vertical, una foto horizontal pierde los lados: se conserva el sujeto)
+      const fx = clamp(s.focus?.x ?? 0.5, 0, 1), fy = clamp(s.focus?.y ?? 0.5, 0, 1);
+      filters.push(`[${vi}:v]scale=${W2}:${H2}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W2}:${H2}:(iw-${W2})*${num(fx)}:(ih-${H2})*${num(fy)},setsar=1,` +
         `zoompan=z='${me.z}':x='${me.x}':y='${me.y}':d=1:s=${f.width}x${f.height}:fps=${f.fps},` +
         `trim=duration=${num(L)},setpts=PTS-STARTPTS,${grade},format=yuv420p,fps=${f.fps},settb=AVTB[s${i}]`);
     }

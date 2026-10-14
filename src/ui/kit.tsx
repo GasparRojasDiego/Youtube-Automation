@@ -113,7 +113,8 @@ export function Modal({ open, onClose, title, children, wide = false, footer }: 
 export function AsyncButton({ onClick, children, className = "btn-brand", disabled, title }: { onClick: () => Promise<unknown> | unknown; children: ReactNode; className?: string; disabled?: boolean; title?: string }) {
   const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  // En desarrollo, StrictMode monta, desmonta y vuelve a montar: la marca se repone al montar
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   return (
     <button className={className} disabled={disabled || busy} title={title}
       onClick={async () => { setBusy(true); try { await onClick(); } finally { if (mounted.current) setBusy(false); } }}>

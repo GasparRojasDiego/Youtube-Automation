@@ -168,6 +168,7 @@ pub fn run() {
             proc::which,
             proc::proc_spawn,
             proc::proc_stop,
+            proc::keep_awake,
             secret_set,
             secret_get,
             secret_delete,

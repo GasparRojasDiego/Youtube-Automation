@@ -27,6 +27,7 @@ import { migrate } from "./lib/schema";
 import { loadSettings, saveSettings, isDark } from "./lib/settings";
 import { appPaths } from "./lib/ipc";
 import { recoverOnStartup } from "./pipeline/runner";
+import { resumeQueueOnStartup } from "./pipeline/queue";
 import { logError } from "./lib/events";
 
 async function boot() {
@@ -39,6 +40,8 @@ async function boot() {
     if (!s.profile.name) { const n = (await appPaths()).home.split(/[\\/]/).filter(Boolean).pop(); if (n) await saveSettings((x) => ({ ...x, profile: { ...x.profile, name: n } })); }
     root.render(<React.StrictMode><App /></React.StrictMode>);
     await recoverOnStartup();
+    // La cola de producción sigue donde iba (si estaba en marcha al cerrar)
+    await resumeQueueOnStartup().catch((e) => logError(e, null, "Cola de producción"));
   } catch (e) {
     console.error(e);
     root.render(

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Play, Lightbulb, ArrowRight, Clapperboard, Plus, FileText, Library, Repeat, Bot, UserRound, X, Image as ImageIcon, Film, Music2 } from "lucide-react";
+import { Play, Lightbulb, ArrowRight, Clapperboard, Plus, FileText, Library, Repeat, Bot, UserRound, X, Image as ImageIcon, Film, Music2, Smartphone, Monitor } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useBus } from "../lib/bus";
 import { db } from "../lib/ipc";
@@ -10,6 +10,8 @@ import { navigate } from "../ui/nav";
 import { Card, Empty, Chip, AsyncButton } from "../ui/kit";
 import { StepStrip, awaiting } from "../ui/Steps";
 import { TopicsPanel } from "./Topics";
+import { QueuePanel } from "./Queue";
+import type { VideoFormat } from "../pipeline/format";
 
 type Mode = "auto" | "personal";
 const DURATIONS: [number, string][] = [[0.5, "30 s"], [1, "1 min"], [2, "2 min"], [3, "3 min"], [5, "5 min"], [8, "8 min"], [12, "12 min"]];
@@ -35,6 +37,8 @@ export function Today() {
   const [prompt, setPrompt] = useState("");
   const [mode, setModeState] = useState<Mode>(() => (store.get("atril.mode") === "personal" ? "personal" : "auto"));
   const setMode = (m: Mode) => { setModeState(m); store.set("atril.mode", m); };
+  const [format, setFormatState] = useState<VideoFormat>(() => (store.get("atril.format") === "9:16" ? "9:16" : "16:9"));
+  const setFormat = (f: VideoFormat) => { setFormatState(f); store.set("atril.format", f); };
   // Modo Personal
   const [description, setDescription] = useState("");
   const [minutes, setMinutes] = useState(2);
@@ -61,8 +65,8 @@ export function Today() {
   const create = async () => {
     if (!ready) return;
     const id = personal
-      ? await startPersonal({ prompt, description, minutes, language, useLibrary, iterate, files, script })
-      : await startFromPrompt(prompt);
+      ? await startPersonal({ prompt, description, minutes, language, useLibrary, iterate, files, script, format, extra: { library: { mode: useLibrary ? "all" : "none", ids: [] } } })
+      : await startFromPrompt(prompt, format);
     if (!id) return;
     setPrompt(""); setFiles([]); setScript(null); setDescription("");
     if (personal) navigate({ page: "video", id });
@@ -117,8 +121,12 @@ export function Today() {
                 <Pill on={useLibrary} onChange={setUseLibrary} icon={Library} label="Recursos" title={useLibrary ? "Activado: Claude puede usar tu biblioteca, buscar en internet y crear imágenes" : "Desactivado: solo tus archivos subidos (más animaciones y tarjetas)"} />
                 <Pill on={iterate} onChange={setIterate} icon={Repeat} label="Mejora continua" title="Al terminar la primera versión, pides cambios y ATRIL los aplica, como en un chat" />
               </>)}
+              <button type="button" className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-md border text-[12.5px] font-medium transition-colors ${format === "9:16" ? "border-primary/50 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+                title={format === "9:16" ? "Vertical 9:16: TikTok y YouTube Shorts" : "Horizontal 16:9: YouTube"} onClick={() => setFormat(format === "9:16" ? "16:9" : "9:16")}>
+                {format === "9:16" ? <Smartphone size={14} /> : <Monitor size={14} />} {format}
+              </button>
               <div className="flex-1" />
-              {!personal && hasTopics && <button className="btn-ghost btn-sm" onClick={() => void startNextVideo()}><Lightbulb size={14} /> Usar el próximo tema</button>}
+              {!personal && hasTopics && <button className="btn-ghost btn-sm" onClick={() => void startNextVideo(format)}><Lightbulb size={14} /> Usar el próximo tema</button>}
               <AsyncButton className="btn-primary h-9 px-4" disabled={!ready} onClick={create}>Crear video <ArrowRight size={15} /></AsyncButton>
             </div>
           </div>
@@ -138,6 +146,8 @@ export function Today() {
           )}
         </div>
       </section>
+
+      <QueuePanel mode={mode} channelId={ch.id} />
 
       <Card title="En curso" icon={Clapperboard} actions={<span className="text-[11px] text-muted-foreground tabular">Publicados en 30 días: <b className="text-foreground">{published}</b></span>}>
         {videos.length === 0 ? (

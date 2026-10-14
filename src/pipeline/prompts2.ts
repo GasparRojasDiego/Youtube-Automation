@@ -4,6 +4,7 @@ import { obj, str, num, bool, arr, en, wrapSkills, SKILLS_CHECK } from "./prompt
 import { TRANSITIONS, GRADES } from "./types";
 import { FONT_FAMILIES } from "../motion/page";
 import { PIECES, pieceCatalog, pieceSource, pieceById } from "../motion/pieces";
+import { VERTICAL_STORY_EN, VERTICAL_LAYOUT_EN } from "./format";
 
 const VISUALS = ["photo", "archival", "clip", "meme", "ai_image", "motion", "map", "source_card", "quote_card", "title_card", "text_card"];
 /** Máximo de tarjetas de texto por video: se ven pobres, solo para énfasis fuerte. */
@@ -38,10 +39,11 @@ export function storyboardPrompt(o: {
   skills: string; visual: unknown; shotSeconds: [number, number]; motionBudget: number; minutes: number; aiImages: boolean; maxClip: number; humor: boolean;
   segments: { id: string; title: string; sentences: { i: number; text: string; dur: number }[]; on_screen_sources: string[] }[]; sources: unknown;
   userFiles?: { id: string; kind: string; description: string }[]; onlyUserFiles?: boolean;
+  libraryFiles?: { id: string; kind: string; description: string }[]; vertical?: boolean;
 }) {
   const minMotion = Math.max(1, Math.ceil(o.minutes));
-  return `You are the editor building the first cut of this video: a storyboard that covers every sentence with strong visuals, plus sound design. The goal is a high-retention, premium-looking YouTube video.${wrapSkills(o.skills)}
-
+  return `You are the editor building the first cut of this video: a storyboard that covers every sentence with strong visuals, plus sound design. The goal is a high-retention, premium-looking ${o.vertical ? "vertical short-form video" : "YouTube video"}.${wrapSkills(o.skills)}
+${o.vertical ? `\n${VERTICAL_STORY_EN}\n` : ""}
 VISUAL PARAMETERS: ${JSON.stringify(o.visual)}
 
 Visual types:
@@ -66,7 +68,10 @@ Rules:
 ${o.userFiles?.length ? `USER FILES (provided by the operator — they have priority: show each one at least once, where it fits best, by setting visual "photo" for images or "clip" for videos and user_file_id to its id):
 ${o.userFiles.map((f) => `- ${f.id} (${f.kind}): ${f.description}`).join("\n")}
 
-` : ""}${o.onlyUserFiles ? `ONLY OPERATOR MATERIAL: do not use photo/archival/clip/meme/ai_image shots except with a user_file_id from USER FILES. Everything else must be motion, map or cards (you may repeat a user file with different framing).
+` : ""}${o.libraryFiles?.length ? `OPERATOR LIBRARY (the operator's personal library, approved for this video: use the files that fit the narration — prefer them over stock photos or AI images — by setting visual "photo" for images or "clip" for videos and user_file_id to its id; you do not have to use them all):
+${o.libraryFiles.map((f) => `- ${f.id} (${f.kind}): ${f.description}`).join("\n")}
+
+` : ""}${o.onlyUserFiles ? `ONLY OPERATOR MATERIAL: do not use photo/archival/clip/meme/ai_image shots except with a user_file_id from USER FILES${o.libraryFiles?.length ? " or OPERATOR LIBRARY" : ""}. Everything else must be motion, map or cards (you may repeat a user file with different framing).
 
 ` : ""}SOURCES: ${JSON.stringify(o.sources)}
 
@@ -129,7 +134,7 @@ export const POLISH_SCHEMA = obj({
   verify_es: arr(str(), "Datos de la narración que te parezcan dudosos y conviene volver a comprobar antes de publicar (vacío si ninguno)"),
 });
 
-export function polishPrompt(o: { skills: string; motionBudget: number; edl: string; captions: boolean; palette: unknown }) {
+export function polishPrompt(o: { skills: string; motionBudget: number; edl: string; captions: boolean; palette: unknown; vertical?: boolean }) {
   return `You are a senior documentary editor and motion designer giving the final polish to an existing cut. Do NOT rebuild the edit: improve it surgically where it matters most for retention and clarity.${wrapSkills(o.skills)}
 
 You can:
@@ -139,11 +144,11 @@ You can:
 4. Sound design: add or remove SFX at exact global times (they must sync with cuts or words), with gains between -30 and -6 dB. Less is more.
 5. Unmute a clip's own audio (clip_audio_db) only when its sound adds meaning; narration always stays on top.
 6. Motion graphics (max ${o.motionBudget} in total, at least one every ~60 s of video): "fullscreen" sequences replace shots — premium, visual-first motion design with 2–5 scenes (geometric shapes and icons that build, morph and connect, camera moves into details, diagrams, maps, charts, counters, 3D point fields, cover/flash/blackout/whip transitions; text only as short labels); "overlay" animations play over a shot with a transparent background (callouts, arrows, highlights, lower thirds, labels, counters). Replace every remaining static text card (title_card/quote_card/text_card/source_card) with a fullscreen motion sequence when the budget allows, and make it SHOW the idea (shapes, icons, a diagram, a camera move) instead of animating the card's sentence. A fullscreen sequence lasts exactly the summed duration of the shots it replaces: keep any scene timings in the brief inside that duration. Overlay text must be short. Brand palette: ${JSON.stringify(o.palette)} (if a channel skill restricts colours or style, the skill wins: never write a colour or style it forbids into a brief).
-${o.captions ? "Burned-in captions occupy the bottom 22% of the frame: keep overlays out of that area.\n" : ""}
+${o.vertical ? `${VERTICAL_LAYOUT_EN}\nWrite every motion brief for a tall 1080×1920 frame (stacked layout, one idea per screen, huge type).\n` : o.captions ? "Burned-in captions occupy the bottom 22% of the frame: keep overlays out of that area.\n" : ""}
 Every text you place on screen must come from the narration or the verified facts, never stronger than the narration.
 
-READY-MADE PIECES (tested, premium, universal; pick by id in "pieces"): prefer as_is whenever a piece already shows the idea (fast and reliable: only its content changes); choose modify only when one concrete part must change, and say in the brief which part; none when nothing fits or a more original sequence adds real value. A fullscreen item may chain 2-3 pieces (e.g. map → stat → timeline). Vary them across the video: the same piece at most twice.
-${PIECES.map((p) => `- ${p.id} [${p.kind}, ~${p.dur}s${p.libs?.length ? `, ${p.libs.join("+")}` : ""}]: ${p.en}`).join("\n")}
+${o.vertical ? `READY-MADE PIECES: not available in this vertical video — leave "pieces" empty and piece_use "none".` : `READY-MADE PIECES (tested, premium, universal; pick by id in "pieces"): prefer as_is whenever a piece already shows the idea (fast and reliable: only its content changes); choose modify only when one concrete part must change, and say in the brief which part; none when nothing fits or a more original sequence adds real value. A fullscreen item may chain 2-3 pieces (e.g. map → stat → timeline). Vary them across the video: the same piece at most twice.
+${PIECES.map((p) => `- ${p.id} [${p.kind}, ~${p.dur}s${p.libs?.length ? `, ${p.libs.join("+")}` : ""}]: ${p.en}`).join("\n")}`}
 
 THE CUT (times in seconds; each line = one shot):
 ${o.edl}`;
@@ -229,8 +234,10 @@ export const MOTION_SCHEMA = obj({
  * paleta. Es idéntico en todas sus llamadas (diseño y correcciones), así que
  * Claude lo guarda en caché y las llamadas en paralelo no lo vuelven a pagar.
  */
-export function motionSystem(o: { skills: string; palette: unknown }) {
-  return `${MOTION_SYSTEM}${wrapSkills(o.skills)}
+export function motionSystem(o: { skills: string; palette: unknown; vertical?: boolean }) {
+  // En vertical: el mismo contrato en 1080×1920, sin el catálogo de piezas (están compuestas para 16:9)
+  const base = o.vertical ? `${MOTION_SYSTEM.replace(/1920×1080/g, "1080×1920").replace(/READY-MADE PIECES — global P[\s\S]*?\n\n(?=STYLE —)/, "")}\n\n${VERTICAL_LAYOUT_EN}` : MOTION_SYSTEM;
+  return `${base}${wrapSkills(o.skills)}
 
 Brand palette and fonts: ${JSON.stringify(o.palette)}`;
 }
@@ -363,8 +370,8 @@ ${skills.slice(0, 12000)}
 </channel_rules>` : ""}`;
 }
 
-export function critiquePrompt(o: { kind: string; brief: string; text: string; operator?: string | null }) {
-  return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a documentary.
+export function critiquePrompt(o: { kind: string; brief: string; text: string; operator?: string | null; vertical?: boolean }) {
+  return `The image shows 6 frames (left→right, top→bottom, in time order) of a ${o.kind === "overlay" ? "transparent overlay shown here over a checkerboard/neutral background" : "fullscreen animation"} for a ${o.vertical ? "VERTICAL 9:16 short video (TikTok / Shorts). Also defects (severity major): key text outside x 72–1008 / y 220–1180 of the 1080×1920 frame (hidden by the app UI or captions); content that uses less than half of that safe area (small elements floating in an empty frame); icons or text too small to read on a phone" : "documentary"}.
 Brief: ${o.brief}
 Expected text (verbatim): ${o.text || "(none)"}
 Judge it like a strict broadcast designer. Report only real, visible defects. Minor taste issues are not defects. Generic "template" tells count as defects (severity "minor" unless they dominate): the same entrance on every element, cartoonish bounce on everything, glowing halos or gradient text, more than one accent colour, flat hierarchy (all text about the same size), a second element competing with the hero at the same scale, text touching the frame edge.${o.operator ? `\nThe operator explicitly asked for: "${o.operator}". That is correct even where it departs from the channel rules: never report it as a defect; do report it if it was NOT applied.` : ""}${o.kind === "overlay" ? " This is an overlay." : `

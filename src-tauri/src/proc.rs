@@ -247,3 +247,20 @@ pub fn proc_stop(daemons: tauri::State<'_, Daemons>, id: String) -> bool {
         None => false,
     }
 }
+
+/// Mantiene el equipo despierto mientras corre la cola de videos (Windows); la pantalla puede apagarse.
+#[tauri::command]
+pub fn keep_awake(on: bool) {
+    #[cfg(windows)]
+    unsafe {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn SetThreadExecutionState(es_flags: u32) -> u32;
+        }
+        const ES_CONTINUOUS: u32 = 0x8000_0000;
+        const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+        SetThreadExecutionState(if on { ES_CONTINUOUS | ES_SYSTEM_REQUIRED } else { ES_CONTINUOUS });
+    }
+    #[cfg(not(windows))]
+    let _ = on;
+}

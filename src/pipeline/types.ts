@@ -45,7 +45,7 @@ export interface VerifyOut {
 export interface VoiceSegment { segment_id: string; path: string; duration: number; hash: string }
 export interface VoiceOut { provider: string; segments: VoiceSegment[]; total: number }
 
-export interface ThumbCandidate { concept_es: string; text: string; highlight: string; image_prompt_en: string; background_asset_id?: string; layout: "left" | "right" | "center"; image?: string; path?: string }
+export interface ThumbCandidate { concept_es: string; text: string; highlight: string; image_prompt_en: string; background_asset_id?: string; layout: "left" | "right" | "center"; image?: string; path?: string; own?: boolean }
 export interface PackageOut {
   titles: { title: string; note_es: string }[];
   chosen_title: string;

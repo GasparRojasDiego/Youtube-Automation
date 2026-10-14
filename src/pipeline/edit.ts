@@ -4,12 +4,12 @@
 import { fs, db, fileUrl, appPaths, secrets } from "../lib/ipc";
 import { tool, cutout, disableTool } from "../media/toolkit";
 import { getSettings, SECRET } from "../lib/settings";
-import { skillParams, MONTAGE_DEFAULTS, VISUAL_DEFAULTS } from "../lib/skills";
+import { skillParams, MONTAGE_DEFAULTS } from "../lib/skills";
 import { listMusic, updateVideo } from "../lib/repo";
 import { UserError, log } from "../lib/events";
 import { activity, setLive } from "../lib/activity";
 import { joinPath, sha256, now, uid, limiter, mapLimit, sleep } from "../lib/util";
-import { claudeRun } from "../providers/claude";
+import { claudeRun, UsageLimitError } from "../providers/claude";
 import { generateImage, imageProvider, type Provenance } from "../providers/images";
 import { ffmpeg, probeDuration, pickEncoder, filterScriptModern } from "../providers/ffmpeg";
 import { searchLibrary, importCandidate, getAssets, markUsed, type Asset } from "../media/library";
@@ -24,7 +24,8 @@ import type { Composition } from "../motion/page";
 import { renderSourceCard, renderTitleCard, renderQuoteCard, renderTextCard } from "./cards";
 import { out, need, checkCancel, checkpoint, readMark, type Ctx } from "./stages";
 import * as P2 from "./prompts2";
-import { personalOf, systemFor, skillsFor } from "./personal";
+import { personalOf, systemFor, skillsFor, visualFor, userMedia } from "./personal";
+import { isVertical, frameOf, verticalCaptions } from "./format";
 import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, iconKey, motionCues, coverCount, FULLSCREEN_MAX, sceneSafeIn, parseSceneCuts, type MotionSfxRaw, type SegInfo, type PolishRaw } from "./timeline";
 import { segmentV2Args, finalMixV2Args, finalMuxArgs, loudnessScanArgs, parseLoudness, withFilterScript, segmentV2Duration, type LayerShot, type LayerOverlay } from "./montage2";
 import { concatList } from "./montage";
@@ -45,12 +46,13 @@ export async function aiImagesReady(): Promise<boolean> {
 }
 
 /** Prompt de imagen: lo que pide la toma, el contexto narrado y el estilo del canal. */
-function imagePromptFor(sh: Shot, narration: string, style: string): string {
+function imagePromptFor(sh: Shot, narration: string, style: string, vertical = false): string {
   return [
     sh.image_prompt_en || sh.query_en || keywordsQuery(narration),
     narration ? `Context (what the narrator says at this moment): "${narration.slice(0, 400)}"` : "",
     style ? `Style: ${style}` : "Style: cinematic, high detail, natural light, documentary look.",
-    "Widescreen 16:9 composition. No text, letters, captions, logos or watermarks. No recognisable real people.",
+    vertical ? "Vertical 9:16 portrait composition with one clear subject in the upper-middle of the frame. No text, letters, captions, logos or watermarks. No recognisable real people."
+      : "Widescreen 16:9 composition. No text, letters, captions, logos or watermarks. No recognisable real people.",
   ].filter(Boolean).join("\n");
 }
 
@@ -69,22 +71,26 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const voice = await need<VoiceOut>(v, "voice", "Voz");
   const prev = await out<StoryboardOut>(v, "storyboard");
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
-  const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
+  const visual = await visualFor(v);
   const segs = segInfos(script, voice);
   const narrTotal = segs.reduce((a, s) => a + s.narration, 0);
   const budget = await motionBudget(narrTotal);
   const sbSkills = await skillsFor(v, ["visuals", "montage"]);
-  // Archivos del usuario (modo Personal): se describen con visión y el storyboard los reparte
+  // Archivos del usuario (modo Personal): los subidos y su biblioteca personal; se describen con visión y el storyboard los reparte
   const personal = personalOf(v);
-  const userAssets = personal ? [...(await getAssets(personal.files.map((f) => f.asset_id ?? "").filter(Boolean))).values()].filter((a) => a.kind === "image" || a.kind === "video") : [];
-  if (userAssets.some((a) => !a.described_at)) {
+  const { uploads, library } = await userMedia(v, segs.flatMap((s) => [s.title, ...s.sentences]).join(" "));
+  if ([...uploads, ...library].some((a) => !a.described_at)) {
     await ctx.progress("Mirando tus archivos…");
-    await describeAssets(userAssets, { videoId: v.id, channelId: v.channel_id, stage: "storyboard", jobId: ctx.jobId });
+    await describeAssets([...uploads, ...library].filter((a) => !a.described_at), { videoId: v.id, channelId: v.channel_id, stage: "storyboard", jobId: ctx.jobId });
   }
-  const userFiles = [...(await getAssets(userAssets.map((a) => a.id))).values()].map((a) => ({ id: a.id, kind: a.kind === "video" ? `video, ${Math.round(a.duration ?? 0)} s` : "image", description: (a.description || a.tags.split(",")[0] || a.title).slice(0, 300) }));
+  const described = await getAssets([...uploads, ...library].map((a) => a.id));
+  const fileInfo = (x: Asset) => { const a = described.get(x.id) ?? x; return { id: a.id, kind: a.kind === "video" ? `video, ${Math.round(a.duration ?? 0)} s` : "image", description: (a.description || a.tags.split(",")[0] || a.title).slice(0, 300) }; };
+  const userFiles = uploads.map(fileInfo);
+  const libraryFiles = library.filter((a) => (described.get(a.id) ?? a).usable !== 0).map(fileInfo);
   const onlyUser = !!personal && !personal.useLibrary;
+  const vertical = isVertical(v);
   const aiOk = !onlyUser && (await aiImagesReady());
-  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION, userFiles.map((f) => f.id), onlyUser]));
+  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION, userFiles.map((f) => f.id), libraryFiles.map((f) => f.id), onlyUser, vertical]));
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
 
   await ctx.progress("Armando el storyboard…");
@@ -93,7 +99,7 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
     prompt: P2.storyboardPrompt({
       skills: sbSkills,
       visual, shotSeconds: montage.shotSeconds, motionBudget: budget, minutes: narrTotal / 60, aiImages: aiOk, maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor && !personal,
-      userFiles, onlyUserFiles: onlyUser,
+      userFiles, libraryFiles, onlyUserFiles: onlyUser, vertical,
       segments: segs.map((s) => ({ id: s.id, title: s.title, on_screen_sources: script.segments.find((x) => x.id === s.id)?.on_screen_sources ?? [],
         sentences: s.sentences.map((t, i) => ({ i, text: t, dur: Math.max(0.3, (s.spans[i]?.end ?? 0) - (s.spans[i]?.start ?? 0)) })) })),
       sources: research.sources.map((x) => ({ id: x.id, title: x.title, publisher: x.publisher })),
@@ -159,7 +165,7 @@ async function huntShot(ctx: Ctx, sh: Shot, exclude: Set<string>): Promise<{ can
     for (const q of queries) {
       checkCancel(ctx);
       await activity(v.id, "assets", "search", `Buscando ${kind === "video" ? "clips" : "imágenes"} libres: «${q}»`);
-      const rep = await searchSources(q, kind, m.candidatesPerBeat);
+      const rep = await searchSources(q, kind, m.candidatesPerBeat, undefined, isVertical(v) ? "portrait" : undefined);
       for (const e of rep.errors) await activity(v.id, "assets", "warn", `${SOURCE_LABEL[e.source]}: ${e.message.slice(0, 160)}`);
       if (rep.skipped.length) await activity(v.id, "assets", "warn", `Sin cuota: ${rep.skipped.map((x) => SOURCE_LABEL[x]).join(", ")}`);
       const ranked = rankCandidates(rep.candidates, kind, m.maxClipSeconds).filter((c) => kind !== "video" || !c.duration || c.duration <= 90);
@@ -284,7 +290,8 @@ async function resolveMusic(ctx: Ctx, beds: MusicBed[], userAudio: string[] = []
 /** Tarjeta (o tarjeta de respaldo) para una toma sin archivo. */
 async function renderCardFor(ctx: Ctx, sh: Shot, segs: SegInfo[], script: ScriptOut, research: ResearchOut, base: string): Promise<string> {
   const v = ctx.video;
-  const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
+  const visual = await visualFor(v);
+  const f = frameOf(v);
   const seg = segs.find((x) => x.id === sh.segment_id)!;
   if (sh.visual === "source_card") {
     const src = research.sources.find((x) => x.id === sh.source_id);
@@ -292,11 +299,11 @@ async function renderCardFor(ctx: Ctx, sh: Shot, segs: SegInfo[], script: Script
     const claims = script.segments.find((x) => x.id === sh.segment_id)?.claims ?? [];
     const claim = claims.find((c) => c.source_ids.includes(sh.source_id ?? "") && narr.includes(c.text_en.toLowerCase().trim())) ?? claims.find((c) => c.source_ids.includes(sh.source_id ?? ""));
     const fact = (claim && research.facts.find((f) => claim.fact_ids.includes(f.id) && f.source_ids.includes(sh.source_id ?? ""))) ?? research.facts.find((f) => f.source_ids.includes(sh.source_id ?? ""));
-    return renderSourceCard({ publisher: src?.publisher ?? "", title: src?.title ?? sh.card_text ?? "", date: src?.date ?? "", quote: fact?.quote ?? seg.sentences[sh.from] ?? "", url: src?.url ?? "" }, visual, base + ".png");
+    return renderSourceCard({ publisher: src?.publisher ?? "", title: src?.title ?? sh.card_text ?? "", date: src?.date ?? "", quote: fact?.quote ?? seg.sentences[sh.from] ?? "", url: src?.url ?? "" }, visual, base + ".png", f);
   }
-  if (sh.visual === "title_card") return renderTitleCard({ kicker: `Chapter ${script.segments.findIndex((x) => x.id === sh.segment_id) + 1}`, title: sh.card_text || seg.title }, visual, base + ".png");
-  if (sh.visual === "quote_card") return renderQuoteCard({ quote: sh.card_text ?? "" }, visual, base + ".png");
-  return renderTextCard({ text: sh.card_text || shortPhrase(seg.sentences[sh.from]) }, visual, base + ".png");
+  if (sh.visual === "title_card") return renderTitleCard({ kicker: `Chapter ${script.segments.findIndex((x) => x.id === sh.segment_id) + 1}`, title: sh.card_text || seg.title }, visual, base + ".png", f);
+  if (sh.visual === "quote_card") return renderQuoteCard({ quote: sh.card_text ?? "" }, visual, base + ".png", f);
+  return renderTextCard({ text: sh.card_text || shortPhrase(seg.sentences[sh.from]) }, visual, base + ".png", f);
 }
 
 export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
@@ -310,7 +317,7 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
   const s = getSettings();
   const dir = joinPath(v.dir, "cards");
   await fs.mkdir(dir);
-  const visualP = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
+  const visualP = await visualFor(v);
   const shots: Shot[] = sb.shots.map((x) => ({ ...x }));
   const same = (a: Shot, b: Shot) => a.visual === b.visual && a.query_en === b.query_en && a.card_text === b.card_text && a.source_id === b.source_id && (a.image_prompt_en ?? "") === (b.image_prompt_en ?? "");
   let downloaded = 0, reused = 0, fallbacks = 0;
@@ -330,7 +337,7 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
     aiUsed++;   // se reserva antes de esperar: varias se crean a la vez sin pasar el tope
     try {
       await ctx.progress(`Creando imagen con IA para ${sh.id}…`);
-      const r = await generateImage({ prompt: imagePromptFor(sh, narr(sh), visualP.imageStyle), outBase: joinPath(dir, `${sh.id}-ia-${Date.now().toString(36)}`), videoId: v.id, channelId: v.channel_id, label: `toma ${sh.id}` });
+      const r = await generateImage({ prompt: imagePromptFor(sh, narr(sh), visualP.imageStyle, isVertical(v)), aspect: isVertical(v) ? "9:16" : "16:9", outBase: joinPath(dir, `${sh.id}-ia-${Date.now().toString(36)}`), videoId: v.id, channelId: v.channel_id, label: `toma ${sh.id}` });
       Object.assign(sh, { path: r.path, media: "image", provenance: r.provenance, asset_id: null, error: null, focus_x: 0.5, focus_y: 0.45 });
       await activity(v.id, "assets", "asset", `${sh.id}: imagen con IA (${why})`, r.provenance.provider, r.path);
       setLive(v.id, { frame: r.path, caption: `Imagen con IA: ${sh.id}` });
@@ -355,8 +362,11 @@ export async function stageAssets(ctx: Ctx): Promise<AssetsOut> {
       reused++;
     }
   }
-  // 1b) Archivos del usuario: los elegidos en el storyboard; con «solo lo mío», también el resto de tomas
-  const userAssets = personal ? [...(await getAssets(personal.files.map((f) => f.asset_id ?? "").filter(Boolean))).values()].filter((a) => a.kind === "image" || a.kind === "video") : [];
+  // 1b) Archivos del usuario (subidos y de su biblioteca personal): los elegidos en el storyboard; con «solo lo mío», también el resto de tomas
+  const mine = await userMedia(v, segs.flatMap((x) => [x.title, ...x.sentences]).join(" "));
+  const userAssets = [...mine.uploads, ...mine.library];
+  const missingIds = media.map((x) => x.user_file_id ?? "").filter((id) => id && !userAssets.some((a) => a.id === id));
+  if (personal && missingIds.length) userAssets.push(...[...(await getAssets(missingIds)).values()].filter((a) => a.kind === "image" || a.kind === "video"));
   const useFile = (sh: Shot, a: Asset, alt = 0) => {
     Object.assign(sh, { asset_id: a.id, path: a.path, media: a.kind === "video" ? "video" : "image", provenance: assetProvenance(a), error: null,
       focus_x: alt % 2 ? 0.35 : 0.5, focus_y: 0.45, clip_in: a.kind === "video" ? 0 : undefined, visual: a.kind === "video" ? "clip" : sh.visual === "clip" ? "photo" : sh.visual,
@@ -508,10 +518,11 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const voice = await need<VoiceOut>(v, "voice", "Voz");
   const prev = await out<PolishOut>(v, "polish");
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
-  const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
+  const visual = await visualFor(v);
   const captions = await skillParams(v.channel_id, "subtitulos", CAPTION_DEFAULTS);
   const polishSkills = await skillsFor(v, ["montage", "edit"]);
-  const key = `${assets.key}:${(await sha256(JSON.stringify([polishSkills, montage, visual, captions.enabled]))).slice(0, 16)}`;
+  const vertical = isVertical(v);
+  const key = `${assets.key}:${(await sha256(JSON.stringify([polishSkills, montage, visual, captions.enabled, vertical]))).slice(0, 16)}`;
   if (prev && prev.key === key && !prev.skipped) return prev;
   const segs = segInfos(script, voice);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
@@ -533,11 +544,13 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const r = cached ? { data: cached.data } : await claudeRun<PolishRaw>({
     stage: "polish", activityStage: "polish", label: "Retoques de edición", system: systemFor(v), schema: P2.POLISH_SCHEMA,
     prompt: P2.polishPrompt({ skills: polishSkills,
-      motionBudget: budget, edl, captions: captions.enabled, palette: { background: visual.background, foreground: visual.foreground, accent: visual.accent, muted: visual.muted, fontTitle: visual.fontTitle, fontBody: visual.fontBody } }),
+      motionBudget: budget, edl, captions: captions.enabled, vertical, palette: { background: visual.background, foreground: visual.foreground, accent: visual.accent, muted: visual.muted, fontTitle: visual.fontTitle, fontBody: visual.fontBody } }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
   });
   if (!cached) await fs.writeText(rawFile, JSON.stringify({ hash: key, data: r.data })).catch(() => undefined);
   const applied = applyPolish(r.data, assets.shots, assets.sfx, offsets, total, budget);
+  // Las piezas listas están compuestas para 16:9: en vertical cada animación se diseña desde cero con el kit
+  if (vertical) for (const m of applied.motion) { delete m.pieces; delete m.piece_use; }
   // Las tomas marcadas como animación que Opus no convirtió reciben una animación con su propio guion
   for (const sh of applied.shots.filter((x) => (x.visual === "motion" || x.visual === "map") && !applied.motion.some((m) => m.shot_ids.includes(x.id)))) {
     if (applied.motion.length >= budget) break;
@@ -569,15 +582,17 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
 }
 
 // ======================= 8. Animaciones (Opus + motor) =======================
-export async function contactSheet(samples: string[], outPath: string, transparent: boolean) {
+export async function contactSheet(samples: string[], outPath: string, transparent: boolean, frame: { width: number; height: number } = { width: 1920, height: 1080 }) {
   const args = ["-y", "-hide_banner", "-loglevel", "error"];
   samples.forEach((s) => args.push("-i", s));
   const n = samples.length;
+  // Miniaturas con la forma del video (en vertical, 288×512)
+  const [tw, th] = frame.width >= frame.height ? [512, 288] : [288, 512];
   const f: string[] = samples.map((_, i) => transparent
-    ? `color=c=0x5A5F66:s=1920x1080:d=1[bg${i}];[bg${i}][${i}:v]overlay=0:0,scale=512:288[t${i}]`
-    : `[${i}:v]scale=512:288[t${i}]`);
+    ? `color=c=0x5A5F66:s=${frame.width}x${frame.height}:d=1[bg${i}];[bg${i}][${i}:v]overlay=0:0,scale=${tw}:${th}[t${i}]`
+    : `[${i}:v]scale=${tw}:${th}[t${i}]`);
   const cols = Math.min(3, n); const rows = Math.ceil(n / cols);
-  f.push(`${samples.map((_, i) => `[t${i}]`).join("")}xstack=inputs=${n}:layout=${Array.from({ length: n }, (_, i) => `${(i % cols) * 512}_${Math.floor(i / cols) * 288}`).join("|")}:fill=black[v]`);
+  f.push(`${samples.map((_, i) => `[t${i}]`).join("")}xstack=inputs=${n}:layout=${Array.from({ length: n }, (_, i) => `${(i % cols) * tw}_${Math.floor(i / cols) * th}`).join("|")}:fill=black[v]`);
   if (n === 1) f[f.length - 1] = `[t0]null[v]`;
   void rows;
   await ffmpeg([...args, "-filter_complex", f.join(";"), "-map", "[v]", "-frames:v", "1", "-q:v", "3", outPath]);
@@ -604,14 +619,16 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const script = await need<ScriptOut>(v, "script", "Guion");
   const voice = await need<VoiceOut>(v, "voice", "Voz");
   const segs = segInfos(script, voice);
-  const visual = await skillParams(v.channel_id, "visual", VISUAL_DEFAULTS);
+  const visual = await visualFor(v);
+  const frame = frameOf(v);
+  const vertical = isVertical(v);
   const palette = { background: visual.background, foreground: visual.foreground, muted: visual.muted, accent: visual.accent, fontTitle: visual.fontTitle, fontBody: visual.fontBody, fontMono: visual.fontMono };
   const skills = await skillsFor(v, ["motion"]);
   const dir = joinPath(v.dir, "motion");
   await fs.mkdir(dir);
   const assetMap = await getAssets([...new Set(items.flatMap((m) => m.asset_ids ?? []))]);
   const skillsKey = (await sha256(skills)).slice(0, 12);
-  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette, skillsKey, m.revise_en ?? "", ...(m.pieces?.length ? [m.pieces, m.piece_use] : [])]));
+  for (const m of items) m.hash = await sha256(JSON.stringify([m.kind, m.brief_en, m.text, Math.round(m.duration * 30), m.libs, m.asset_ids, m.icons ?? [], palette, skillsKey, m.revise_en ?? "", ...(m.pieces?.length ? [m.pieces, m.piece_use] : []), ...(vertical ? ["9:16"] : [])]));
   // Reutilizar lo ya renderizado
   for (const m of items) {
     const old = prev?.items.find((p) => p.hash === m.hash && p.file);
@@ -669,17 +686,21 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 
   // Cada animación avanza sola: diseño → vista previa (6 cuadros) → revisión → corrección por parches → render completo.
   // Claude trabaja en varias a la vez; el navegador renderiza pocas a la vez para no agotar la memoria.
-  const sys = P2.motionSystem({ skills, palette });
+  const sys = P2.motionSystem({ skills, palette, vertical });
   const critSys = P2.critiqueSystem(skills);
   const SAMPLES = [0.12, 0.3, 0.5, 0.7, 0.85, 0.98];
   const maxFixes = Math.max(0, cfg.maxFixes);
   const claudeSlot = limiter(cfg.parallel);
   const renderSlot = limiter(cfg.renders);
   let engineFail: string | null = null;
-  const stopped = () => ctx.cancelled() || !!engineFail;
+  // Límite del plan: se detienen las demás y la etapa falla con la hora de reposición (la cola espera y sigue);
+  // lo ya terminado queda guardado. Nunca se monta un video con menos animaciones por culpa del límite.
+  let limitErr: UsageLimitError | null = null;
+  const stopped = () => ctx.cancelled() || !!engineFail || !!limitErr;
   // La primera llamada va sola unos segundos: deja el system prompt en caché y las demás lo leen de ahí (menos tokens)
   let warm: Promise<unknown> | null = null;
   const ask = <T>(fn: () => Promise<T>) => claudeSlot(async () => {
+    if (limitErr) throw limitErr;
     if (engineFail) throw new EngineError(engineFail);
     checkCancel(ctx);
     if (!warm) warm = sleep(12_000); else await warm;
@@ -725,11 +746,11 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 
   const critique = async (m: MotionItem, samples: string[]): Promise<{ ok: boolean; problems: string[] }> => {
     const sheet = joinPath(work, m.id, "hoja.jpg");
-    await contactSheet(samples, sheet, m.kind === "overlay");
+    await contactSheet(samples, sheet, m.kind === "overlay", frame);
     setLive(v.id, { frame: sheet, caption: `Revisión visual de la animación ${m.id}` });
     const r = await run<{ ok: boolean; problems_en: string[]; severity: string }>({
       stage: "critique", label: `Revisión visual ${m.id}`, system: critSys, schema: P2.CRITIQUE_SCHEMA,
-      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "", operator: m.revise_en }), images: [{ label: "Frames:", path: sheet }] });
+      prompt: P2.critiquePrompt({ kind: m.kind, brief: m.brief_en, text: m.text ?? "", operator: m.revise_en, vertical }), images: [{ label: "Frames:", path: sheet }] });
     const ok = r.data.ok || r.data.severity !== "major";
     await activity(v.id, "motion", ok ? "done" : "warn", `Revisión de ${m.id}: ${ok ? "aprobada" : "con defectos"}`, (r.data.problems_en ?? []).join("\n"));
     return { ok, problems: r.data.problems_en ?? [] };
@@ -737,12 +758,12 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
 
   const preview = (m: MotionItem, c: Code) => renderSlot(() => {
     report(m.id, "revisando");
-    return previewComposition(browser!, toComp(m, c), { ...res, workDir: joinPath(work, m.id, "vista"), samples: SAMPLES, cancelled: stopped });
+    return previewComposition(browser!, toComp(m, c), { ...res, width: frame.width, height: frame.height, workDir: joinPath(work, m.id, "vista"), samples: SAMPLES, cancelled: stopped });
   });
   const renderFull = (m: MotionItem, c: Code) => renderSlot(() => {
     report(m.id, "renderizando");
     return renderComposition(browser!, toComp(m, c), {
-      ...res, workDir: joinPath(work, m.id, "cuadros"), out: joinPath(dir, `${m.id}-${m.hash!.slice(0, 8)}.${m.kind === "overlay" ? "mov" : "mp4"}`), cancelled: stopped,
+      ...res, width: frame.width, height: frame.height, workDir: joinPath(work, m.id, "cuadros"), out: joinPath(dir, `${m.id}-${m.hash!.slice(0, 8)}.${m.kind === "overlay" ? "mov" : "mp4"}`), cancelled: stopped,
       onFrame: (i, n, pv) => { if (pv) setLive(v.id, { frame: `data:${pv.mime};base64,${pv.b64}`, caption: `Renderizando animación ${m.id} · cuadro ${i}/${n}`, progress: i / n }); },
     });
   });
@@ -809,6 +830,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
       await saveProgress();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      if (e instanceof UsageLimitError) { limitErr = limitErr ?? e; report(m.id, "en espera"); return; }
       // Un fallo del motor afecta a todas: se detienen las demás y no se gasta Claude "corrigiendo" código
       if (e instanceof EngineError) engineFail = engineFail ?? msg;
       if (ctx.cancelled()) return;
@@ -827,6 +849,7 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
     if (browser) await closeBrowser(browser);
     try { await fs.remove(work); } catch { /* noop */ }
   }
+  if (limitErr) { await saveProgress(); throw limitErr; }
   const failed = items.filter((m) => !m.file && (m.error || engineFail)).length;
   // Los fallos nunca son silenciosos: van al informe de errores, y si no salió ninguna, la etapa falla (no se monta sin animaciones)
   const reasons = [...new Set(todo.filter((m) => !m.file && m.error).map((m) => m.error!))];
@@ -863,7 +886,12 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
   const sb = await out<StoryboardOut>(v, "storyboard");
   const prev = await out<RenderOut>(v, "render");
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
-  const capP = await skillParams(v.channel_id, "subtitulos", CAPTION_DEFAULTS);
+  const frame = frameOf(v);
+  const capBase = await skillParams(v.channel_id, "subtitulos", CAPTION_DEFAULTS);
+  // En vertical: subtítulos más grandes, de 1–2 líneas cortas y por encima de la interfaz de TikTok/Shorts.
+  // En un video personal con color de acento propio, la palabra que se dice se resalta en ese color.
+  const accent = personalOf(v)?.palette?.accent;
+  const capP = { ...(isVertical(v) ? verticalCaptions(capBase) : capBase), ...(accent && /^#[0-9a-f]{6}$/i.test(accent) ? { highlight: accent } : {}) };
   const encoder = await pickEncoder();
   const modern = await filterScriptModern();
   const dir = joinPath(v.dir, "render");
@@ -929,13 +957,13 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
     if (capP.enabled) {
       const pages = seg.sentences.flatMap((t, si) => paginate(realWords?.[si] ?? wordTimings(t, seg.spans[si] ?? { start: 0, end: 0.1 }), capP));
       assName = `${seg.id}.ass`;
-      await fs.writeText(joinPath(dir, assName), buildAss(pages, capP));
+      await fs.writeText(joinPath(dir, assName), buildAss(pages, capP, frame));
     }
     const clip = joinPath(dir, `${seg.id}.mp4`);
     const fadeIn = montage.segmentTransition === "fadeblack" || i === 0;
     const fadeOut = montage.segmentTransition === "fadeblack" || i === segs.length - 1;
     const spec = { shots: layer, overlays, out: clip, fadeIn, fadeOut, kenBurns: montage.kenBurns, captionsAss: assName, fontsDir: capP.enabled ? "fonts" : null,
-      grain: montage.grain, vignette: montage.vignette, encoder };
+      grain: montage.grain, vignette: montage.vignette, encoder, ...(isVertical(v) ? { frame } : {}) };
     const h = await sha256(JSON.stringify({ engine: MONTAGE_ENGINE, spec, cap: capP.enabled ? (realWords ? [capP, seg.spans, realWords] : [capP, seg.spans]) : null, q: encoder.quality }));
     hashes[seg.id] = h;
     const segDur = segmentV2Duration(layer);
@@ -1008,7 +1036,7 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
   void sb;
   const duration = await probeDuration(file);
   const poster = joinPath(v.dir, "poster.jpg");
-  try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", Math.min(30, duration * 0.2).toFixed(2), "-i", file, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", poster]); } catch { /* sin portada */ }
+  try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", Math.min(30, duration * 0.2).toFixed(2), "-i", file, "-frames:v", "1", "-vf", isVertical(v) ? "scale=-2:1280" : "scale=1280:-2", "-q:v", "3", poster]); } catch { /* sin portada */ }
   const r: RenderOut = { file, duration, encoder: encoder.name, segmentHashes: hashes, renderedAt: now(), sizeBytes: await fs.size(file), poster };
   await activity(v.id, "render", "done", `Video final listo (${Math.round(r.duration / 60)} min)`, file);
   return r;
@@ -1067,9 +1095,9 @@ export async function rescoreMusic(ctx: Ctx, mood: string): Promise<string> {
 }
 
 /** Convierte una toma en tarjeta de texto (sin archivo externo). */
-export async function shotToCard(video: { id: string; channel_id: string; dir: string }, shotId: string, text: string) {
-  const visual = await skillParams(video.channel_id, "visual", VISUAL_DEFAULTS);
-  const path = await renderTextCard({ text }, visual, joinPath(video.dir, "cards", `${shotId}-${Date.now().toString(36)}.png`));
+export async function shotToCard(video: { id: string; channel_id: string; dir: string; data: Record<string, any> }, shotId: string, text: string) {
+  const visual = await visualFor(video);
+  const path = await renderTextCard({ text }, visual, joinPath(video.dir, "cards", `${shotId}-${Date.now().toString(36)}.png`), frameOf(video));
   await replaceShotAsset(video.id, shotId, null, { visual: "text_card", card_text: text, path, media: "image", asset_id: null, provenance: { kind: "card", provider: "ATRIL" } });
 }
 

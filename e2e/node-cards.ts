@@ -13,10 +13,11 @@ function card(text: string, out: string, bg = "0x111113", w = 1920, h = 1080) {
   return out;
 }
 export const wrap = () => [];
-export async function renderSourceCard(o: { publisher: string; title: string }, _v: unknown, out: string) { return card(`${o.publisher}: ${o.title}`, out); }
-export async function renderTitleCard(o: { title: string }, _v: unknown, out: string) { return card(o.title, out); }
-export async function renderQuoteCard(o: { quote: string }, _v: unknown, out: string) { return card(`"${o.quote}"`, out); }
-export async function renderTextCard(o: { text: string }, _v: unknown, out: string) { return card(o.text, out); }
+type F = { width: number; height: number } | undefined;
+export async function renderSourceCard(o: { publisher: string; title: string }, _v: unknown, out: string, f?: F) { return card(`${o.publisher}: ${o.title}`, out, undefined, f?.width, f?.height); }
+export async function renderTitleCard(o: { title: string }, _v: unknown, out: string, f?: F) { return card(o.title, out, undefined, f?.width, f?.height); }
+export async function renderQuoteCard(o: { quote: string }, _v: unknown, out: string, f?: F) { return card(`"${o.quote}"`, out, undefined, f?.width, f?.height); }
+export async function renderTextCard(o: { text: string }, _v: unknown, out: string, f?: F) { return card(o.text, out, undefined, f?.width, f?.height); }
 export async function renderThumbnail(o: { background?: string | null; text: string }, _p: unknown, _v: unknown, out: string) {
   nfs.mkdirSync(path.dirname(out), { recursive: true });   // como fs.writeB64 de la app, que crea la carpeta
   if (o.background && nfs.existsSync(o.background)) { execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", o.background, "-vf", "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720", "-frames:v", "1", out]); return out; }

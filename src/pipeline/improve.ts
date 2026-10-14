@@ -9,7 +9,7 @@ import { activity } from "../lib/activity";
 import { errorText, logError, toast } from "../lib/events";
 import { joinPath, uid, fmtDuration } from "../lib/util";
 import { claudeRun } from "../providers/claude";
-import { ffmpeg } from "../providers/ffmpeg";
+import { ffmpeg, probeMedia } from "../providers/ffmpeg";
 import { obj, str, arr, en } from "./prompts";
 import { systemFor } from "./personal";
 import { segInfos, segmentOffsets } from "./timeline";
@@ -84,7 +84,8 @@ async function framesSheet(render: RenderOut, dir: string): Promise<string | nul
       frames.push(f);
     }
     const sheet = joinPath(dir, "hoja.jpg");
-    await contactSheet(frames, sheet, false);
+    const dim = await probeMedia(render.file).catch(() => null);
+    await contactSheet(frames, sheet, false, dim?.width && dim.height ? { width: dim.width, height: dim.height } : undefined);
     return sheet;
   } catch { return null; }
 }

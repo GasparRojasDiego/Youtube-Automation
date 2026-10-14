@@ -1,6 +1,6 @@
 # ATRIL
 
-**Estudio de producción asistida para YouTube** · v2.5.7
+**Estudio de producción asistida para YouTube** · v2.5.8
 
 ATRIL produce un video en inglés a partir de tu idea, sin pedirte nada por el camino; tú revisas el video final. **Nada se publica sin tu aprobación.**
 
@@ -12,8 +12,8 @@ App de escritorio para Windows (Tauri 2 + React).
 
 En *Releases*:
 
-- `ATRIL_2.5.7_instalador_x64.exe`: recomendado.
-- `ATRIL_2.5.7_portable_x64.zip`: portátil (descomprime toda la carpeta).
+- `ATRIL_2.5.8_instalador_x64.exe`: recomendado.
+- `ATRIL_2.5.8_portable_x64.zip`: portátil (descomprime toda la carpeta).
 - `SHA256SUMS.txt`: huellas para comprobar las descargas (ver `SECURITY.md`).
 
 ## Principios
@@ -27,6 +27,9 @@ En *Releases*:
 - **Material libre:** solo licencias aptas para monetizar, con su origen registrado.
 - **Piezas listas:** 35 animaciones universales con vista previa y código (Instrucciones); Claude las usa tal cual, las modifica o crea desde cero.
 - **Memoria en Obsidian:** una nota por video, un índice del canal y una «Memoria para Claude» que tú escribes.
+- **Cola de producción:** hasta 50 videos seguidos desde Inicio, cada uno con su tarjeta (tema o brief, estética, guion, recursos, duración, formato y portadas). Si se agota el límite del plan, espera a que se reponga y sigue sola. Guía para llenarla: `docs/guia-cola-marketing.md`.
+- **Horizontal o vertical:** 16:9 para YouTube y 9:16 para TikTok y Shorts, de punta a punta.
+- **Tus portadas, tal cual:** la de YouTube es la miniatura; ambas van incrustadas en las descargas y en las partes de TikTok.
 
 ## Estructura
 

@@ -6,7 +6,8 @@ import { db, proc, fs } from "../lib/ipc";
 import { emit } from "../lib/bus";
 import { getSettings } from "../lib/settings";
 import { log, logError, errorText, toast } from "../lib/events";
-import { STAGES, getVideo, getStages, setStage, updateVideo, resetFrom, listTopics, createVideo, activeChannel, listVideos, type StageId } from "../lib/repo";
+import { STAGES, getVideo, getStages, setStage, updateVideo, resetFrom, listTopics, createVideo, activeChannel, listVideos, type StageId, type Video } from "../lib/repo";
+import type { VideoFormat } from "./format";
 import { uid, joinPath } from "../lib/util";
 import * as St from "./stages";
 import * as Ed from "./edit";
@@ -19,6 +20,10 @@ import { finishRevision } from "./improve";
 interface Running { videoId: string; jobId: string; cancelled: boolean; stage: StageId | null; prepackage?: Promise<void> }
 let current: Running | null = null;
 const queue: string[] = [];
+
+/** Último fallo de cada video: la cola decide con él si espera (límite del plan), reintenta o sigue. */
+const failures = new Map<string, { stage: StageId | null; error: unknown; at: number }>();
+export const lastFailure = (id: string) => failures.get(id) ?? null;
 
 export const runningVideoId = () => current?.videoId ?? null;
 export const isQueued = (id: string) => queue.includes(id) || current?.videoId === id;
@@ -35,7 +40,8 @@ async function drain() {
     const id = queue.shift()!;
     current = { videoId: id, jobId: uid("job_"), cancelled: false, stage: null };
     emit("jobs");
-    try { await runOnce(current); } catch (e) { await logError(e, id, "Error del orquestador"); }
+    failures.delete(id);
+    try { await runOnce(current); } catch (e) { failures.set(id, { stage: current.stage, error: e, at: Date.now() }); await logError(e, id, "Error del orquestador"); }
     current = null;
     emit("jobs", "videos", "stages");
   }
@@ -102,6 +108,7 @@ async function runOnce(r: Running) {
       const { message, detail } = errorText(e);
       await activity(video.id, stage, "warn", r.cancelled ? "Cancelado" : `Falló: ${message}`, detail.slice(0, 1500));
       await setStage(video.id, stage, { status: r.cancelled ? "pending" : "failed", error: r.cancelled ? "Cancelado" : `${message}\n\n${detail}`.trim(), progress: null, finishedNow: true });
+      if (!r.cancelled) failures.set(video.id, { stage, error: e, at: Date.now() });
       if (!r.cancelled) await logError(e, video.id, `${STAGES.find((s) => s.id === stage)?.label}`);
       return;
     }
@@ -270,7 +277,7 @@ export async function recoverOnStartup() {
 }
 
 /** Crea un video a partir de lo que escribas (una idea, un tema o instrucciones) y lo produce hasta la revisión final. */
-export async function startFromPrompt(prompt: string): Promise<string | null> {
+export async function startFromPrompt(prompt: string, format: VideoFormat = "16:9"): Promise<string | null> {
   const ch = await activeChannel();
   if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
   const text = prompt.trim();
@@ -278,36 +285,61 @@ export async function startFromPrompt(prompt: string): Promise<string | null> {
   const first = text.split(/\n/)[0].trim();
   const title = first.length > 90 ? `${first.slice(0, 87)}…` : first;
   const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
+  if (format !== "16:9") await updateVideo(v.id, { data: { format } });
   runVideo(v.id);
   return v.id;
 }
 
-/** Video personal: brief, duración, idioma, archivos y guion propios. */
-export async function startPersonal(o: { prompt: string; description: string; minutes: number; language: "es" | "en"; useLibrary: boolean; iterate: boolean; files: string[]; script: string | null }): Promise<string | null> {
-  const ch = await activeChannel();
+export interface PersonalInput {
+  prompt: string; description: string; minutes: number; language: "es" | "en"; useLibrary: boolean; iterate: boolean;
+  files: string[]; script: string | null;
+  /** Texto del guion escrito en la tarjeta (en vez de un archivo). */
+  scriptText?: string | null;
+  format?: VideoFormat;
+  /** Canal (la cola usa el de su tarjeta; por defecto, el activo). */
+  channelId?: string;
+  /** Campos de la cola: título, de qué trata, modo, estética, rango de minutos, biblioteca… */
+  extra?: Partial<Omit<PersonalSpec, "files" | "script">>;
+}
+
+/** Crea un video personal (brief, duración, idioma, archivos y guion propios) sin iniciarlo. */
+export async function createPersonal(o: PersonalInput): Promise<Video | null> {
+  const ch = o.channelId ? { id: o.channelId } : await activeChannel();
   if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
-  const text = o.prompt.trim() || o.description.trim();
-  if (!text && !o.script) return null;
+  const text = o.extra?.title?.trim() || o.prompt.trim() || o.extra?.about?.trim() || o.description.trim();
+  if (!text && !o.script && !o.scriptText?.trim()) return null;
   const first = (text.split(/\n/)[0] || "Video personal").trim();
   const title = first.length > 90 ? `${first.slice(0, 87)}…` : first;
-  const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
+  const notes = [o.prompt.trim(), o.extra?.about?.trim()].filter(Boolean).join("\n\n") || text;
+  const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
   const files = await importUploads(v, o.files);
-  const script = o.script ? (await importUploads(v, [o.script]))[0] ?? null : null;
-  const personal: PersonalSpec = { description: o.description.trim(), minutes: o.minutes, language: o.language, useLibrary: o.useLibrary, iterate: o.iterate, files, script: script ? { path: script.path, name: script.name } : null };
-  await updateVideo(v.id, { data: { personal } });
+  let scriptSrc = o.script;
+  if (!scriptSrc && o.scriptText?.trim()) { scriptSrc = joinPath(v.dir, "guion-propio.txt"); await fs.writeText(scriptSrc, o.scriptText.trim()); }
+  const script = scriptSrc ? (await importUploads(v, [scriptSrc]))[0] ?? null : null;
+  const personal: PersonalSpec = { ...(o.extra ?? {}), description: o.description.trim(), minutes: o.minutes, language: o.language, useLibrary: o.useLibrary, iterate: o.iterate,
+    files, script: script ? { path: script.path, name: script.name } : null };
+  await updateVideo(v.id, { data: { personal, format: o.format ?? "16:9" } });
   // Un video personal no se sube a YouTube: termina en tu revisión (y en Descargas)
   await setStage(v.id, "publish", { status: "skipped" });
+  return getVideo(v.id);
+}
+
+/** Video personal desde el cuadro de Inicio: se crea y se produce hasta la revisión final. */
+export async function startPersonal(o: PersonalInput): Promise<string | null> {
+  const v = await createPersonal(o);
+  if (!v) return null;
   runVideo(v.id);
   return v.id;
 }
 
 /** Inicia el siguiente video con el próximo tema aprobado (si no hay uno en curso). */
-export async function startNextVideo(): Promise<string | null> {
+export async function startNextVideo(format: VideoFormat = "16:9"): Promise<string | null> {
   const ch = await activeChannel();
   if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
   const topics = await listTopics(ch.id, "approved");
   if (!topics.length) { toast("warn", "No hay temas aprobados.", "Aprueba al menos uno en Temas."); return null; }
   const v = await createVideo(ch.id, topics[0], {});
+  if (format !== "16:9") await updateVideo(v.id, { data: { format } });
   runVideo(v.id);
   return v.id;
 }

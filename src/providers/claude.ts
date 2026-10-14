@@ -9,7 +9,7 @@ import { UserError } from "../lib/events";
 import { addCost } from "../lib/costs";
 import { activity } from "../lib/activity";
 import { getLimits, setLimits, parseRateLimit, recordClaudeRun, type ClaudeLimits } from "../lib/usage";
-import { joinPath, uid, extractJson, safeJson, baseName, truncate } from "../lib/util";
+import { joinPath, uid, extractJson, safeJson, baseName, truncate, zonedTimeToUtc, ymdInZone } from "../lib/util";
 
 export interface ClaudeCall {
   stage: StageModelKey;
@@ -101,6 +101,53 @@ export function sumUsage(modelUsage: any, usage?: any): { tokens: Tokens; model:
   return { tokens: t, model };
 }
 
+/** Límite de uso del plan agotado. `resetAt`: cuándo se repone (ms), si se pudo saber. */
+export class UsageLimitError extends UserError {
+  constructor(public resetAt: number | null, detail: string) {
+    super("Se agotó el límite de uso del plan.", `Lo hecho quedó guardado.${resetAt ? ` Se repone el ${new Date(resetAt).toLocaleString("es-PE", { weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false })}.` : ""} ${detail}`.trim(), "claude", true);
+  }
+}
+
+export const LIMIT_RE = /usage limit|limit reached|hit your (?:usage )?limit|rate limit|quota|out of (?:extra )?usage/i;
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const validZone = (z: string) => { try { new Intl.DateTimeFormat("en-US", { timeZone: z }); return true; } catch { return false; } };
+
+/**
+ * Cuándo se repone el límite según el mensaje de Claude Code: «…limit reached|1760040000» (época) o
+ * «resets 3pm (America/Lima)», «resets at 10:30am», «resets Oct 9, 10am». Sin zona, la del equipo.
+ */
+export function parseResetAt(msg: string, now = Date.now()): number | null {
+  const epoch = /\|\s*(\d{10,13})\b/.exec(msg);
+  if (epoch) { const n = Number(epoch[1]); return n < 1e12 ? n * 1000 : n; }
+  const m = /\bresets?\s+(?:at\s+|on\s+)?(?:([a-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(?:at\s+)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?:\s*\(([^)]+)\))?/i.exec(msg);
+  if (!m) return null;
+  const zone = m[6] && validZone(m[6].trim()) ? m[6].trim() : Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  let h = Number(m[3]); const min = Number(m[4] ?? 0); const ap = m[5]?.toLowerCase();
+  if (ap && (h < 1 || h > 12)) return null;
+  if (ap) h = (h % 12) + (ap === "pm" ? 12 : 0);
+  if (h > 23 || min > 59) return null;
+  const hhmm = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+  const month = m[1] ? MONTHS.indexOf(m[1].toLowerCase()) : -1;
+  if (m[1] && month < 0) return null;
+  if (month >= 0) {
+    const y = Number(ymdInZone(new Date(now), zone).slice(0, 4));
+    const at = (yy: number) => zonedTimeToUtc(`${yy}-${String(month + 1).padStart(2, "0")}-${String(Number(m[2])).padStart(2, "0")}`, hhmm, zone).getTime();
+    return at(y) < now - 3600_000 ? at(y + 1) : at(y);
+  }
+  const today = zonedTimeToUtc(ymdInZone(new Date(now), zone), hhmm, zone).getTime();
+  // Una hora que acaba de pasar (menos de 3 h) es la de hoy: el límite ya se repuso o está por reponerse
+  return today > now - 3 * 3600_000 ? today : zonedTimeToUtc(ymdInZone(new Date(now + 86_400_000), zone), hhmm, zone).getTime();
+}
+
+/** Sin hora en el mensaje: la ventana del plan que está llena (la que más tarda en reponerse). */
+export function resetFromLimits(l: ClaudeLimits | null, now = Date.now()): number | null {
+  if (!l) return null;
+  const wins = [l.fiveHour, l.sevenDay, ...Object.values(l.extra ?? {})].filter((w): w is NonNullable<ClaudeLimits["fiveHour"]> => !!w && w.resetsAt > now);
+  const full = wins.filter((w) => w.utilization >= 0.98).sort((a, b) => b.resetsAt - a.resetsAt)[0];
+  if (full) return full.resetsAt;
+  return /reject/i.test(l.status) && l.fiveHour && l.fiveHour.resetsAt > now ? l.fiveHour.resetsAt : null;
+}
+
 /** Busca el evento `result` (stream-json) o el objeto único (json). */
 function findResult(stdout: string): any {
   const lines = stdout.split("\n").map((l) => l.trim()).filter((l) => l.startsWith("{"));
@@ -115,6 +162,11 @@ function findResult(stdout: string): any {
 export function parseClaudeOutput<T>(stdout: string, stderr: string, code: number): ClaudeResult<T> {
   const out = findResult(stdout);
   const all = `${stdout}\n${stderr}`.toLowerCase();
+  // Sin evento de resultado: ¿el CLI avisó del límite? (solo fuera de los eventos JSON: los textos del modelo pueden hablar de «límites»)
+  if (!out || !(out.type === "result" || "structured_output" in out || "is_error" in out)) {
+    const plain = `${stdout}\n${stderr}`.split("\n").filter((l) => !l.trim().startsWith("{")).join("\n").slice(-4000);
+    if (LIMIT_RE.test(plain)) throw new UsageLimitError(parseResetAt(plain), plain.trim().slice(-600));
+  }
   if (!out) {
     if (/log ?in|logged in|authenticat|\/login|api key/.test(all))
       throw new UserError("Claude Code no tiene una sesión iniciada.", "En una terminal ejecuta «claude» e inicia sesión. " + stderr.slice(-800), "claude", false);
@@ -122,8 +174,7 @@ export function parseClaudeOutput<T>(stdout: string, stderr: string, code: numbe
   }
   if (out.is_error || (out.subtype && out.subtype !== "success")) {
     const msg = String(out.result ?? out.error ?? out.subtype ?? "error desconocido");
-    if (/usage limit|limit reached|rate limit|quota/i.test(msg))
-      throw new UserError("Se agotó el límite de uso del plan.", `Lo hecho quedó guardado. Reanuda cuando se reponga. ${msg}`, "claude");
+    if (LIMIT_RE.test(msg)) throw new UsageLimitError(parseResetAt(msg), msg);
     if (/max.?turns/i.test(String(out.subtype)))
       throw new UserError("Claude Code se quedó sin pasos.", msg, "claude");
     throw new UserError(`Claude Code devolvió un error: ${msg.slice(0, 300)}`, JSON.stringify(out).slice(0, 3000), "claude");
@@ -240,6 +291,8 @@ export async function claudeRun<T>(c: ClaudeCall): Promise<ClaudeResult<T>> {
   // Con el plan de suscripción el costo marginal es 0; se registra el equivalente de API como referencia.
   await addCost({ videoId: c.videoId, channelId: c.channelId, provider: "claude-code", item: c.label, units: parsed?.turns ?? 0, usd: 0, apiEquivUsd: apiEquiv });
   try { await fs.remove(jobDir); } catch { /* noop */ }
+  // Sin hora en el mensaje: la ventana llena que informó el propio Claude Code
+  if (err instanceof UsageLimitError && !err.resetAt) err.resetAt = resetFromLimits(after ?? (await getLimits()));
   if (err) throw err;
   return parsed!;
 }

@@ -119,10 +119,13 @@ export async function registerOpenverse(email: string): Promise<{ client_id: str
   return r;
 }
 
-async function openverse(query: string, kind: AssetKind, n: number): Promise<Candidate[]> {
+/** Orientación del material: horizontal (videos 16:9) o vertical (9:16). */
+export type Orient = "landscape" | "portrait";
+
+async function openverse(query: string, kind: AssetKind, n: number, orient: Orient = "landscape"): Promise<Candidate[]> {
   const type = kind === "image" ? "images" : "audio";
   const p = new URLSearchParams({ q: query, license: "cc0,pdm,by,by-sa", page_size: String(Math.min(20, n * 3)), mature: "false" });
-  if (kind === "image") { p.set("aspect_ratio", "wide"); p.set("size", "large"); }
+  if (kind === "image") { p.set("aspect_ratio", orient === "portrait" ? "tall" : "wide"); p.set("size", "large"); }
   if (kind === "sfx") { p.set("category", "sound_effect"); p.set("length", "short"); }
   if (kind === "music") p.set("category", "music");
   const r = await call<any>("openverse", "Openverse", `https://api.openverse.org/v1/${type}/?${p}`, await openverseAuth(), query);
@@ -144,12 +147,12 @@ async function openverse(query: string, kind: AssetKind, n: number): Promise<Can
 }
 
 // ---------- Pexels (fotos y videos; licencia Pexels: uso libre, sin atribución obligatoria) ----------
-async function pexels(query: string, kind: AssetKind, n: number): Promise<Candidate[]> {
+async function pexels(query: string, kind: AssetKind, n: number, orient: Orient = "landscape"): Promise<Candidate[]> {
   const key = await secrets.get(SECRET.pexelsApiKey);
   if (!key) return [];
   const per = String(Math.min(30, n * 3));
   if (kind === "image") {
-    const r = await call<any>("pexels", "Pexels", `https://api.pexels.com/v1/search?${new URLSearchParams({ query, per_page: per, orientation: "landscape" })}`, { Authorization: key }, query);
+    const r = await call<any>("pexels", "Pexels", `https://api.pexels.com/v1/search?${new URLSearchParams({ query, per_page: per, orientation: orient })}`, { Authorization: key }, query);
     return (r.photos ?? []).map((x: any): Candidate => ({
       source: "pexels", sourceId: String(x.id), kind, title: x.alt || query, author: x.photographer ?? "", license: "Licencia de Pexels",
       licenseUrl: "https://www.pexels.com/license/", attribution: `Photo by ${x.photographer} on Pexels — ${x.url}`, pageUrl: x.url,
@@ -158,11 +161,13 @@ async function pexels(query: string, kind: AssetKind, n: number): Promise<Candid
     }));
   }
   if (kind !== "video") return [];
-  const r = await call<any>("pexels", "Pexels", `https://api.pexels.com/videos/search?${new URLSearchParams({ query, per_page: per, orientation: "landscape", size: "medium" })}`, { Authorization: key }, query);
+  const r = await call<any>("pexels", "Pexels", `https://api.pexels.com/videos/search?${new URLSearchParams({ query, per_page: per, orientation: orient, size: "medium" })}`, { Authorization: key }, query);
   const out: Candidate[] = [];
   for (const x of r.videos ?? []) {
-    const files = (x.video_files ?? []).filter((f: any) => f.file_type === "video/mp4" && f.width >= 1280 && f.width <= 1920)
-      .sort((a: any, b: any) => Math.abs(a.width - 1920) - Math.abs(b.width - 1920));
+    // El archivo más cercano a 1080p por su lado largo (ancho en horizontal, alto en vertical)
+    const long = (f: any) => (orient === "portrait" ? f.height : f.width);
+    const files = (x.video_files ?? []).filter((f: any) => f.file_type === "video/mp4" && long(f) >= 1280 && long(f) <= 1920)
+      .sort((a: any, b: any) => Math.abs(long(a) - 1920) - Math.abs(long(b) - 1920));
     const f = files[0] ?? (x.video_files ?? [])[0];
     if (!f?.link) continue;
     out.push({
@@ -176,11 +181,11 @@ async function pexels(query: string, kind: AssetKind, n: number): Promise<Candid
 }
 
 // ---------- Pixabay (fotos, ilustraciones y videos; licencia de contenido de Pixabay) ----------
-async function pixabay(query: string, kind: AssetKind, n: number): Promise<Candidate[]> {
+async function pixabay(query: string, kind: AssetKind, n: number, orient: Orient = "landscape"): Promise<Candidate[]> {
   const key = await secrets.get(SECRET.pixabayApiKey);
   if (!key || (kind !== "image" && kind !== "video")) return [];
   const p = new URLSearchParams({ key, q: query.slice(0, 100), per_page: String(Math.max(3, Math.min(50, n * 3))), safesearch: "true" });
-  if (kind === "image") { p.set("orientation", "horizontal"); p.set("min_width", "1280"); }
+  if (kind === "image") { p.set("orientation", orient === "portrait" ? "vertical" : "horizontal"); p.set(orient === "portrait" ? "min_height" : "min_width", "1280"); }
   const url = kind === "image" ? `https://pixabay.com/api/?${p}` : `https://pixabay.com/api/videos/?${p}`;
   const r = await call<any>("pixabay", "Pixabay", url, {}, query);
   return (r.hits ?? []).map((x: any): Candidate | null => {
@@ -311,7 +316,7 @@ async function freesound(query: string, kind: AssetKind, n: number): Promise<Can
   return out;
 }
 
-const IMPL: Record<SourceId, (q: string, k: AssetKind, n: number) => Promise<Candidate[]>> = { openverse, pexels, pixabay, wikimedia, nasa, met, freesound };
+const IMPL: Record<SourceId, (q: string, k: AssetKind, n: number, o?: Orient) => Promise<Candidate[]>> = { openverse, pexels, pixabay, wikimedia, nasa, met, freesound };
 
 /** ¿La fuente está configurada (clave presente cuando hace falta)? */
 export async function sourceReady(src: SourceId): Promise<boolean> {
@@ -325,13 +330,13 @@ export async function sourceReady(src: SourceId): Promise<boolean> {
 export interface SearchReport { candidates: Candidate[]; errors: { source: SourceId; message: string }[]; skipped: SourceId[] }
 
 /** Busca en las fuentes habilitadas para el tipo, respetando cuotas. */
-export async function searchSources(query: string, kind: AssetKind, n: number, only?: SourceId[]): Promise<SearchReport> {
+export async function searchSources(query: string, kind: AssetKind, n: number, only?: SourceId[], orient?: Orient): Promise<SearchReport> {
   const rep: SearchReport = { candidates: [], errors: [], skipped: [] };
   const list = (only ?? SOURCES_FOR[kind]).filter((s) => SOURCES_FOR[kind].includes(s));
   await Promise.all(list.map(async (src) => {
     if (!(await sourceReady(src))) return;
     if (!(await hasQuota(src, src === "met" ? 6 : 1))) { rep.skipped.push(src); return; }
-    try { rep.candidates.push(...(await IMPL[src](query, kind, n))); }
+    try { rep.candidates.push(...(await IMPL[src](query, kind, n, orient))); }
     catch (e) { rep.errors.push({ source: src, message: e instanceof Error ? e.message : String(e) }); }
   }));
   return rep;

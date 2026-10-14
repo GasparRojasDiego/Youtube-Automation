@@ -76,6 +76,7 @@ export const proc = {
     cp.on("error", (e) => { err += String(e); });
     if (r.stdin != null) cp.stdin!.end(r.stdin); else cp.stdin!.end();
   }),
+  keepAwake: async (_on: boolean) => undefined,
   kill: async (id: string) => { let any = false; for (const [k, c] of running) if (k === id || k.startsWith(`${id}:`)) { c.kill("SIGKILL"); any = true; } return any; },
   which: async (program: string) => {
     if (path.isAbsolute(program)) return nfs.existsSync(program) ? program : null;
