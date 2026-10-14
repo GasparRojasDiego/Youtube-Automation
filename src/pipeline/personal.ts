@@ -150,15 +150,16 @@ export async function libraryPool(v: Pick<Video, "data">, text: string, limit = 
   const mode = p?.library?.mode ?? "none";
   if (!p || mode === "none") return [];
   const uploads = new Set(p.files.map((f) => f.asset_id).filter(Boolean));
-  const list = (mode === "pick" ? [...(await getAssets(p.library!.ids)).values()] : await listAssets({ scope: "personal", limit: 500 }))
+  // «Completa»: toda la biblioteca (la personal y la de automatización); a igual parecido, primero lo personal
+  const list = (mode === "pick" ? [...(await getAssets(p.library!.ids)).values()] : await listAssets({ scope: "all", limit: 3000 }))
     .filter((a) => (a.kind === "image" || a.kind === "video") && !uploads.has(a.id) && a.usable !== 0);
   if (mode === "pick" || list.length <= limit) return list;
   const words = new Set(text.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
-  const score = (a: Asset) => (`${a.title} ${a.tags} ${a.description}`.toLowerCase().match(/\p{L}{4,}/gu) ?? []).reduce((n, w) => n + (words.has(w) ? 1 : 0), 0);
+  const score = (a: Asset) => (`${a.title} ${a.tags} ${a.description}`.toLowerCase().match(/\p{L}{4,}/gu) ?? []).reduce((n, w) => n + (words.has(w) ? 1 : 0), 0) + (a.source === "personal" ? 0.5 : 0);
   return list.map((a) => ({ a, s: score(a) })).sort((x, y) => y.s - x.s || y.a.created_at - x.a.created_at).slice(0, limit).map((x) => x.a);
 }
 
-/** Fotos y videos del usuario para el video: los subidos y su biblioteca personal según la tarjeta. */
+/** Fotos y videos del usuario para el video: los subidos y la biblioteca (toda, la elegida o ninguna) según la tarjeta. */
 export async function userMedia(v: Pick<Video, "data">, text: string): Promise<{ uploads: Asset[]; library: Asset[] }> {
   const p = personalOf(v);
   if (!p) return { uploads: [], library: [] };

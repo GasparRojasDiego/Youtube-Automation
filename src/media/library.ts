@@ -144,9 +144,12 @@ export function ftsQuery(q: string): string {
 export interface LibraryHit extends Asset { score: number }
 
 /** Búsqueda por texto en la biblioteca (descripciones, etiquetas y consultas). */
-/** Ámbito de la biblioteca: lo compartido por los videos automáticos o tus archivos personales (nunca se mezclan). */
-export type Scope = "auto" | "personal";
-const scopeSql = (scope: Scope, col = "source") => (scope === "personal" ? `${col} = 'personal'` : `${col} <> 'personal'`);
+/**
+ * Ámbito de la biblioteca: lo de los videos automáticos, tus archivos personales o todo.
+ * Los videos automáticos solo usan «auto»; los personales pueden usar toda la biblioteca («all»).
+ */
+export type Scope = "auto" | "personal" | "all";
+const scopeSql = (scope: Scope, col = "source") => (scope === "all" ? "1=1" : scope === "personal" ? `${col} = 'personal'` : `${col} <> 'personal'`);
 
 export async function searchLibrary(q: string, kind: AssetKind | null, limit = 12, opts: { excludeIds?: string[]; onlyUsable?: boolean; minDur?: number; scope?: Scope } = {}): Promise<LibraryHit[]> {
   const fq = ftsQuery(q);

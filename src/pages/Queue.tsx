@@ -213,17 +213,17 @@ function Segmented<T extends string>({ value, options, onChange, disabled }: { v
 function LibraryPicker({ open, ids, onClose, onChange }: { open: boolean; ids: string[]; onClose: () => void; onChange: (ids: string[]) => void }) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [q, setQ] = useState("");
-  useEffect(() => { if (open) void listAssets({ scope: "personal", limit: 500 }).then((a) => setAssets(a.filter((x) => x.kind === "image" || x.kind === "video"))); }, [open]);
+  useEffect(() => { if (open) void listAssets({ scope: "all", limit: 3000 }).then((a) => setAssets(a.filter((x) => x.kind === "image" || x.kind === "video"))); }, [open]);
   const shown = assets.filter((a) => !q.trim() || `${a.title} ${a.tags} ${a.description}`.toLowerCase().includes(q.toLowerCase()));
   return (
-    <Modal open={open} onClose={onClose} title={`Recursos de tu biblioteca personal (${ids.length} elegidos)`} wide footer={<button className="btn-primary" onClick={onClose}>Listo</button>}>
+    <Modal open={open} onClose={onClose} title={`Recursos de la biblioteca (${ids.length} elegidos)`} wide footer={<button className="btn-primary" onClick={onClose}>Listo</button>}>
       <input className="input mb-3" placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
-      {!assets.length ? <div className="text-sm text-muted-foreground">Tu biblioteca personal está vacía: sube archivos en Biblioteca → Personal o en la tarjeta.</div> : (
+      {!assets.length ? <div className="text-sm text-muted-foreground">La biblioteca está vacía: sube archivos en Biblioteca o en la tarjeta.</div> : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 max-h-[55vh] overflow-auto">
           {shown.map((a) => { const on = ids.includes(a.id); return (
             <button key={a.id} type="button" onClick={() => onChange(on ? ids.filter((x) => x !== a.id) : [...ids, a.id])} className={`relative rounded-md overflow-hidden border-2 text-left ${on ? "border-primary" : "border-transparent opacity-80 hover:opacity-100"}`}>
               {a.thumb ? <img src={fileUrl(a.thumb)} className="w-full aspect-video object-cover" /> : <div className="w-full aspect-video bg-secondary grid place-items-center"><Film size={16} /></div>}
-              <div className="text-[10.5px] px-1 py-0.5 truncate">{a.title}</div>
+              <div className="text-[10.5px] px-1 py-0.5 truncate" title={a.path}>{a.source === "personal" ? "● " : ""}{a.title}</div>
               {on && <CheckCircle2 size={16} className="absolute top-1 right-1 text-primary bg-background rounded-full" />}
             </button>
           ); })}
@@ -362,7 +362,7 @@ function QueueEditor({ item, topics, items, onClose }: { item: QueueItem | null;
         <div className="rounded-lg border border-border p-3 space-y-2.5">
           <div className="text-[13px] font-medium flex items-center gap-1.5"><Library size={14} /> Recursos</div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] text-muted-foreground">Biblioteca personal:</span>
+            <span className="text-[12px] text-muted-foreground" title="Completa: toda la biblioteca (personal y de automatización)">Biblioteca:</span>
             <Segmented value={p.library.mode} disabled={locked} options={[{ id: "all", label: "Completa" }, { id: "pick", label: "Solo algunos" }, { id: "none", label: "Ninguna" }]} onChange={(m) => set({ library: { ...p.library, mode: m } })} />
             {p.library.mode === "pick" && <button className="btn-ghost btn-sm" disabled={locked} onClick={() => setLib(true)}>Elegir ({p.library.ids.length})</button>}
           </div>

@@ -2,8 +2,9 @@
 // con su descripción hecha por Claude, licencia y procedencia, para reutilizar.
 import { useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openUrl, openPath } from "@tauri-apps/plugin-opener";
-import { Library as LibraryIcon, Search, Eye, Upload, Globe, Star, Trash2, ExternalLink, FolderOpen, Ban, CheckCircle2, Music2, Plus, UserRound, Bot } from "lucide-react";
+import { openUrl, openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { exportLibraryMd } from "../media/catalog";
+import { Library as LibraryIcon, Search, Eye, Upload, Globe, Star, Trash2, ExternalLink, FolderOpen, Ban, CheckCircle2, Music2, Plus, UserRound, Bot, FileText } from "lucide-react";
 import { useBus } from "../lib/bus";
 import { fileUrl } from "../lib/ipc";
 import { listAssets, libraryStats, libraryRoot, updateAsset, deleteAsset, importLocalFile, importCandidate, getAsset, type Asset, type Scope } from "../media/library";
@@ -50,6 +51,10 @@ export function LibraryPage() {
         actions={<>
           <button className="btn-ghost" onClick={async () => void openPath(await libraryRoot())}><FolderOpen size={15} /> Carpeta</button>
           <button className="btn-ghost" onClick={() => setWeb(true)}><Globe size={15} /> Buscar en internet</button>
+          <AsyncButton className="btn-ghost" title="Crea en Descargas un .md con la descripción de todo el material (personal y de automatización)" onClick={async () => {
+            try { const p = await exportLibraryMd(); toast("success", "Catálogo creado en Descargas", p.split(/[\\/]/).pop()); void revealItemInDir(p).catch(() => undefined); }
+            catch (e) { await logError(e, null, "Generar .md de la biblioteca"); }
+          }}><FileText size={15} /> Generar .md</AsyncButton>
           <AsyncButton className="btn-ghost" onClick={async () => {
             const sel0 = await openDialog({ multiple: true, filters: [{ name: "Medios", extensions: ["jpg", "jpeg", "png", "webp", "mp4", "mov", "webm", "mp3", "wav", "m4a", "ogg"] }] });
             const files = Array.isArray(sel0) ? sel0 : sel0 ? [sel0] : [];
@@ -76,7 +81,7 @@ export function LibraryPage() {
             </button>
           ))}
         </div>
-        <span className="text-[12px] text-muted-foreground">{scope === "auto" ? "Material que usan los videos automáticos." : "Lo que subiste para tus videos personales: solo se usa en ellos."}</span>
+        <span className="text-[12px] text-muted-foreground">{scope === "auto" ? "Material de los videos automáticos (los personales también pueden usarlo)." : "Lo que subiste para tus videos personales: solo se usa en ellos."}</span>
       </div>
       <div className="grid grid-cols-6 gap-3">
         <Card><Stat label="Imágenes" value={stats.image?.n ?? 0} /></Card>

@@ -169,7 +169,7 @@ Estética editorial y minimalista, entre una presentación de producto premium y
 
 | Opción | Qué hace |
 |---|---|
-| **Biblioteca personal: Completa** *(predeterminada)* | Claude puede usar cualquier foto o video de la biblioteca personal de Diego que encaje con el guion. Si hay muchos, se queda con los 40 más relacionados. |
+| **Biblioteca: Completa** *(predeterminada)* | Claude puede usar cualquier foto o video de **toda** la biblioteca (la personal de Diego y la de automatización) que encaje con el guion. Si hay muchos, se queda con los 40 más relacionados y, a igual parecido, prefiere los personales. El catálogo completo, con la descripción de cada recurso, se genera en *Biblioteca → Generar .md*. |
 | **Solo algunos** | Diego elige recursos concretos (logo, capturas de la app, fotos del equipo). Indica en la ficha **cuáles** y para qué momento. |
 | **Ninguna** | No se usa la biblioteca. |
 | **Archivos solo para este video** | Imágenes, videos, audios o documentos (PDF, DOCX, PPTX, TXT) que solo sirven para este video. Las imágenes y los videos se muestran al menos una vez; los documentos se usan como fuente de información. |
