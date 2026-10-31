@@ -1,6 +1,6 @@
 # ATRIL
 
-**Estudio de producción asistida para YouTube** · v2.5.12
+**Estudio de producción asistida para YouTube** · v2.5.13
 
 ATRIL produce un video en inglés a partir de tu idea, sin pedirte nada por el camino; tú revisas el video final. **Nada se publica sin tu aprobación.**
 
@@ -12,8 +12,8 @@ App de escritorio para Windows (Tauri 2 + React).
 
 En *Releases*:
 
-- `ATRIL_2.5.12_instalador_x64.exe`: recomendado.
-- `ATRIL_2.5.12_portable_x64.zip`: portátil (descomprime toda la carpeta).
+- `ATRIL_2.5.13_instalador_x64.exe`: recomendado.
+- `ATRIL_2.5.13_portable_x64.zip`: portátil (descomprime toda la carpeta).
 - `SHA256SUMS.txt`: huellas para comprobar las descargas (ver `SECURITY.md`).
 
 ## Principios

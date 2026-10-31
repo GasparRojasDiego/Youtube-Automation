@@ -1,6 +1,6 @@
 # ATRIL desde Claude (MCP)
 
-*Versión 2.5.12. Para Diego y para cualquier chat de Claude que vaya a usar ATRIL.*
+*Versión 2.5.13. Para Diego y para cualquier chat de Claude que vaya a usar ATRIL.*
 
 ATRIL incluye un **servidor MCP** (Model Context Protocol, el estándar con el que Claude usa herramientas externas). Con él, **cualquier chat nuevo de Claude** puede usar ATRIL:
 - crear videos y seguir su producción;

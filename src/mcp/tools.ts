@@ -408,6 +408,7 @@ export const TOOLS: ToolDef[] = [
           if (!inReview) return fail("Solo se acepta un video en revisión final.");
           await acceptVideo(v.id); return ok({ accepted: v.id, note: v.data?.personal ? "Terminado (está en Descargas)." : "Guardado sin publicar: el usuario lo publica desde ATRIL cuando quiera." });
         case "reject":
+          if (runningVideoId() === v.id) await cancelCurrent();   // rechazado: no sigue gastando en producirlo
           await rejectVideo(v.id, String(a.reason ?? "Rechazado desde Claude")); return ok({ rejected: v.id });
         case "download":
           return ok({ file: await downloadVideo(v) });
@@ -417,6 +418,7 @@ export const TOOLS: ToolDef[] = [
         }
         case "delete":
           if (a.confirm !== true) return fail("Borrar es irreversible: repite con confirm:true si el usuario lo pidió.");
+          if (runningVideoId() === v.id) await cancelCurrent();
           await deleteVideo(v.id); return ok({ deleted: v.id });
       }
       return fail("Acción desconocida.");
@@ -597,14 +599,14 @@ export const TOOLS: ToolDef[] = [
     run: async (a) => {
       if (a.confirm !== true) return fail("Repite con confirm:true si el usuario lo pidió.");
       const m = await getAssets(a.ids);
-      let deleted = 0; const kept: string[] = [];
+      let deleted = 0; const kept: string[] = []; const missing: string[] = [];
       for (const id of a.ids) {
         const x = m.get(id);
-        if (!x) continue;
+        if (!x) { missing.push(id); continue; }
         if (x.used_count > 0 && !a.force) { kept.push(id); continue; }
         await deleteAsset(id); deleted++;
       }
-      return ok({ deleted, kept_used: kept.length ? kept : undefined });
+      return ok({ deleted, kept_used: kept.length ? kept : undefined, not_found: missing.length ? missing : undefined });
     },
   },
   {
@@ -743,6 +745,7 @@ export const TOOLS: ToolDef[] = [
       if (a.action === "list") return ok((await listTopics(ch.id, a.status)).slice(0, 60).map((t) => ({ id: t.id, title: t.title, status: t.status, score: t.score || undefined, angle: cut(t.angle, 160) || undefined })));
       if (a.action === "propose") return ok({ job: startJob("topics", async () => ({ added: await suggestTopics(ch.id, Math.min(15, a.count ?? 6), String(a.hint ?? "")) })).id, note: "atril_status muestra cuándo termina; luego topics action=list." });
       if (!a.id) return fail(`${a.action} necesita id.`);
+      if (!(await listTopics(ch.id)).some((t) => t.id === a.id)) return fail(`No existe el tema «${a.id}» (topics action=list).`);
       if (a.action === "delete") await deleteTopic(a.id); else await updateTopic(a.id, { status: a.action === "approve" ? "approved" : "rejected" });
       return ok({ done: a.action, id: a.id });
     },

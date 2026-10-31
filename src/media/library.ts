@@ -210,8 +210,9 @@ export function filterAssets<T extends Asset>(list: T[], f: AssetFilter): T[] {
 
 export async function listAssets(f: { kind?: AssetKind | null; q?: string; onlyUndescribed?: boolean; limit?: number; offset?: number; scope?: Scope } & AssetFilter = {}): Promise<Asset[]> {
   if (f.q?.trim()) {
-    const hits = await searchLibrary(f.q, f.kind ?? null, (f.limit ?? 120) * 2, { onlyUsable: false, scope: f.scope });
-    return filterAssets(hits, f).slice(0, f.limit ?? 120);
+    const from = f.offset ?? 0, n = f.limit ?? 120;
+    const hits = await searchLibrary(f.q, f.kind ?? null, (from + n) * 2, { onlyUsable: false, scope: f.scope });
+    return filterAssets(hits, f).slice(from, from + n);
   }
   const w: string[] = [scopeSql(f.scope ?? "auto")]; const p: unknown[] = [];
   if (f.kind) { w.push("kind=?"); p.push(f.kind); }

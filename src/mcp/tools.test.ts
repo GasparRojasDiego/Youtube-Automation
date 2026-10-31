@@ -7,7 +7,8 @@ import { execFileSync } from "node:child_process";
 vi.mock("../lib/ipc", () => import("../../e2e/node-ipc"));
 // La producción no arranca en la prueba: solo se comprueba que se pidió
 const started: string[] = [];
-vi.mock("../pipeline/runner", async (orig) => ({ ...(await orig<typeof import("../pipeline/runner")>()), runVideo: (id: string) => { started.push(id); } }));
+vi.mock("../pipeline/runner", async (orig) => ({ ...(await orig<typeof import("../pipeline/runner")>()), runVideo: (id: string) => { started.push(id); },
+  rerenderFrom: async (id: string, stage: string) => { started.push(`${id}:${stage}`); }, redoVoiceSegment: async (id: string, seg: string) => { started.push(`${id}:${seg}`); } }));
 const ipc = await import("../../e2e/node-ipc");
 const { SPEC } = await import("./host");
 const { handleRpc } = await import("./protocol");
@@ -162,6 +163,69 @@ describe("herramientas MCP de ATRIL (contra la app real, sin ventana)", () => {
     expect(u.data.version).toBeGreaterThan(1);
     expect((await tool("topics", { action: "list" })).data).toEqual([]);
     expect((await tool("topics", { action: "approve" })).text).toMatch(/id/);
+  });
+
+  it("el resto de acciones responde con datos o con un aviso claro, nunca con un error interno", async () => {
+    const v = await tool("video_create", { mode: "personal", platform: "youtube", title: "Acciones", script: "Hola.", show: false });
+    const id = v.data.video_id as string;
+    const all = await tool("video_get", { id, include: ["stages", "files", "package", "plan", "script", "activity", "revisions"] });
+    expect(all.error).toBe(false);
+    expect(all.data).toMatchObject({ package: null, plan: null, script: null, revisions: [] });
+    started.length = 0;
+    expect((await tool("video_action", { id, action: "continue" })).data).toEqual({ continued: id });
+    expect((await tool("video_action", { id, action: "redo_from", stage: "voice" })).data).toEqual({ redoing_from: "voice" });
+    expect((await tool("video_action", { id, action: "redo_voice_segment", segment_id: "s1" })).data).toEqual({ redoing_voice: "s1" });
+    expect(started).toEqual([id, `${id}:voice`, `${id}:s1`]);
+    for (const [args, msg] of [[{ action: "redo_from" }, /necesita stage/], [{ action: "redo_voice_segment" }, /segment_id/], [{ action: "cancel" }, /no está en producción/],
+      [{ action: "request_changes", text: "Más corto" }, /revisión final/], [{ action: "download" }, /video final/]] as const) {
+      const r = await tool("video_action", { id, ...args });
+      expect(r.error).toBe(true);
+      expect(r.text).toMatch(msg);
+    }
+    // Recortar corre en segundo plano: su fallo aparece en el estado con el mismo aviso
+    const job = (await tool("video_action", { id, action: "cut_tiktok" })).data.job;
+    const jobOf = async () => (await tool("atril_status")).data.jobs.find((j: any) => j.id === job);
+    await vi.waitFor(async () => expect((await jobOf()).status).toBe("error"));
+    expect((await jobOf()).error).toMatch(/video final/);
+    expect((await tool("atril_show", { page: "video", video_id: id })).error).toBe(false);
+    expect((await tool("atril_show", { page: "biblioteca" })).error).toBe(false);
+    expect((await tool("video_action", { id, action: "reject", reason: "Prueba" })).data).toEqual({ rejected: id });
+    expect((await (await import("../lib/repo")).getVideo(id))!.status).toBe("rejected");
+    // Cola: mover, reintentar, pausar, detener y limpiar por plataforma
+    const items = (await tool("queue_list", { platform: "tiktok" })).data.items;
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    for (const action of ["move_down", "move_up", "retry"]) expect((await tool("queue_action", { action, item_id: items[0].id })).error).toBe(false);
+    for (const action of ["pause", "stop", "clear_finished"]) expect((await tool("queue_action", { action, platform: "tiktok" })).data).toMatchObject({ done: action, running: false });
+    expect((await tool("queue_action", { action: "retry", item_id: "q_nada" })).text).toMatch(/No existe la tarjeta/);
+    // Campañas: listar y borrar (sus tarjetas quedan sueltas)
+    const frame = (await tool("campaign", { action: "list" })).data.find((c: any) => c.name === "Frame");
+    expect(frame).toBeTruthy();
+    expect((await tool("campaign", { action: "delete", id: frame.id })).data).toEqual({ deleted: frame.id });
+    const loose = (await tool("queue_list", { platform: "tiktok" })).data.items.find((i: any) => i.title === "Uno");
+    expect(loose).toBeTruthy();
+    expect(loose.campaign).toBeUndefined();
+    // Biblioteca: todos los filtros, búsqueda por significado con páginas y catálogo
+    for (const args of [{ status: "unused" }, { orientation: "landscape" }, { min_quality: 3 }, { source: "user" }, { favorites: true }, { sort: "size" }, { sort: "used", scope: "personal" }, { q: "pop" }])
+      expect((await tool("library_list", args)).error).toBe(false);
+    const p1 = (await tool("library_list", { q: "pop fondo lofi", limit: 1 })).data.assets;
+    const p2 = (await tool("library_list", { q: "pop fondo lofi", limit: 1, offset: 1 })).data.assets;
+    expect(p1.length).toBe(1);
+    expect(p2.length).toBe(1);
+    expect(p2[0].id).not.toBe(p1[0].id);
+    const cat = await tool("library_organize", { dedupe: false, missing: false, tags: false, describe: false, catalog: true });
+    expect(nfs.existsSync(cat.data.catalog)).toBe(true);
+    expect((await tool("library_delete", { ids: ["as_nada"], confirm: true })).data).toMatchObject({ deleted: 0, not_found: ["as_nada"] });
+    // Temas e instrucciones: con id real y con uno que no existe
+    const { addTopic, activeChannel } = await import("../lib/repo");
+    const tp = await addTopic({ channel_id: (await activeChannel())!.id, title: "La Luna", status: "candidate" });
+    expect((await tool("topics", { action: "approve", id: tp })).data).toEqual({ done: "approve", id: tp });
+    expect((await tool("topics", { action: "list", status: "approved" })).data.map((t: any) => t.id)).toEqual([tp]);
+    expect((await tool("topics", { action: "delete", id: tp })).error).toBe(false);
+    expect((await tool("topics", { action: "reject", id: tp })).text).toMatch(/No existe el tema/);
+    const skill = (await tool("instructions", { action: "list" })).data[0];
+    expect((await tool("instructions", { action: "get", id: skill.id })).data.content.length).toBeGreaterThan(0);
+    expect((await tool("instructions", { action: "get", id: "sk_nada" })).text).toMatch(/No existe la instrucción/);
+    expect((await tool("video_action", { id, action: "delete", confirm: true })).data).toEqual({ deleted: id });
   });
 
   it("paquete de Claude Desktop (.mcpb): zip válido con manifiesto 0.3 y el puente", async () => {
