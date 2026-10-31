@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Home, Clapperboard, Sparkles, Smartphone, MonitorPlay, Library, Download, type LucideIcon } from "lucide-react";
+import { Monitor, Clapperboard, Sparkles, Smartphone, MonitorPlay, Library, Download, type LucideIcon } from "lucide-react";
 import { navigate, useRoute, type Page } from "./ui/nav";
 import { AtrilLogo } from "./ui/Logo";
 import { Toaster } from "./ui/Toaster";
@@ -8,13 +8,12 @@ import { UpdateDialog, UpdateRing } from "./ui/Update";
 import { useBus } from "./lib/bus";
 import { getSettings, isDark } from "./lib/settings";
 import { runningVideoId } from "./pipeline/runner";
-import { Today } from "./pages/Today";
+import { Studio } from "./pages/Today";
 import { VideosPage } from "./pages/Videos";
 import { VideoDetail } from "./pages/VideoDetail";
 import { Skills } from "./pages/Skills";
 import { StudioPage } from "./pages/Studio";
 import { LibraryPage } from "./pages/Library";
-import { TikTokPage } from "./pages/TikTok";
 import { SettingsPage } from "./pages/Settings";
 import { Welcome } from "./pages/Welcome";
 import { startUpdateChecks, updateState } from "./lib/updater";
@@ -22,10 +21,10 @@ import { AskHost } from "./ui/Ask";
 
 const NAV: { id: Page; label: string; icon: LucideIcon }[][] = [
   [
-    { id: "inicio", label: "Inicio", icon: Home },
+    { id: "youtube", label: "YouTube", icon: Monitor },
+    { id: "tiktok", label: "TikTok", icon: Smartphone },
     { id: "produccion", label: "Producción", icon: MonitorPlay },
     { id: "videos", label: "Videos", icon: Clapperboard },
-    { id: "tiktok", label: "TikTok", icon: Smartphone },
   ],
   [
     { id: "instrucciones", label: "Instrucciones", icon: Sparkles },
@@ -78,11 +77,11 @@ export default function App() {
 
   const page = (() => {
     switch (route.page) {
-      case "inicio": return <Today />;
+      case "youtube": return <Studio key="youtube" platform="youtube" />;
       case "produccion": return <StudioPage />;
       case "videos": return <VideosPage />;
       case "video": return <VideoDetail key={route.id} id={route.id!} />;
-      case "tiktok": return <TikTokPage />;
+      case "tiktok": return <Studio key="tiktok" platform="tiktok" />;
       case "instrucciones": return <Skills />;
       case "biblioteca": return <LibraryPage />;
       case "ajustes": return <SettingsPage />;

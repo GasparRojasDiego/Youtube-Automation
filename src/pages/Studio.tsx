@@ -325,5 +325,5 @@ export function StudioPage() {
     setVideo(v);
   })(); }, [tick]);
   if (video === undefined) return <div className="flex justify-center py-20"><Spinner size={22} /></div>;
-  return video ? <ProductionView key={video.id} video={video} /> : <Card><Empty icon={MonitorPlay} title="Nada en producción">Inicia un video en Inicio.</Empty></Card>;
+  return video ? <ProductionView key={video.id} video={video} /> : <Card><Empty icon={MonitorPlay} title="Nada en producción">Inicia un video en el estudio de YouTube o de TikTok.</Empty></Card>;
 }

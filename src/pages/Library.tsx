@@ -7,7 +7,7 @@ import { exportLibraryMd } from "../media/catalog";
 import { Library as LibraryIcon, Search, Eye, Upload, Globe, Star, Trash2, ExternalLink, FolderOpen, Ban, CheckCircle2, Music2, Plus, UserRound, Bot, FileText } from "lucide-react";
 import { useBus } from "../lib/bus";
 import { fileUrl } from "../lib/ipc";
-import { listAssets, libraryStats, libraryRoot, updateAsset, deleteAsset, importLocalFile, importCandidate, getAsset, type Asset, type Scope } from "../media/library";
+import { listAssets, libraryStats, libraryRoot, librarySources, updateAsset, deleteAsset, importLocalFile, importCandidate, getAsset, type Asset, type Scope, type AssetFilter } from "../media/library";
 import { searchSources, rankCandidates, SOURCE_LABEL, type AssetKind, type Candidate } from "../media/sources";
 import { describeAssets, describePending } from "../media/vision";
 import { searchIcons, importIcon, createIcon, type IconHit } from "../media/icons";
@@ -19,6 +19,8 @@ import { askConfirm, askText } from "../ui/Ask";
 
 type KindTab = "all" | AssetKind;
 const KIND_LABEL: Record<AssetKind, string> = { image: "Imagen", video: "Clip", sfx: "Efecto", music: "Música", icon: "Ícono" };
+const sourceName = (src: string) => (SOURCE_LABEL as Record<string, string>)[src] ?? ({ user: "Propio", personal: "Personal", iconify: "Iconify", generated: "Creado con IA", atril: "ATRIL" } as Record<string, string>)[src] ?? src;
+const NO_FILTERS: AssetFilter = { orientation: "", status: "", minQuality: 0, source: "", sort: "new" };
 
 function Thumb({ a, className = "" }: { a: Asset; className?: string }) {
   if (a.kind === "icon") return <div className={`grid place-items-center bg-primary/5 ${className}`}><img src={fileUrl(a.path)} className="w-1/3 h-1/3 object-contain dark:invert opacity-90" loading="lazy" /></div>;
@@ -38,10 +40,15 @@ export function LibraryPage() {
   const [web, setWeb] = useState(false);
   // Dos bibliotecas que no se mezclan: la de los videos automáticos y tus archivos personales
   const [scope, setScope] = useState<Scope>("auto");
+  const [filters, setFilters] = useState<AssetFilter>(NO_FILTERS);
+  const [sources, setSources] = useState<{ source: string; n: number }[]>([]);
+  const setF = (p: Partial<AssetFilter>) => setFilters((f) => ({ ...f, ...p }));
   useEffect(() => { void (async () => {
-    setList(await listAssets({ kind: kind === "all" ? null : kind, q: query, favorites: fav, limit: 240, scope }));
+    setList(await listAssets({ kind: kind === "all" ? null : kind, q: query, favorites: fav, limit: 240, scope, ...filters }));
     setStats(await libraryStats(scope));
-  })(); }, [tick, kind, query, fav, scope]);
+    setSources(await librarySources(scope));
+  })(); }, [tick, kind, query, fav, scope, filters]);
+  const filtered = !!(filters.orientation || filters.status || filters.minQuality || filters.source || (filters.sort && filters.sort !== "new"));
   const undescribed = (stats.image?.undescribed ?? 0) + (stats.video?.undescribed ?? 0);
   const bytes = Object.values(stats).reduce((a, s) => a + (s?.bytes ?? 0), 0);
 
@@ -99,7 +106,29 @@ export function LibraryPage() {
         </form>
         <button className={`btn-ghost ${fav ? "text-amber-500" : ""}`} onClick={() => setFav(!fav)}><Star size={15} /> Favoritos</button>
       </div>
-      {list.length === 0 ? <Card><Empty icon={LibraryIcon} title={query ? "Sin resultados" : "Vacía"}>{query ? "" : "Se llena sola al producir videos."}</Empty></Card> : (
+      <div className="flex items-center gap-2 flex-wrap text-[12.5px]">
+        <div className="inline-flex h-8 p-0.5 rounded-md border border-border bg-background/60" role="group" aria-label="Orientación">
+          {([["", "Toda forma"], ["landscape", "Horizontal"], ["portrait", "Vertical"], ["square", "Cuadrada"]] as const).map(([id, l]) => (
+            <button key={id} type="button" onClick={() => setF({ orientation: id })} className={`px-2.5 rounded text-[12.5px] font-medium ${filters.orientation === id ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`}>{l}</button>
+          ))}
+        </div>
+        <select className="input h-8 w-auto text-[12.5px]" aria-label="Estado" value={filters.status} onChange={(e) => setF({ status: e.target.value as AssetFilter["status"] })}>
+          <option value="">Cualquier estado</option><option value="described">Descritos</option><option value="undescribed">Sin describir</option><option value="unusable">Marcados «no usar»</option><option value="unused">Nunca usados</option><option value="used">Ya usados</option>
+        </select>
+        <select className="input h-8 w-auto text-[12.5px]" aria-label="Fuente" value={filters.source} onChange={(e) => setF({ source: e.target.value })}>
+          <option value="">Todas las fuentes</option>
+          {sources.map((x) => <option key={x.source} value={x.source}>{sourceName(x.source)} ({x.n})</option>)}
+        </select>
+        <select className="input h-8 w-auto text-[12.5px]" aria-label="Calidad mínima" value={filters.minQuality} onChange={(e) => setF({ minQuality: Number(e.target.value) })}>
+          <option value={0}>Cualquier calidad</option><option value={3}>Calidad 3 o más</option><option value={4}>Calidad 4 o más</option><option value={5}>Solo calidad 5</option>
+        </select>
+        <select className="input h-8 w-auto text-[12.5px]" aria-label="Orden" value={filters.sort} onChange={(e) => setF({ sort: e.target.value as AssetFilter["sort"] })}>
+          <option value="new">Más recientes</option><option value="old">Más antiguos</option><option value="used">Más usados</option><option value="quality">Mejor calidad</option><option value="size">Más pesados</option>
+        </select>
+        <span className="text-muted-foreground">{list.length}{list.length >= 240 ? "+" : ""} resultado(s)</span>
+        {filtered && <button className="text-primary hover:underline" onClick={() => setFilters(NO_FILTERS)}>Quitar filtros</button>}
+      </div>
+      {list.length === 0 ? <Card><Empty icon={LibraryIcon} title={query || filtered || fav ? "Sin resultados" : "Vacía"}>{query || filtered || fav ? "" : "Se llena sola al producir videos."}</Empty></Card> : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
           {list.map((a) => (
             <button key={a.id} onClick={() => setSel(a)} className="card card-hover overflow-hidden text-left">
@@ -111,7 +140,7 @@ export function LibraryPage() {
               <div className="p-2">
                 <div className="text-xs font-medium line-clamp-2 min-h-[2.2em]">{a.described_at ? (a.tags.split(",")[0] || a.title) : a.title}</div>
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground">{(SOURCE_LABEL as Record<string, string>)[a.source] ?? (a.source === "user" ? "Propio" : a.source === "personal" ? "Personal" : a.source === "iconify" ? "Iconify" : a.source === "generated" ? "Creado con IA" : a.source)}</span>
+                  <span className="text-[10px] text-muted-foreground">{sourceName(a.source)}</span>
                   {!a.described_at && (a.kind === "image" || a.kind === "video") && <span className="text-[10px] text-amber-500">· sin describir</span>}
                   {a.real_person ? <UserRound size={10} className="text-amber-500" /> : null}
                   {a.used_count > 0 && <span className="text-[10px] text-muted-foreground">· usado {a.used_count}×</span>}

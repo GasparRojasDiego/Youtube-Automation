@@ -1,5 +1,6 @@
 // Ajustes en un solo collage: perfil y tema arriba; debajo, cada apartado
 // reducido a lo esencial. Si hubo errores, su informe completo aparece primero.
+import { VoiceField } from "../ui/VoicePicker";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, Sparkles, Factory, Trash2, Plus, Check, Copy, Sun, Moon, Camera,
@@ -210,15 +211,16 @@ function VoiceTile({ className }: { className: string }) {
     <Tile title="Voz" icon={Mic} className={className}>
       <Row label="Proveedor"><Sel v={s.tts.provider} on={(v) => void set("tts.provider", v)} opts={[["google", "Google (Chirp 3 HD)"], ["gemini", "Gemini TTS"], ["elevenlabs", "ElevenLabs"]]} /></Row>
       {s.tts.provider === "google" && <>
-        <Row label="Voz"><Txt v={s.tts.google.voice} on={(v) => void set("tts.google.voice", v)} mono /></Row>
+        <Row label="Voz en español" hint="Videos en español"><VoiceField lang="es" value={s.tts.google.voiceEs || null} inheritLabel="La misma voz en español" onChange={(id) => void set("tts.google.voiceEs", id ?? "")} /></Row>
+        <Row label="Voz en inglés" hint="Videos en inglés"><VoiceField lang="en" value={s.tts.google.voice} onChange={(id) => id && void set("tts.google.voice", id)} /></Row>
         <Row label="Velocidad"><Num v={s.tts.google.speakingRate} step={0.05} on={(v) => void set("tts.google.speakingRate", v)} /></Row>
       </>}
       {s.tts.provider === "gemini" && <>
-        <Row label="Voz"><Txt v={s.tts.gemini.voice} on={(v) => void set("tts.gemini.voice", v)} mono /></Row>
+        <Row label="Voz"><VoiceField lang="es" value={s.tts.gemini.voice} onChange={(id) => id && void set("tts.gemini.voice", id)} /></Row>
         <Row label="Estilo" hint="Instrucción de lectura"><Txt v={s.tts.gemini.style} on={(v) => void set("tts.gemini.style", v)} /></Row>
       </>}
       {s.tts.provider === "elevenlabs" && <>
-        <Row label="ID de voz"><Txt v={s.tts.elevenlabs.voiceId} on={(v) => void set("tts.elevenlabs.voiceId", v)} mono /></Row>
+        <Row label="Voz"><VoiceField lang="es" value={s.tts.elevenlabs.voiceId || null} onChange={(id) => void set("tts.elevenlabs.voiceId", id ?? "")} /></Row>
         <Row label="Velocidad"><Num v={s.tts.elevenlabs.speed} step={0.05} on={(v) => void set("tts.elevenlabs.speed", v)} /></Row>
       </>}
       <div className="mt-4 rounded-lg border border-border/80 bg-secondary/40 px-4 py-3">

@@ -141,6 +141,20 @@ export function adaptDisclosure(text: string, o: { generatedImages: boolean; aiV
   return t.replace(/\s+/g, " ").replace(/\.(\s*\.)+/g, ".").trim().replace(/(^|[.!?] )([a-z])/g, (_m, a: string, b: string) => a + b.toUpperCase());
 }
 
+/**
+ * Aviso de IA en el idioma del video. Si el texto de Ajustes es el predeterminado (en inglés), se
+ * redacta en el idioma del video y nombra las ilustraciones de IA cuando las hay; un texto propio se
+ * respeta (solo se adapta).
+ */
+export function disclosureFor(text: string, lang: string, o: { generatedImages: boolean; aiVoice: boolean }): string {
+  if (!/Narration in this video uses an AI-generated voice/i.test(text)) return adaptDisclosure(text, o);
+  const es = lang.slice(0, 2) === "es";
+  return [
+    o.aiVoice ? (es ? "La narración de este video usa una voz generada con IA." : "Narration in this video uses an AI-generated voice.") : "",
+    o.generatedImages ? (es ? "Algunas ilustraciones se generaron con IA." : "Some illustrations are AI-generated.") : "",
+  ].filter(Boolean).join(" ");
+}
+
 // ---------- Descripción ----------
 export function usedSources(script: ScriptOut, research: ResearchOut): Source[] {
   const ids = new Set<string>();

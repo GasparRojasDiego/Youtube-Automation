@@ -37,7 +37,7 @@ export const STORYBOARD_SCHEMA = obj({
 
 export function storyboardPrompt(o: {
   skills: string; visual: unknown; shotSeconds: [number, number]; motionBudget: number; minutes: number; aiImages: boolean; maxClip: number; humor: boolean;
-  segments: { id: string; title: string; sentences: { i: number; text: string; dur: number }[]; on_screen_sources: string[] }[]; sources: unknown;
+  segments: { id: string; title: string; sentences: { i: number; text: string; dur: number }[]; on_screen_sources: string[]; tail_s?: number }[]; sources: unknown;
   userFiles?: { id: string; kind: string; description: string }[]; onlyUserFiles?: boolean;
   libraryFiles?: { id: string; kind: string; description: string }[]; vertical?: boolean;
 }) {
@@ -57,6 +57,7 @@ Visual types:
 
 Rules:
 - Group consecutive sentences into beats covering EVERY sentence of every segment in order (no gaps, no overlaps). Sentence indices start at 0 in each segment; durations (s) are given.
+- EXACT DURATION: the video must last the time the operator asked for, so some segments end with "tail_s" seconds of INSTRUMENTAL time (no narration, music carries it). For every segment with tail_s, add 1-4 extra beats with from = to = the number of sentences of that segment (the index right after its last sentence) and cover the whole tail with strong visuals: motion sequences first, then operator files or b-roll that extend the idea; a new visual every 2-4 s; never a static text card. The tail of the LAST segment is the closing: end on the title, the key idea or the call to action.
 - Pacing: a new visual every ${o.shotSeconds[0]}-${o.shotSeconds[1]} s. A long beat gets 2-3 shots that split its time. The hook (first 30 s) changes visuals faster.
 - MOTION CADENCE: the video lasts about ${o.minutes.toFixed(1)} min. Use between ${minMotion} and ${o.motionBudget} motion+map shots, spread so that there is at least one every ~60 s (never two minutes without one). A motion shot should own a whole beat of 6–15 s (several sentences) so it can play as a multi-scene sequence; write its motion_brief_en scene by scene as visual actions (what appears, how it moves and transforms, camera, transitions), quoting only the key numbers or words from the narration (≤ 6 words per scene).
 - Each shot must illustrate what is being said at that moment, literally or metaphorically; prefer specific imagery over generic stock. Every photo/archival/clip/ai_image needs query_en plus 2-3 alt queries ending in a very generic 1–2 word query so a fallback always exists.
@@ -147,7 +148,7 @@ You can:
 ${o.vertical ? `${VERTICAL_LAYOUT_EN}\nWrite every motion brief for a tall 1080×1920 frame (stacked layout, one idea per screen, huge type).\n` : o.captions ? "Burned-in captions occupy the bottom 22% of the frame: keep overlays out of that area.\n" : ""}
 Every text you place on screen must come from the narration or the verified facts, never stronger than the narration.
 
-${o.vertical ? `READY-MADE PIECES: not available in this vertical video — leave "pieces" empty and piece_use "none".` : `READY-MADE PIECES (tested, premium, universal; pick by id in "pieces"): prefer as_is whenever a piece already shows the idea (fast and reliable: only its content changes); choose modify only when one concrete part must change, and say in the brief which part; none when nothing fits or a more original sequence adds real value. A fullscreen item may chain 2-3 pieces (e.g. map → stat → timeline). Vary them across the video: the same piece at most twice.
+${o.vertical ? `READY-MADE PIECES: not available in this vertical video — leave "pieces" empty and piece_use "none".` : `READY-MADE PIECES (tested, premium, universal; pick by id in "pieces"): they are the DEFAULT. Prefer as_is whenever a piece already shows the idea (fast and reliable: only its content changes); choose modify when one concrete part must change, and say in the brief which part; none ONLY when no piece can show the idea (then say why in the brief). Target: at least half of the fullscreen items start from a piece. A fullscreen item may chain 2-3 pieces (e.g. map → stat → timeline). Vary them across the video: the same piece at most twice.
 ${PIECES.map((p) => `- ${p.id} [${p.kind}, ~${p.dur}s${p.libs?.length ? `, ${p.libs.join("+")}` : ""}]: ${p.en}`).join("\n")}`}
 
 THE CUT (times in seconds; each line = one shot):

@@ -277,7 +277,7 @@ export async function recoverOnStartup() {
 }
 
 /** Crea un video a partir de lo que escribas (una idea, un tema o instrucciones) y lo produce hasta la revisión final. */
-export async function startFromPrompt(prompt: string, format: VideoFormat = "16:9"): Promise<string | null> {
+export async function startFromPrompt(prompt: string, format: VideoFormat = "16:9", minutes?: [number, number]): Promise<string | null> {
   const ch = await activeChannel();
   if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
   const text = prompt.trim();
@@ -285,7 +285,7 @@ export async function startFromPrompt(prompt: string, format: VideoFormat = "16:
   const first = text.split(/\n/)[0].trim();
   const title = first.length > 90 ? `${first.slice(0, 87)}…` : first;
   const v = await createVideo(ch.id, { id: "", channel_id: ch.id, title, angle: "", notes: text, potential: {}, risk: {}, score: 0, status: "approved", origin: "user", position: 0, sources: [], created_at: Date.now(), used_video_id: null }, {});
-  if (format !== "16:9") await updateVideo(v.id, { data: { format } });
+  if (format !== "16:9" || minutes) await updateVideo(v.id, { data: { format, ...(minutes ? { minutesRange: minutes } : {}) } });
   runVideo(v.id);
   return v.id;
 }
@@ -333,13 +333,13 @@ export async function startPersonal(o: PersonalInput): Promise<string | null> {
 }
 
 /** Inicia el siguiente video con el próximo tema aprobado (si no hay uno en curso). */
-export async function startNextVideo(format: VideoFormat = "16:9"): Promise<string | null> {
+export async function startNextVideo(format: VideoFormat = "16:9", minutes?: [number, number]): Promise<string | null> {
   const ch = await activeChannel();
   if (!ch) { toast("warn", "Primero crea un canal en Ajustes."); return null; }
   const topics = await listTopics(ch.id, "approved");
   if (!topics.length) { toast("warn", "No hay temas aprobados.", "Aprueba al menos uno en Temas."); return null; }
   const v = await createVideo(ch.id, topics[0], {});
-  if (format !== "16:9") await updateVideo(v.id, { data: { format } });
+  if (format !== "16:9" || minutes) await updateVideo(v.id, { data: { format, ...(minutes ? { minutesRange: minutes } : {}) } });
   runVideo(v.id);
   return v.id;
 }

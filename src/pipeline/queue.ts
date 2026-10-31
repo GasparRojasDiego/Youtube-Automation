@@ -22,6 +22,9 @@ export type QueueMode = "auto" | "personal";
 export type QueueStatus = "pending" | "running" | "waiting" | "done" | "attention" | "failed" | "skipped";
 export type Covers = Partial<Record<CoverKind, string | null>>;
 
+/** Textos para publicar a mano (los da el chat de marketing): se copian desde la app con un clic. */
+export interface PublishPack { tiktok?: string; shortsTitle?: string; shortsDescription?: string }
+
 export interface AutoCfg {
   /** Siguiente tema aprobado, uno de los temas propuestos o una idea propia. */
   topic: { kind: "next" } | { kind: "topic"; id: string; title: string } | { kind: "idea"; text: string };
@@ -30,6 +33,9 @@ export interface AutoCfg {
   minutes: [number, number];
   format: VideoFormat;
   covers: Covers;
+  /** Voz del video (null = la de Ajustes en su idioma). */
+  voice: string | null;
+  publish: PublishPack | null;
 }
 
 export interface PersonalCfg {
@@ -48,16 +54,29 @@ export interface PersonalCfg {
   files: string[];
   /** Buscar material en internet y crear imágenes con IA (además de tus archivos). */
   web: boolean;
+  /** Voz del video (null = la de Ajustes en su idioma). */
+  voice: string | null;
+  publish: PublishPack | null;
+}
+
+/** Campaña: la configuración común de muchas tarjetas (cada tarjeta guarda solo lo que cambia). */
+export interface Campaign {
+  id: string; channel_id: string; name: string; mode: QueueMode; format: VideoFormat;
+  cfg: AutoCfg | PersonalCfg; created_at: number; updated_at: number;
 }
 
 export interface QueueItem {
   id: string; channel_id: string; position: number; mode: QueueMode; cfg: AutoCfg | PersonalCfg; status: QueueStatus;
   video_id: string | null; error: string | null; attempts: number; wait_until: number | null;
   created_at: number; updated_at: number; started_at: number | null; finished_at: number | null;
+  /** Campaña de la que hereda (null = tarjeta suelta) y campos que cambia respecto de ella. */
+  campaign_id: string | null; overrides: string[];
 }
 
 export interface QueueState {
   running: boolean; channelId: string | null;
+  /** Plataformas en marcha (YouTube 16:9, TikTok 9:16); cada estudio inicia y pausa la suya. */
+  formats?: VideoFormat[];
   /** Por qué se detuvo sola (disco, sesión de Claude…) o cómo terminó. */
   note: string | null;
   startedAt: number | null;
@@ -69,21 +88,94 @@ export const isActive = (i: QueueItem) => ACTIVE.includes(i.status);
 
 export function defaultCfg(mode: QueueMode): AutoCfg | PersonalCfg {
   const tm = getSettings().production.targetMinutes;
-  if (mode === "auto") return { topic: { kind: "next" }, title: "", notes: "", minutes: [tm[0], tm[1]], format: "16:9", covers: {} };
+  if (mode === "auto") return { topic: { kind: "next" }, title: "", notes: "", minutes: [tm[0], tm[1]], format: "16:9", covers: {}, voice: null, publish: null };
   return { title: "", about: "", description: "", audience: "", cta: "", tone: null, toneCustom: null, aesthetic: "", palette: null, font: null,
-    script: "", scriptFile: null, minutes: [2, 3], language: "es", format: "16:9", covers: {}, library: { mode: "all", ids: [] }, files: [], web: true };
+    script: "", scriptFile: null, minutes: [2, 3], language: "es", format: "16:9", covers: {}, library: { mode: "all", ids: [] }, files: [], web: true, voice: null, publish: null };
 }
 
 // ---------- Datos ----------
-const rowToItem = (r: any): QueueItem => ({ ...r, cfg: { ...defaultCfg(r.mode), ...safeJson(r.cfg, {}) }, attempts: Number(r.attempts ?? 0) });
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** Configuración base de una campaña (lo que heredan sus tarjetas). */
+export const campaignBase = (c: Pick<Campaign, "mode" | "format" | "cfg">): AutoCfg | PersonalCfg => ({ ...defaultCfg(c.mode), ...c.cfg, format: c.format });
+
+function rowToItem(r: any, campaigns: Map<string, Campaign>): QueueItem {
+  const raw = safeJson<Record<string, unknown>>(r.cfg, {});
+  const c = r.campaign_id ? campaigns.get(r.campaign_id) : undefined;
+  const base = c ? campaignBase(c) : defaultCfg(r.mode);
+  const cfg = { ...base, ...raw, ...(c ? { format: c.format } : {}) } as AutoCfg | PersonalCfg;
+  return { ...r, cfg, attempts: Number(r.attempts ?? 0), campaign_id: c ? r.campaign_id : null, overrides: c ? Object.keys(raw).filter((k) => !same(raw[k], (base as any)[k])) : [] };
+}
+
+const rowToCampaign = (r: any): Campaign => ({ ...r, cfg: { ...defaultCfg(r.mode), ...safeJson(r.cfg, {}), format: r.format } });
+
+export async function listCampaigns(channelId: string): Promise<Campaign[]> {
+  return (await db.query("SELECT * FROM campaigns WHERE channel_id=? ORDER BY created_at", [channelId])).map(rowToCampaign);
+}
+
+export async function getCampaign(id: string): Promise<Campaign | null> {
+  const r = await db.query("SELECT * FROM campaigns WHERE id=?", [id]);
+  return r[0] ? rowToCampaign(r[0]) : null;
+}
 
 export async function listQueue(channelId: string): Promise<QueueItem[]> {
-  return (await db.query("SELECT * FROM queue_items WHERE channel_id=? ORDER BY position, created_at", [channelId])).map(rowToItem);
+  const camps = new Map((await listCampaigns(channelId)).map((c) => [c.id, c]));
+  return (await db.query("SELECT * FROM queue_items WHERE channel_id=? ORDER BY position, created_at", [channelId])).map((r) => rowToItem(r, camps));
 }
 
 export async function getItem(id: string): Promise<QueueItem | null> {
   const r = await db.query("SELECT * FROM queue_items WHERE id=?", [id]);
-  return r[0] ? rowToItem(r[0]) : null;
+  if (!r[0]) return null;
+  const c = r[0].campaign_id ? await getCampaign(String(r[0].campaign_id)) : null;
+  return rowToItem(r[0], new Map(c ? [[c.id, c]] : []));
+}
+
+/** Crea una campaña. Su plantilla parte de `cfg` (por ejemplo, la de una tarjeta ya configurada). */
+export async function createCampaign(channelId: string, name: string, mode: QueueMode, format: VideoFormat, cfg?: Partial<AutoCfg | PersonalCfg>): Promise<Campaign> {
+  const id = uid("cp_"); const t = Date.now();
+  const clean = name.trim() || "Campaña sin nombre";
+  await db.execute("INSERT INTO campaigns(id,channel_id,name,mode,format,cfg,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+    [id, channelId, clean, mode, format, JSON.stringify({ ...defaultCfg(mode), ...(cfg ?? {}), format }), t, t]);
+  emit("queue");
+  return (await getCampaign(id))!;
+}
+
+export async function saveCampaign(id: string, p: { name?: string; cfg?: AutoCfg | PersonalCfg }) {
+  const c = await getCampaign(id);
+  if (!c) return;
+  await db.execute("UPDATE campaigns SET name=?, cfg=?, updated_at=? WHERE id=?",
+    [p.name?.trim() || c.name, JSON.stringify({ ...(p.cfg ?? c.cfg), format: c.format }), Date.now(), id]);
+  emit("queue");
+}
+
+/** Campos propios de cada video: no pasan a la plantilla cuando una tarjeta se vuelve campaña. */
+export const PER_CARD = ["title", "topic", "script", "scriptFile", "about", "publish", "covers"];
+
+/**
+ * Convierte una tarjeta suelta en la primera de una campaña: su configuración (salvo lo propio de cada
+ * video) pasa a ser la plantilla, y la tarjeta queda dentro guardando solo lo suyo.
+ */
+export async function campaignFromItem(itemId: string, name: string): Promise<Campaign | null> {
+  const it = await getItem(itemId);
+  if (!it || it.campaign_id) return null;
+  const tpl: Record<string, unknown> = Object.fromEntries(Object.entries(it.cfg).filter(([k]) => !PER_CARD.includes(k)));
+  const c = await createCampaign(it.channel_id, name, it.mode, it.cfg.format);
+  // Los archivos comunes pasan a la carpeta de la campaña (la tarjeta podría borrarse después)
+  if (Array.isArray(tpl.files)) tpl.files = await Promise.all((tpl.files as string[]).map((f) => storeFile(c.id, f).catch(() => f)));
+  await saveCampaign(c.id, { cfg: { ...c.cfg, ...tpl } as AutoCfg | PersonalCfg });
+  const fresh = (await getCampaign(c.id))!;
+  await db.execute("UPDATE queue_items SET campaign_id=?, cfg=?, updated_at=? WHERE id=?", [c.id, JSON.stringify(diffFrom(campaignBase(fresh), it.cfg)), Date.now(), it.id]);
+  emit("queue");
+  return fresh;
+}
+
+/** Borra la campaña: sus tarjetas quedan sueltas con la configuración que tenían (nada se pierde). */
+export async function deleteCampaign(id: string) {
+  const c = await getCampaign(id);
+  if (!c) return;
+  for (const it of (await listQueue(c.channel_id)).filter((x) => x.campaign_id === id))
+    await db.execute("UPDATE queue_items SET campaign_id=NULL, cfg=?, updated_at=? WHERE id=?", [JSON.stringify(it.cfg), Date.now(), it.id]);
+  await db.execute("DELETE FROM campaigns WHERE id=?", [id]);
+  emit("queue");
 }
 
 async function patchItem(id: string, p: Partial<Omit<QueueItem, "id" | "cfg">> & { cfg?: AutoCfg | PersonalCfg }) {
@@ -94,27 +186,48 @@ async function patchItem(id: string, p: Partial<Omit<QueueItem, "id" | "cfg">> &
   emit("queue");
 }
 
-export async function addItem(channelId: string, mode: QueueMode, cfg?: AutoCfg | PersonalCfg): Promise<QueueItem> {
+/**
+ * Añade una tarjeta. En una campaña, `cfg` son solo sus cambios (lo demás se hereda); suelta, su
+ * configuración completa (o la predeterminada del modo).
+ */
+export async function addItem(channelId: string, mode: QueueMode, cfg?: Partial<AutoCfg | PersonalCfg>, campaignId?: string | null): Promise<QueueItem> {
   const items = await listQueue(channelId);
   if (items.filter(isActive).length >= QUEUE_MAX) throw new UserError(`La cola admite hasta ${QUEUE_MAX} videos pendientes.`, "Espera a que avance o quita alguno.", "cola", false);
+  const camp = campaignId ? await getCampaign(campaignId) : null;
   const id = uid("q_");
   const t = Date.now();
-  await db.execute("INSERT INTO queue_items(id,channel_id,position,mode,cfg,status,attempts,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
-    [id, channelId, (items.at(-1)?.position ?? 0) + 1, mode, JSON.stringify(cfg ?? defaultCfg(mode)), "pending", 0, t, t]);
+  const stored = camp ? diffFrom(campaignBase(camp), cfg ?? {}) : { ...defaultCfg(mode), ...(cfg ?? {}) };
+  await db.execute("INSERT INTO queue_items(id,channel_id,position,mode,cfg,status,attempts,created_at,updated_at,campaign_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
+    [id, channelId, (items.at(-1)?.position ?? 0) + 1, camp?.mode ?? mode, JSON.stringify(stored), "pending", 0, t, t, camp?.id ?? null]);
   emit("queue");
   return (await getItem(id))!;
 }
 
-export async function saveCfg(id: string, cfg: AutoCfg | PersonalCfg) { await patchItem(id, { cfg }); }
+/** Solo los campos que difieren de la base (lo que una tarjeta de campaña cambia). */
+function diffFrom(base: AutoCfg | PersonalCfg, cfg: Partial<AutoCfg | PersonalCfg>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, val] of Object.entries(cfg)) if (k !== "format" && !same(val, (base as any)[k])) out[k] = val;
+  return out;
+}
+
+/** Guarda la configuración de una tarjeta (en una campaña, solo lo que difiere de su plantilla). */
+export async function saveCfg(id: string, cfg: AutoCfg | PersonalCfg) {
+  const it = await getItem(id);
+  const camp = it?.campaign_id ? await getCampaign(it.campaign_id) : null;
+  if (!camp) { await patchItem(id, { cfg }); return; }
+  await db.execute("UPDATE queue_items SET cfg=?, updated_at=? WHERE id=?", [JSON.stringify(diffFrom(campaignBase(camp), cfg)), Date.now(), id]);
+  emit("queue");
+}
 
 export async function duplicateItem(id: string): Promise<QueueItem | null> {
   const it = await getItem(id);
   if (!it) return null;
-  const copy = await addItem(it.channel_id, it.mode, it.cfg);
+  const copy = await addItem(it.channel_id, it.mode, it.campaign_id ? Object.fromEntries(it.overrides.map((k) => [k, (it.cfg as any)[k]])) : it.cfg, it.campaign_id);
   // Las portadas y archivos se copian a la carpeta de la nueva tarjeta (cada una es dueña de lo suyo)
   const cfg = structuredClone(it.cfg) as AutoCfg | PersonalCfg;
-  for (const k of ["youtube", "tiktok"] as CoverKind[]) if (cfg.covers[k]) cfg.covers[k] = await storeFile(copy.id, cfg.covers[k]!, k).catch(() => null);
-  if (!isAuto(it)) {
+  const own = (k: string) => !it.campaign_id || it.overrides.includes(k);
+  if (own("covers")) for (const k of ["youtube", "tiktok"] as CoverKind[]) if (cfg.covers[k]) cfg.covers[k] = await storeFile(copy.id, cfg.covers[k]!, k).catch(() => null);
+  if (!isAuto(it) && own("files")) {
     const p = cfg as PersonalCfg;
     p.files = await Promise.all(p.files.map((f) => storeFile(copy.id, f).catch(() => f)));
     if (p.scriptFile) p.scriptFile = await storeFile(copy.id, p.scriptFile).catch(() => p.scriptFile);
@@ -154,8 +267,8 @@ async function renumber(channelId: string) {
 }
 
 /** Quita de la lista lo terminado (los videos siguen en Videos). */
-export async function clearFinished(channelId: string) {
-  for (const it of (await listQueue(channelId)).filter((x) => !isActive(x) && x.status !== "attention")) await removeItem(it.id);
+export async function clearFinished(channelId: string, format?: VideoFormat) {
+  for (const it of (await listQueue(channelId)).filter((x) => !isActive(x) && x.status !== "attention" && (!format || x.cfg.format === format))) await removeItem(it.id);
 }
 
 /** Vuelve a poner en la cola una tarjeta fallida u omitida (retoma su video donde quedó). */
@@ -309,7 +422,8 @@ export async function videoForItem(it: QueueItem): Promise<Video> {
     }
     const notes = [topic.notes, c.notes.trim() && `Operator's focus for this video: ${c.notes.trim()}`, c.title.trim() && `Title fixed by the operator (use it exactly): ${c.title.trim()}`].filter(Boolean).join("\n\n");
     v = await createVideo(channelId, topic.id ? topic : null, { title: c.title.trim() || topic.title });
-    await updateVideo(v.id, { data: { topic: { title: topic.title, angle: topic.angle, notes, sources: topic.sources }, format: c.format, minutesRange: c.minutes, fixedTitle: c.title.trim() || null, queue: { item: it.id } } });
+    await updateVideo(v.id, { data: { topic: { title: topic.title, angle: topic.angle, notes, sources: topic.sources }, format: c.format, minutesRange: c.minutes, fixedTitle: c.title.trim() || null,
+      queue: { item: it.id, campaign: it.campaign_id }, voice: c.voice || null, publish: c.publish || null } });
   } else {
     const p = it.cfg as PersonalCfg;
     const files = p.files.filter((f) => kindOf(f));
@@ -322,7 +436,7 @@ export async function videoForItem(it: QueueItem): Promise<Video> {
         palette: p.palette, font: p.font, library: p.library },
     });
     if (!v) throw new UserError("No se pudo crear el video de esta tarjeta.", "Revisa que tenga título, descripción o guion.", "cola", false);
-    await updateVideo(v.id, { data: { queue: { item: it.id } } });
+    await updateVideo(v.id, { data: { queue: { item: it.id, campaign: it.campaign_id }, voice: p.voice || null, publish: p.publish || null } });
   }
   // Portadas: tal cual las subiste (miniatura de YouTube, portada incrustada en las descargas y en las partes de TikTok)
   for (const k of ["youtube", "tiktok"] as CoverKind[]) {
@@ -353,19 +467,30 @@ const waitIdle = (videoId: string) => new Promise<void>((res) => {
 
 const notify = (text: string, detail = "", videoId: string | null = null, level: "info" | "warn" | "error" = "info") => log(level, "cola", text, detail, videoId, true);
 
-export async function startQueue(channelId: string) {
-  await setQueueState({ running: true, channelId, note: null, startedAt: Date.now() });
+/** Plataformas en marcha (sin dato, todas: así seguía la cola de la 2.5.8). */
+export const runningFormats = (st: QueueState): VideoFormat[] => (st.running ? (st.formats?.length ? st.formats : ["16:9", "9:16"]) : []);
+
+/** Inicia la cola de una plataforma (o de todas). Los videos se producen de a uno, en el orden de la lista. */
+export async function startQueue(channelId: string, format?: VideoFormat) {
+  const st = await getQueueState();
+  const formats: VideoFormat[] = format ? [...new Set([...(st.running && st.channelId === channelId ? runningFormats(st) : []), format])] : ["16:9", "9:16"];
+  await setQueueState({ running: true, channelId, formats, note: null, startedAt: st.running ? st.startedAt : Date.now() });
   await proc.keepAwake(true);
   ensureLoop();
 }
 
-/** Pausa: termina el video en curso y se detiene. Con `now`, además lo cancela (queda guardado para retomarlo). */
-export async function pauseQueue(now = false) {
-  await setQueueState({ running: false, note: now ? "Detenida por ti." : "En pausa: se detiene al terminar el video en curso." });
+/**
+ * Pausa la cola de una plataforma (o toda): termina el video en curso y se detiene. Con `now`, además
+ * cancela el video en curso de esa plataforma (queda guardado para retomarlo).
+ */
+export async function pauseQueue(now = false, format?: VideoFormat) {
+  const st = await getQueueState();
+  const left = format ? runningFormats(st).filter((f) => f !== format) : [];
+  await setQueueState(left.length ? { formats: left } : { running: false, formats: [], note: now ? "Detenida por ti." : "En pausa: se detiene al terminar el video en curso." });
   wake?.();
   if (now) {
-    const items = await listQueue((await getQueueState()).channelId ?? "");
-    const cur = items.find((i) => i.status === "running");
+    const items = await listQueue(st.channelId ?? "");
+    const cur = items.find((i) => i.status === "running" && (!format || i.cfg.format === format));
     if (cur?.video_id && runningVideoId() === cur.video_id) await cancelCurrent();
   }
   // Con un video en curso, el equipo sigue despierto hasta que termine (lo apaga el bucle al salir)
@@ -400,7 +525,8 @@ async function runLoop() {
     const st = await getQueueState();
     if (!st.running || !st.channelId) return;
     const items = await listQueue(st.channelId);
-    const next = items.find(isActive);
+    const formats = runningFormats(st);
+    const next = items.find((i) => isActive(i) && formats.includes(i.cfg.format));
     if (!next) {
       const done = items.filter((i) => i.status === "done").length, bad = items.filter((i) => i.status === "failed" || i.status === "attention").length;
       await setQueueState({ running: false, note: `Cola terminada: ${done} video(s) listos para tu revisión${bad ? ` · ${bad} con problemas` : ""}.` });
@@ -446,7 +572,7 @@ async function runItem(it: QueueItem) {
     await notify(`Cola: «${fresh?.title ?? it.id}» listo para tu revisión.`, "", v.id);
     return;
   }
-  if (!(await getQueueState()).running) { await patchItem(it.id, { status: "pending" }); return; }
+  if (!runningFormats(await getQueueState()).includes(it.cfg.format)) { await patchItem(it.id, { status: "pending" }); return; }
   const waiting = stages.find((s) => s.status === "review" && s.stage !== "final");
   if (waiting) {
     await patchItem(it.id, { status: "attention", error: waiting.progress || "Necesita tu atención en Producción.", finished_at: Date.now() });

@@ -25,8 +25,8 @@ import { renderSourceCard, renderTitleCard, renderQuoteCard, renderTextCard } fr
 import { out, need, checkCancel, checkpoint, readMark, type Ctx } from "./stages";
 import * as P2 from "./prompts2";
 import { personalOf, systemFor, skillsFor, visualFor, userMedia } from "./personal";
-import { isVertical, frameOf, verticalCaptions } from "./format";
-import { segInfos, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, iconKey, motionCues, coverCount, FULLSCREEN_MAX, sceneSafeIn, parseSceneCuts, type MotionSfxRaw, type SegInfo, type PolishRaw } from "./timeline";
+import { isVertical, frameOf, verticalCaptions, minutesRangeOf } from "./format";
+import { segInfos, hasTail, repairStoryboard, layoutShots, segmentOffsets, beatSfxToCues, buildEdl, applyPolish, repairMusic, shortPhrase, segmentLength, shotNarration, fallbackQueries, keywordsQuery, ensureMotionCadence, iconKey, motionCues, coverCount, FULLSCREEN_MAX, sceneSafeIn, parseSceneCuts, type MotionSfxRaw, type SegInfo, type PolishRaw } from "./timeline";
 import { segmentV2Args, finalMixV2Args, finalMuxArgs, loudnessScanArgs, parseLoudness, withFilterScript, segmentV2Duration, type LayerShot, type LayerOverlay } from "./montage2";
 import { concatList } from "./montage";
 import { wordTimings } from "./align";
@@ -37,7 +37,7 @@ import type { ScriptOut, ResearchOut, VoiceOut, VoiceSegmentV2, StoryboardOut, A
 
 const MEDIA_VISUALS = new Set(["photo", "archival", "clip", "meme", "ai_image"]);
 /** Sube si cambia la lógica del storyboard (rehace los storyboards guardados). */
-const STORYBOARD_VERSION = 3;
+const STORYBOARD_VERSION = 4;
 const kindFor = (s: Shot): AssetKind => (s.visual === "clip" ? "video" : "image");
 
 /** ¿Se pueden generar imágenes con IA (ajuste activo y clave presente)? */
@@ -73,7 +73,8 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
   const visual = await visualFor(v);
   const segs = segInfos(script, voice);
-  const narrTotal = segs.reduce((a, s) => a + s.narration, 0);
+  // Duración real del video (narración, pausas y tramos instrumentales): de ella salen el ritmo y las animaciones
+  const narrTotal = segs.reduce((a, s) => a + segmentLength(s, montage.pauseBetweenSegments), 0);
   const budget = await motionBudget(narrTotal);
   const sbSkills = await skillsFor(v, ["visuals", "montage"]);
   // Archivos del usuario (modo Personal): los subidos y su biblioteca personal; se describen con visión y el storyboard los reparte
@@ -90,7 +91,7 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
   const onlyUser = !!personal && !personal.useLibrary;
   const vertical = isVertical(v);
   const aiOk = !onlyUser && (await aiImagesReady());
-  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION, userFiles.map((f) => f.id), libraryFiles.map((f) => f.id), onlyUser, vertical]));
+  const key = await sha256(JSON.stringify([segs.map((s) => [s.id, s.sentences, Math.round(s.narration * 10), Math.round((s.tail ?? 0) * 10)]), budget, montage, visual, sbSkills, STORYBOARD_VERSION, userFiles.map((f) => f.id), libraryFiles.map((f) => f.id), onlyUser, vertical]));
   if (prev?.scriptKey === key && prev.shots?.length) return prev;
 
   await ctx.progress("Armando el storyboard…");
@@ -101,12 +102,13 @@ export async function stageStoryboard(ctx: Ctx): Promise<StoryboardOut> {
       visual, shotSeconds: montage.shotSeconds, motionBudget: budget, minutes: narrTotal / 60, aiImages: aiOk, maxClip: getSettings().media.maxClipSeconds, humor: !!montage.humor && !personal,
       userFiles, libraryFiles, onlyUserFiles: onlyUser, vertical,
       segments: segs.map((s) => ({ id: s.id, title: s.title, on_screen_sources: script.segments.find((x) => x.id === s.id)?.on_screen_sources ?? [],
-        sentences: s.sentences.map((t, i) => ({ i, text: t, dur: Math.max(0.3, (s.spans[i]?.end ?? 0) - (s.spans[i]?.start ?? 0)) })) })),
+        sentences: s.sentences.map((t, i) => ({ i, text: t, dur: Math.max(0.3, (s.spans[i]?.end ?? 0) - (s.spans[i]?.start ?? 0)) })),
+        ...(hasTail(s) ? { tail_s: Math.round((s.tail ?? 0) * 10) / 10 } : {}) })),
       sources: research.sources.map((x) => ({ id: x.id, title: x.title, publisher: x.publisher })),
     }),
     videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId,
   });
-  const { shots: raw, beatSfx } = repairStoryboard(r.data.beats ?? [], segs, budget, new Set(research.sources.map((x) => x.id)), { aiImages: aiOk, maxCards: P2.MAX_CARDS });
+  const { shots: raw, beatSfx } = repairStoryboard(r.data.beats ?? [], segs, budget, new Set(research.sources.map((x) => x.id)), { aiImages: aiOk, maxCards: P2.MAX_CARDS, maxTailShot: vertical ? 3.5 : 5 });
   const shots = layoutShots(raw, segs, montage.pauseBetweenSegments);
   const offsets = segmentOffsets(segs, montage.pauseBetweenSegments);
   const sfx = beatSfxToCues(beatSfx, shots, offsets);
@@ -551,6 +553,11 @@ export async function stagePolish(ctx: Ctx): Promise<PolishOut> {
   const applied = applyPolish(r.data, assets.shots, assets.sfx, offsets, total, budget);
   // Las piezas listas están compuestas para 16:9: en vertical cada animación se diseña desde cero con el kit
   if (vertical) for (const m of applied.motion) { delete m.pieces; delete m.piece_use; }
+  else {
+    const full = applied.motion.filter((m) => m.kind === "fullscreen");
+    const withPiece = full.filter((m) => m.pieces?.length && m.piece_use !== "none").length;
+    if (full.length) await activity(v.id, "polish", withPiece ? "decision" : "warn", `Piezas listas: ${withPiece} de ${full.length} animaciones a pantalla completa parten de una pieza${withPiece ? "" : " (todas se diseñan desde cero: más lento y menos fiable)"}`);
+  }
   // Las tomas marcadas como animación que Opus no convirtió reciben una animación con su propio guion
   for (const sh of applied.shots.filter((x) => (x.visual === "motion" || x.visual === "map") && !applied.motion.some((m) => m.shot_ids.includes(x.id)))) {
     if (applied.motion.length >= budget) break;
@@ -656,7 +663,8 @@ export async function stageMotion(ctx: Ctx): Promise<MotionOut> {
   const contextOf = (m: MotionItem) => {
     const seg = segs.find((s) => s.id === m.segment_id);
     const shots = polish.shots.filter((s) => m.shot_ids.includes(s.id));
-    return seg ? shots.map((s) => shotNarration(s, seg)).join(" ").slice(0, 600) : "";
+    const text = seg ? shots.map((s) => shotNarration(s, seg)).join(" ").trim().slice(0, 600) : "";
+    return text || "(instrumental moment: no narration, only music — the visuals carry the idea on their own)";
   };
   const assetsFor = (m: MotionItem) => (m.asset_ids ?? []).map((id, i) => ({ key: `img${i + 1}`, a: assetMap.get(id) })).filter((x) => x.a && x.a.kind === "image");
   // Recortes sin fondo (rembg, si está instalado): empiezan ya, de a uno, mientras Claude diseña
@@ -1035,6 +1043,11 @@ export async function stageRenderV2(ctx: Ctx): Promise<RenderOut> {
   await updateVideo(v.id, { data: { edit_version: 2 } });
   void sb;
   const duration = await probeDuration(file);
+  // Duración exacta: se comprueba contra lo pedido (la voz ya se estiró y el storyboard cubrió los tramos instrumentales)
+  const [loMin, hiMin] = minutesRangeOf(v, getSettings().production.targetMinutes);
+  const fmtS = (x: number) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, "0")}`;
+  if (duration < loMin * 60 - 1.5) await activity(v.id, "render", "warn", `El video dura ${fmtS(duration)}, menos que el mínimo pedido (${fmtS(loMin * 60)})`, "Rehaz desde «Voz» para que se recalcule el plan de duración.");
+  else await activity(v.id, "render", "decision", `Duración final ${fmtS(duration)} · pedido ${fmtS(loMin * 60)}–${fmtS(hiMin * 60)}`);
   const poster = joinPath(v.dir, "poster.jpg");
   try { await ffmpeg(["-y", "-hide_banner", "-loglevel", "error", "-ss", Math.min(30, duration * 0.2).toFixed(2), "-i", file, "-frames:v", "1", "-vf", isVertical(v) ? "scale=-2:1280" : "scale=1280:-2", "-q:v", "3", poster]); } catch { /* sin portada */ }
   const r: RenderOut = { file, duration, encoder: encoder.name, segmentHashes: hashes, renderedAt: now(), sizeBytes: await fs.size(file), poster };

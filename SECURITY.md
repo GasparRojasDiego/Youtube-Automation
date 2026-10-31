@@ -2,7 +2,7 @@
 
 ## Cómo reportar un problema
 
-Escribe a **gr.diegofz17@gmail.com** o usa *Security → Report a vulnerability* en
+Escribe a **vt.asvent@gmail.com** o usa *Security → Report a vulnerability* en
 este repositorio (aviso privado). No abras un issue público con detalles de un fallo.
 
 ## Qué protege ATRIL

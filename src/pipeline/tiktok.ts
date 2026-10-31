@@ -7,11 +7,10 @@ import { updateVideo, getStages, getVideo, type Video } from "../lib/repo";
 import { skillParams, MONTAGE_DEFAULTS } from "../lib/skills";
 import { ffmpeg } from "../providers/ffmpeg";
 import { joinPath } from "../lib/util";
-import { getSettings } from "../lib/settings";
-import { segInfos, segmentOffsets } from "./timeline";
+import { segInfos, segmentOffsets, segmentLength } from "./timeline";
 import { coversOf, coverForShape, withCover } from "./covers";
 import { isVertical } from "./format";
-import { personalOf } from "./personal";
+import { personalOf, videoLanguage } from "./personal";
 import type { ScriptOut, VoiceOut, PackageOut, RenderOut } from "./types";
 
 export interface Part { start: number; end: number }
@@ -73,7 +72,7 @@ export async function pauseIntervals(v: Video): Promise<{ start: number; end: nu
   for (const s of segs) {
     for (let i = 0; i < s.spans.length; i++) {
       const next = s.spans[i + 1];
-      out.push(next ? { start: off[s.id] + s.spans[i].end, end: off[s.id] + next.start } : { start: off[s.id] + s.spans[i].end, end: off[s.id] + s.narration + montage.pauseBetweenSegments });
+      out.push(next ? { start: off[s.id] + s.spans[i].end, end: off[s.id] + next.start } : { start: off[s.id] + s.spans[i].end, end: off[s.id] + segmentLength(s, montage.pauseBetweenSegments) });
     }
   }
   return out;
@@ -89,15 +88,21 @@ export async function keyframes(file: string): Promise<number[]> {
  * Texto para TikTok en una sola pieza lista para pegar: «Descripción #a #b #c #d #e».
  * La descripción invita a ver el video completo en el canal de YouTube; como mucho 5 hashtags.
  */
-export function tiktokText(v: Video, pkg?: PackageOut | null, lang = (getSettings().publishing.defaultLanguage || "en").slice(0, 2)): { text: string; caption: string; hashtags: string[] } {
+export function tiktokText(v: Video, pkg?: PackageOut | null, lang = videoLanguage(v)): { text: string; caption: string; hashtags: string[] } {
+  // El texto que dio el chat de marketing (tarjeta de la cola) manda tal cual
+  const own = (v.data?.publish as { tiktok?: string } | null | undefined)?.tiktok?.trim();
+  if (own) return { text: own, caption: own, hashtags: own.match(/#[\p{L}\p{N}_]+/gu) ?? [] };
   const tag = (t: string) => `#${t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "")}`;
   const fromPkg = (pkg?.tiktok_hashtags ?? []).map(tag).filter((t) => t.length > 2);
   const pool = fromPkg.length ? fromPkg : ["#fyp", ...(pkg?.tags ?? []).slice(0, 6).map(tag)];
   const hashtags = pool.filter((t, i, a) => t.length > 2 && a.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i).slice(0, 5);
   const first = (pkg?.description_body_en ?? "").split(/(?<=[.!?])\s/)[0] ?? "";
   const caption = (pkg?.tiktok_caption_en || (first.length > 20 && first.length <= 150 ? first : pkg?.chosen_title || v.title)).replace(/\s+/g, " ").trim();
-  const cta = lang === "es" ? "🎬 Mira el video completo en mi canal de YouTube: el enlace está en la descripción de mi perfil." : "🎬 Watch the whole video on my YouTube channel — link in my profile description.";
-  return { text: `${caption} ${cta} ${hashtags.join(" ")}`.trim(), caption, hashtags };
+  // Un vertical ES el video completo: lleva su propio llamado a la acción (si tiene), no «míralo en YouTube».
+  // Las partes de un horizontal sí invitan a ver el video entero en el canal.
+  const cta = isVertical(v) ? (personalOf(v)?.cta?.trim() ?? "")
+    : lang === "es" ? "🎬 Mira el video completo en mi canal de YouTube: el enlace está en la descripción de mi perfil." : "🎬 Watch the whole video on my YouTube channel — link in my profile description.";
+  return { text: [caption, cta, hashtags.join(" ")].filter(Boolean).join(" ").trim(), caption, hashtags };
 }
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim().slice(0, 80) || "video";

@@ -141,6 +141,15 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX IF NOT EXISTS idx_queue ON queue_items(channel_id, position);
   `,
+  // 7 — 2.5.10: campañas (una plantilla común; cada tarjeta guarda solo lo que cambia)
+  `
+  CREATE TABLE IF NOT EXISTS campaigns (
+    id TEXT PRIMARY KEY, channel_id TEXT, name TEXT NOT NULL, mode TEXT NOT NULL, format TEXT NOT NULL,
+    cfg TEXT NOT NULL DEFAULT '{}', created_at INTEGER, updated_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_campaigns ON campaigns(channel_id, created_at);
+  ALTER TABLE queue_items ADD COLUMN campaign_id TEXT;
+  `,
 ];
 
 export async function migrate(): Promise<void> {

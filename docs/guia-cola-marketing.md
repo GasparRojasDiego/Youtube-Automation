@@ -1,6 +1,6 @@
 # Guía para llenar la cola de producción de ATRIL
 
-*Versión 2.5.8. Para el gerente de marketing. La envía Diego.*
+*Versión 2.5.10. Para el gerente de marketing. La envía Diego.*
 
 ## 0. Tu papel y qué debes entregar
 
@@ -8,16 +8,17 @@ ATRIL es la app de escritorio con la que Diego produce videos.
 
 - **La cola de producción** fabrica hasta 50 videos seguidos, uno tras otro.
 - **Cada video es una tarjeta.** La tarjeta dice qué video hacer y cómo debe verse.
-- **Tu trabajo** es entregarle a Diego, por cada video, una **ficha** con todos los campos de su tarjeta, lista para copiar y pegar. Las plantillas están en la §6.
+- **Tu trabajo** es entregarle a Diego **un solo bloque JSON** (§6) que él pega en **Importar**: crea de una vez la campaña y todas sus tarjetas, con sus portadas. Si un video no encaja en el JSON, también sirven fichas para copiar a mano (§7).
+- **Campañas.** Si varios videos comparten formato (duración, estética, voz, recursos…), van en una campaña: su **plantilla** se escribe una vez y cada tarjeta trae solo lo que cambia.
 - **Las portadas son imágenes** que Diego subirá. Tú das el concepto, el texto exacto y las medidas (§5).
 
 **Antes de escribir:**
-1. Pregunta a Diego qué modo usará (**Automatización** o **Personal**) y cuántos videos quiere.
-2. Pregunta el formato de cada video: **16:9** para YouTube o **9:16** para TikTok y Shorts.
+1. Pregunta a Diego en qué **estudio** se producirán: **YouTube** (horizontal 16:9) o **TikTok** (vertical 9:16, que también sirve para Shorts). Cada estudio tiene su propia cola: un JSON se importa en uno de los dos.
+2. Pregunta qué modo usará (**Automatización** o **Personal**) y cuántos videos quiere.
 3. Entrega las fichas numeradas, en el orden en que deben producirse.
 
 **Lo que no necesitas especificar, porque ATRIL lo resuelve solo:**
-- la voz;
+- la voz: si no eliges una por su nombre (§6), usa la de Ajustes;
 - los subtítulos, que resaltan cada palabra mientras se dice;
 - la música de fondo, que baja sola cuando se habla;
 - los efectos de sonido;
@@ -44,6 +45,8 @@ ATRIL es la app de escritorio con la que Diego produce videos.
 - **Retoma** donde iba si se cierra la app.
 - Evita que Windows suspenda el equipo mientras trabaja.
 - **Una tarjeta incompleta no se produce.** La app la marca en rojo con el motivo. Por eso cada ficha tiene que traer todos los campos obligatorios.
+- **Cada estudio tiene su cola** (YouTube y TikTok), que se inicia y se pausa por separado.
+- **Campañas:** en la cola, cada campaña es un filtro con su botón «Editar plantilla». Si Diego cambia la plantilla, cambian todas las tarjetas que aún no empezaron, salvo los campos que una tarjeta cambió (la app marca cada campo como «de la campaña» o «propio»).
 
 ---
 
@@ -54,15 +57,16 @@ ATRIL es la app de escritorio con la que Diego produce videos.
 | **Horizontal 16:9** (1920×1080) | YouTube normal | Lo que pida el contenido. Es el formato del canal. |
 | **Vertical 9:16** (1080×1920) | TikTok, YouTube Shorts, Reels | **De 0,5 a 3 min.** YouTube trata como Short un video vertical de **hasta 3 minutos**. Si dura más, lo trata como video normal. |
 
-- **La duración** es un rango en minutos, de mínimo a máximo. Ejemplos: `0.5–0.75`, `8–10`.
-- **El narrador lee unas 150 palabras por minuto.** Para 30 s calcula unas 75 palabras; para 1 min, unas 150.
-- **Si entregas guion propio, su largo manda.** La app no lo recorta, así que escríbelo con las palabras que correspondan al rango.
+- **La duración** es un rango de mínimo a máximo: en el JSON, `"duracion_s": [30, 45]` (segundos) o `"duracion": "1-2 min"`.
+- **La duración se cumple siempre.** El video dura **al menos el mínimo** aunque el guion sea corto: lo que falte se cubre con pausas algo más largas entre frases (con tope) y un **tramo final instrumental** con imágenes, animaciones y música. Un guion de 5 palabras con mínimo de 30 s da un video de 30 s, no de 3 s.
+- **Aun así, escribe el guion a la medida.** El narrador lee unas 150 palabras por minuto: para 30 s, unas 75 palabras; para 1 min, unas 150. El tramo instrumental sirve de cierre o de respiro, no reemplaza al contenido.
+- **Si el guion propio pasa del máximo,** no se recorta: el video dura lo que dura la narración y la app avisa.
 
 **Particularidades del vertical:**
 - Gancho en los primeros 2 segundos.
 - Una sola idea, frases cortas y pocas palabras en pantalla, pero muy grandes.
 - Las fotos y los clips se recortan en alto alrededor del sujeto. Por eso conviene material con **un sujeto claro y centrado** (retratos, objetos, primeros planos) antes que paisajes anchos.
-- **Las 35 «piezas listas» (§7.1) están diseñadas para 16:9.** En los videos verticales no se usan: Claude compone cada animación desde cero con el kit de efectos (§7.2), respetando las zonas seguras del teléfono.
+- **Las 35 «piezas listas» (§8.1) están diseñadas para 16:9.** En los videos verticales no se usan: Claude compone cada animación desde cero con el kit de efectos (§8.2), respetando las zonas seguras del teléfono.
 
 ---
 
@@ -73,8 +77,9 @@ ATRIL es la app de escritorio con la que Diego produce videos.
 | **Tema** | Una de tres opciones:<br>• **«Siguiente tema aprobado»**: el primero que Diego tenga aprobado en *Temas*.<br>• **«Tema propuesto»**: copia el título **exacto** de uno de los temas que la IA propuso en *Temas*. Pídele a Diego la lista.<br>• **«Mi propia idea»**: una pregunta o idea concreta en 1–3 frases. Ejemplo: «¿Qué pasaría si 200 soldados modernos aparecieran en la antigua Roma?».<br>Dos tarjetas no pueden usar el mismo tema. |
 | **Título** *(opcional)* | Si lo escribes, se usa **tal cual**; si no, la IA propone y elige uno. Debe cumplir estas reglas:<br>• máximo 100 caracteres, y lo ideal es 45–65;<br>• promete solo lo que el video cumple;<br>• sin MAYÚSCULAS completas ni clickbait engañoso. |
 | **Enfoque o indicaciones** *(opcional)* | El ángulo, qué destacar o evitar, y el público si difiere del habitual. Ejemplo: «Enfócate en el caso peruano; evita tecnicismos; termina con una pregunta al público». |
-| **Formato** | 16:9 o 9:16 (§2). |
-| **Duración** | Rango en minutos (§2). |
+| **Formato** | Lo decide el estudio donde se importa (YouTube 16:9 o TikTok 9:16). |
+| **Duración** | Rango (§2). |
+| **Voz** *(opcional)* | Nombre de una voz (§6). |
 | **Portada de YouTube** y **Portada de TikTok** | Ver §5. |
 
 ---
@@ -96,8 +101,10 @@ Un video personal **nunca se sube a YouTube**: termina en la revisión de Diego 
 | **Colores** *(fondo, texto, acento)* | Opcional | En hexadecimal. Ejemplo: `#0B0D12`, `#F2F2F0`, `#4C7DFF`. Se aplican de verdad a tarjetas, animaciones y miniaturas. **Un solo acento.** |
 | **Tipografía de títulos** | Opcional | Una de las incluidas: Anton, Archivo Black, Archivo, Bebas Neue, Courier Prime, DM Serif Display, Inter, JetBrains Mono, Oswald, Playfair Display, Poppins o Source Serif 4. Una fuente que no está en la lista no se puede usar. |
 | **Guion** | Opcional | Si lo das, **se respeta palabra por palabra**: la IA solo lo divide en partes. Ver §4.2. |
-| **Duración** | Sí | Rango en minutos (§2). Con guion propio, el largo del guion manda. |
-| **Formato** | Sí | 16:9 o 9:16. |
+| **Duración** | Sí | Rango (§2). El video dura al menos el mínimo aunque el guion sea corto. |
+| **Formato** | — | Lo decide el estudio donde se importa (YouTube 16:9 o TikTok 9:16). |
+| **Voz** | Opcional | Nombre de una voz (§6). Si no, la de Ajustes para ese idioma. |
+| **Textos para publicar** | Opcional (9:16) | Texto de TikTok, título y descripción de Shorts. Aparecen listos para copiar en TikTok → «Listos para publicar». |
 | **Recursos** | — | Ver §4.3. |
 | **Portadas** | Recomendado | Ver §5. |
 
@@ -121,16 +128,16 @@ Escribe como un **director de arte** que da instrucciones a un editor que no pue
 3. **Color.** Paleta con códigos y **un solo acento**, diciendo para qué se usa.
 4. **Tipografía.** Fuente de títulos (de la lista), tamaño relativo y cuántas palabras por pantalla.
 5. **Ritmo.** Cada cuántos segundos cambia el plano y dónde hay pausas.
-6. **Transiciones.** Cuál es la predominante y cuándo se usa la especial (lista en §7.3).
-7. **Animaciones.** Qué tipo y para qué ideas, citando efectos de la §7 por su nombre.
-8. **Imágenes.** Qué mostrar, qué gradación de color (§7.3) y qué evitar.
+6. **Transiciones.** Cuál es la predominante y cuándo se usa la especial (lista en §8.3).
+7. **Animaciones.** Qué tipo y para qué ideas, citando efectos de la §8 por su nombre.
+8. **Imágenes.** Qué mostrar, qué gradación de color (§8.3) y qué evitar.
 9. **Subtítulos y sonido.** Color de la palabra resaltada, estilo de música y efectos clave.
 10. **Evitar.** Lo que arruinaría el video.
 
 **Reglas:**
 - Usa **datos verificables**: «cada 2–3 s», «#4C7DFF», «títulos de 2–4 palabras». Evita «moderno» o «bonito» sin concretar.
 - No te contradigas con el modo elegido.
-- Pide efectos que existen (§7). Si inventas uno, Claude lo aproxima con lo que tiene.
+- Pide efectos que existen (§8). Si inventas uno, Claude lo aproxima con lo que tiene.
 - En vertical, recuerda que el texto importante va en el centro-arriba. Abajo están los subtítulos y los botones de la app.
 
 **Ejemplo de estética muy detallada** (para una startup; la app trae uno parecido en el botón «Insertar ejemplo»):
@@ -208,9 +215,113 @@ En la ficha, nombra los archivos que Diego debe preparar. Ejemplo: «captura-ini
 
 ---
 
-## 6. Plantillas de ficha (entrégalas así, una por video)
+## 6. Entrega recomendada: un bloque JSON para «Importar»
 
-### 6.1 Automatización
+En su estudio (YouTube o TikTok) → **Cola** → **Importar**, Diego pega el bloque y ATRIL crea de una vez la campaña y todas sus tarjetas, con sus portadas copiadas. Es lo más rápido y evita errores al copiar campo por campo.
+
+**Estructura:**
+```json
+{
+  "campaña": "Nombre de la campaña",
+  "plantilla": { "lo que comparten todos los videos": "…" },
+  "tarjetas": [ { "solo lo propio del video 1": "…" }, { "…del video 2": "…" } ]
+}
+```
+- **Plantilla:** duración, modo, idioma, estética, colores, tipografía, voz, público, llamado a la acción y recursos.
+- **Tarjeta:** título, de qué trata, guion, portada, textos para publicar y lo que quiera cambiar de la plantilla (por ejemplo, otra duración). Título, guion, tema y textos para publicar **no van en la plantilla**: son de cada video.
+- **Sin campaña** basta una lista: `[ {…}, {…} ]` (tarjetas sueltas).
+- **La plataforma no va en el JSON:** la decide el estudio donde se importa.
+- **Si hay un error** (un color mal escrito, un idioma que no existe), **no se importa nada** y la app dice qué corregir. Un campo desconocido se ignora con un aviso.
+- **Rutas:** portadas y archivos van con ruta relativa (`portadas/01.png`). Al importar, Diego elige la carpeta donde están; ATRIL copia cada archivo a su tarjeta.
+
+**Claves** (en español, con o sin tildes):
+
+| Clave | Valor | Dónde va |
+|---|---|---|
+| `titulo` | Texto, máximo 100 caracteres | Tarjeta |
+| `de_que_trata` | Texto | Tarjeta (o plantilla, si todos comparten el tema) |
+| `para_que_es`, `publico`, `llamado_a_la_accion` | Texto | Plantilla o tarjeta |
+| `modo` | `alegre`, `corporativo`, `profesional`, `dinamico`, `llamativo`, o un texto (modo propio) | Plantilla |
+| `idioma` | `es` o `en` | Plantilla |
+| `estetica` | Texto (§4.1) | Plantilla |
+| `colores` | `{ "fondo": "#RRGGBB", "texto": "#RRGGBB", "acento": "#RRGGBB" }` | Plantilla |
+| `tipografia` | Una de la lista de §4 | Plantilla |
+| `duracion_s` | Segundos: `30` o `[30, 45]` | Plantilla o tarjeta |
+| `duracion` | Con unidad: `"30-45 s"`, `"1-2 min"`, `"0:45"` | Plantilla o tarjeta |
+| `voz` | Nombre de una voz (lista abajo) | Plantilla o tarjeta |
+| `guion` | Texto exacto (se respeta palabra por palabra) | Tarjeta |
+| `biblioteca` | `completa`, `ninguna` o lista de nombres de archivo de la biblioteca | Plantilla o tarjeta |
+| `archivos` | Lista de rutas | Plantilla (para todos) o tarjeta |
+| `internet` | `true` o `false` (buscar material e imágenes con IA) | Plantilla |
+| `portada_tiktok`, `portada_youtube` | Ruta de la imagen (§5) | Tarjeta |
+| `publicacion` | `{ "tiktok": "…", "shorts_titulo": "…", "shorts_descripcion": "…" }` | Tarjeta |
+| `tema` | Solo Automatización: `siguiente` o una idea propia | Tarjeta |
+| `tema_propuesto` | Solo Automatización: título exacto de un tema de *Temas* | Tarjeta |
+| `enfoque` | Solo Automatización: ángulo e indicaciones | Plantilla o tarjeta |
+
+**Voces** (Google Chirp 3 HD; cada nombre existe en español latino y en inglés, y la app usa la del idioma del video). Diego las escucha en Ajustes → Voz → «Elegir…».
+- **Mujeres:** Achernar, Aoede, Autonoe, Callirrhoe, Despina, Erinome, Gacrux, Kore, Laomedeia, Leda, Pulcherrima, Sulafat, Vindemiatrix, Zephyr.
+- **Hombres:** Achird, Algenib, Algieba, Alnilam, Charon, Enceladus, Fenrir, Iapetus, Orus, Puck, Rasalgethi, Sadachbia, Sadaltager, Schedar, Umbriel, Zubenelgenubi.
+
+**Ejemplo completo** (es el que copia el botón «Copiar formato de ejemplo»):
+```json
+{
+  "campaña": "Frame · lanzamiento en TikTok",
+  "plantilla": {
+    "idioma": "es",
+    "modo": "llamativo",
+    "duracion_s": [
+      30,
+      45
+    ],
+    "voz": "Kore",
+    "estetica": "Fondo casi negro (#0B0D12) con grano fino; un solo acento azul (#4C7DFF) para cifras; títulos en Bebas Neue de 2 a 4 palabras; cortes cada 2–3 s; grabaciones reales de la app en primer plano.",
+    "colores": {
+      "fondo": "#0B0D12",
+      "texto": "#F2F2F0",
+      "acento": "#4C7DFF"
+    },
+    "tipografia": "Bebas Neue",
+    "publico": "Estudiantes de secundaria y universidad que estudian solos",
+    "llamado_a_la_accion": "Descarga Frame gratis en Microsoft Store",
+    "biblioteca": "completa",
+    "internet": false,
+    "archivos": [
+      "frame-pantalla-inicio.mp4"
+    ]
+  },
+  "tarjetas": [
+    {
+      "titulo": "Dijiste que estudiaste tres horas",
+      "de_que_trata": "Frame mide cada sesión y convierte tu enfoque en una nota real.",
+      "guion": "Dijiste que estudiaste tres horas. ¿Pero cuánto te enfocaste de verdad? Frame mide cada sesión y te da una nota honesta. Gratis en Microsoft Store.",
+      "portada_tiktok": "portadas/01-tres-horas.png",
+      "publicacion": {
+        "tiktok": "¿Estudiaste o solo abriste el cuaderno? 👀 #estudiar #productividad #FrameApp",
+        "shorts_titulo": "¿Cuánto estudias de verdad?",
+        "shorts_descripcion": "Frame: gratis en Microsoft Store. #Shorts"
+      }
+    },
+    {
+      "titulo": "Nueve megas",
+      "guion": "Nueve megas. Eso pesa toda la app.",
+      "duracion_s": [
+        20,
+        30
+      ],
+      "portada_tiktok": "portadas/02-nueve-megas.png"
+    }
+  ]
+}
+```
+
+**Después de producir:** en TikTok → «Listos para publicar» aparece cada vertical que Diego aprobó, con su texto de TikTok y el título y la descripción de Shorts para copiar (los de `publicacion` si los diste; si no, los que propone ATRIL), el botón para descargarlo y la marca de publicado. ATRIL no sube nada a TikTok.
+
+---
+
+## 7. Alternativa: fichas para copiar a mano (una por video)
+
+### 7.1 Automatización
 
 ```
 ### Video N · Automatización
@@ -223,7 +334,7 @@ En la ficha, nombra los archivos que Diego debe preparar. Ejemplo: «captura-ini
 - Portada de TikTok (1080×1920): concepto · texto · fondo · colores
 ```
 
-### 6.2 Personal
+### 7.2 Personal
 
 ```
 ### Video N · Personal
@@ -270,9 +381,9 @@ En la ficha, nombra los archivos que Diego debe preparar. Ejemplo: «captura-ini
 
 ---
 
-## 7. Efectos que ya existen en la app (cítalos por su nombre en la estética)
+## 8. Efectos que ya existen en la app (cítalos por su nombre en la estética)
 
-### 7.1 Piezas listas (solo en videos 16:9)
+### 8.1 Piezas listas (solo en videos 16:9)
 
 Animaciones probadas que Claude usa tal cual, modifica o reemplaza.
 
@@ -319,7 +430,7 @@ Animaciones probadas que Claude usa tal cual, modifica o reemplaza.
   - Lugar y fecha;
   - Cifra sobre el video.
 
-### 7.2 Kit de efectos (16:9 y 9:16)
+### 8.2 Kit de efectos (16:9 y 9:16)
 
 - **Cámara:**
   - vuelo y zoom hacia cualquier detalle (y alejarse para revelar);
@@ -375,7 +486,7 @@ Animaciones probadas que Claude usa tal cual, modifica o reemplaza.
   - anillo de porcentaje;
   - mapas con rutas y fronteras.
 
-### 7.3 Edición
+### 8.3 Edición
 
 - **Transiciones entre tomas:**
   - corte;
@@ -421,15 +532,17 @@ Animaciones probadas que Claude usa tal cual, modifica o reemplaza.
 
 ---
 
-## 8. Lista de control antes de entregar
+## 9. Lista de control antes de entregar
 
-1. Cada ficha tiene **formato, duración y portadas**.
-2. En Personal, cada ficha tiene además **título o «de qué trata»**.
-3. Si hay guion, sus palabras suman ≈ 150 × minutos.
-4. Si el video es vertical, el gancho entra en ≤ 2 s.
-5. La estética cubre los 10 puntos de la §4.1, con códigos de color y **un solo acento**.
-6. La tipografía elegida está en la lista de la §4.
-7. Las portadas traen texto exacto, medidas y colores, y la de YouTube pesa ≤ 2 MB.
-8. Ninguna afirmación ni cifra es inventada.
-9. El llamado a la acción coincide con lo que de verdad existe (enlace, app, producto).
-10. Las fichas están numeradas en el orden de producción, con un máximo de 50.
+1. El JSON es válido (sin comas sobrantes; pruébalo en un validador) y cada ruta de portada coincide con el nombre real del archivo.
+2. Lo común está en la **plantilla**; cada tarjeta trae solo lo propio (título, guion, portada, textos).
+3. Cada tarjeta tiene **duración y portada** (propias o heredadas de la plantilla).
+4. En Personal, cada tarjeta tiene además **título o «de qué trata»**.
+5. Si hay guion, sus palabras suman ≈ 150 × minutos (para 30 s, unas 75).
+6. Si el video es vertical, el gancho entra en ≤ 2 s.
+7. La estética cubre los 10 puntos de la §4.1, con códigos de color y **un solo acento**.
+8. La tipografía elegida está en la lista de la §4 y la voz, en la de la §6.
+9. Las portadas traen texto exacto, medidas y colores, y la de YouTube pesa ≤ 2 MB.
+10. Ninguna afirmación ni cifra es inventada.
+11. El llamado a la acción coincide con lo que de verdad existe (enlace, app, producto).
+12. Las tarjetas van en el orden de producción, con un máximo de 50 pendientes en la cola.

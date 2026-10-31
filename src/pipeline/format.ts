@@ -46,6 +46,12 @@ export const VERTICAL_STORY_EN = `FORMAT: VERTICAL 9:16 video (1080×1920) for T
 export function minutesRangeOf(v: Pick<Video, "data">, fallback: [number, number]): [number, number] {
   const ok = (r: unknown): r is [number, number] => Array.isArray(r) && r.length === 2 && Number(r[0]) > 0 && Number(r[1]) >= Number(r[0]);
   const p = v.data?.personal as { minutes: number; minutesRange?: [number, number] } | undefined;
-  if (p) return ok(p.minutesRange) ? p.minutesRange : [p.minutes * 0.88, p.minutes * 1.08];
-  return ok(v.data?.minutesRange) ? (v.data!.minutesRange as [number, number]) : fallback;
+  // Un solo valor pedido («30 s») es el mínimo: el video nunca dura menos que eso
+  if (p) return ok(p.minutesRange) ? p.minutesRange : [p.minutes, Math.round(p.minutes * 1.12 * 100) / 100];
+  if (ok(v.data?.minutesRange)) return v.data!.minutesRange as [number, number];
+  // Un vertical sin duración propia no hereda la de los videos largos del canal
+  return isVertical(v) ? VERTICAL_DEFAULT : fallback;
 }
+
+/** Duración de un video vertical (TikTok / Shorts) que no pidió una: 30–60 s. */
+export const VERTICAL_DEFAULT: [number, number] = [0.5, 1];

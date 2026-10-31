@@ -7,9 +7,13 @@ import type { Shot, SfxCue, MusicBed, MotionItem, Transition, Grade, ScriptOut, 
 import { TRANSITIONS, GRADES } from "./types";
 import { pieceById } from "../motion/pieces";
 
-export interface SegInfo { id: string; title: string; sentences: string[]; spans: Span[]; narration: number }
+/** Un segmento del guion con su voz. `tail`: tramo instrumental tras la narración (duración exacta). */
+export interface SegInfo { id: string; title: string; sentences: string[]; spans: Span[]; narration: number; tail?: number }
 
-export function segInfos(script: ScriptOut, voice: { segments: { segment_id: string; duration: number; sentences?: Span[] }[] }): SegInfo[] {
+/** Tramo instrumental mínimo que recibe tomas propias (los más cortos alargan la última toma). */
+export const TAIL_MIN = 0.8;
+
+export function segInfos(script: ScriptOut, voice: { segments: { segment_id: string; duration: number; sentences?: Span[]; tail?: number }[] }): SegInfo[] {
   return script.segments.map((s) => {
     const v = voice.segments.find((x) => x.segment_id === s.id);
     const sentences = splitSentences(s.text_en);
@@ -20,7 +24,7 @@ export function segInfos(script: ScriptOut, voice: { segments: { segment_id: str
       const tot = sentences.reduce((a, t) => a + t.length + 1, 0) || 1; let t = 0;
       spans = sentences.map((x) => { const d = (narration * (x.length + 1)) / tot; const r = { start: t, end: t + d }; t += d; return r; });
     }
-    return { id: s.id, title: s.title, sentences, spans, narration };
+    return { id: s.id, title: s.title, sentences, spans, narration, tail: Math.max(0, v?.tail ?? 0) };
   });
 }
 
@@ -46,7 +50,7 @@ export function fallbackQueries(q = "", alts: string[] = []): string[] {
   return [...new Set(out.map((x) => x.trim()).filter(Boolean))];
 }
 
-export interface RepairOpts { aiImages?: boolean; maxCards?: number }
+export interface RepairOpts { aiImages?: boolean; maxCards?: number; /** Duración máxima de una toma del tramo instrumental (s). */ maxTailShot?: number }
 
 /** Cubre todas las oraciones en orden; corrige índices, huecos y solapes; limita animaciones y tarjetas. */
 export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: number, sourceIds: Set<string>, opts: RepairOpts = {}): { shots: Shot[]; beatSfx: { shotId: string; at: "start" | "end"; type: string; query_en: string }[] } {
@@ -56,7 +60,9 @@ export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: 
   for (const seg of segs) {
     const last = seg.sentences.length - 1;
     if (last < 0) continue;
-    const mine = raw.filter((b) => b.segment_id === seg.id)
+    // Beats del tramo instrumental (índice = número de oraciones): se separan de los narrados
+    const tailRaw = hasTail(seg) ? raw.filter((b) => b.segment_id === seg.id && Number(b.from) > last && b.shots?.length) : [];
+    const mine = raw.filter((b) => b.segment_id === seg.id && !tailRaw.includes(b))
       .map((b) => ({ ...b, from: clampI(b.from, 0, last), to: clampI(b.to, 0, last) }))
       .sort((a, b) => a.from - b.from || a.to - b.to);
     let next = 0;
@@ -71,10 +77,23 @@ export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: 
       if (beats.length) beats[beats.length - 1].to = last;
       else beats.push({ segment_id: seg.id, from: 0, to: last, shots: [{ visual: "photo", query_en: keywordsQuery(seg.sentences.join(" ")) }] });
     }
+    // Tramo instrumental: los beats que propuso el storyboard o, si faltan, tomas de respaldo (una cada ~4 s)
+    if (hasTail(seg)) {
+      const tail = (tailRaw.length ? tailRaw : tailFallback(seg, seg === segs[segs.length - 1])).slice(0, 8)
+        .map((b) => ({ ...b, shots: (b.shots?.length ? b.shots : [{ visual: "photo" }]).slice(0, 3) }));
+      // Ninguna imagen se queda quieta demasiado: si el plan trae pocas tomas, se completan con imágenes del tema
+      const need = Math.ceil((seg.tail ?? 0) / (opts.maxTailShot ?? 5));
+      const q = keywordsQuery(`${seg.title}. ${seg.sentences[last] ?? ""}`) || keywordsQuery(seg.title) || "abstract background";
+      const extra = (): RawShot => ({ visual: "photo", query_en: q });
+      let have = tail.reduce((a, b) => a + b.shots.length, 0);
+      for (const b of tail) while (have < need && b.shots.length < 3) { b.shots.push(extra()); have++; }
+      while (have < need && tail.length < 8) { const k = Math.min(3, need - have); tail.push({ segment_id: seg.id, from: last + 1, to: last + 1, shots: Array.from({ length: k }, extra) }); have += k; }
+      for (const b of tail) beats.push({ ...b, from: last + 1, to: last + 1 });
+    }
     for (const b of beats) {
       beatN++;
       const list = (b.shots?.length ? b.shots : [{ visual: "photo" }]).slice(0, 3);
-      const beatText = seg.sentences.slice(b.from, b.to + 1).join(" ");
+      const beatText = b.from > last ? `${seg.title}. ${seg.sentences[last] ?? ""}` : seg.sentences.slice(b.from, b.to + 1).join(" ");
       list.forEach((r, k) => {
         let visual = (VISUAL_TYPES.includes(r.visual as VisualType) ? r.visual : "photo") as VisualType;
         let query = r.query_en?.trim() || "";
@@ -99,7 +118,7 @@ export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: 
           source_id: r.source_id || undefined, motion_brief_en: brief || undefined, user_file_id: r.user_file_id || undefined,
           image_prompt_en: visual === "ai_image" ? (r.image_prompt_en?.trim() || query) : r.image_prompt_en?.trim() || undefined,
         };
-        if ((visual === "title_card" || visual === "quote_card" || visual === "text_card") && !sh.card_text) sh.card_text = visual === "title_card" ? seg.title : shortPhrase(seg.sentences[b.from]);
+        if ((visual === "title_card" || visual === "quote_card" || visual === "text_card") && !sh.card_text) sh.card_text = visual === "title_card" ? seg.title : shortPhrase(seg.sentences[Math.min(b.from, last)]);
         shots.push(sh);
         if (k === 0) for (const s of (b.sfx ?? []).slice(0, 2)) if (s.type?.trim()) beatSfx.push({ shotId: sh.id, at: s.at === "end" ? "end" : "start", type: s.type.trim(), query_en: (s.query_en || s.type).trim() });
       });
@@ -110,15 +129,32 @@ export function repairStoryboard(raw: RawBeat[], segs: SegInfo[], motionBudget: 
 
 const clampI = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(x) || 0)));
 
+/** Tomas de respaldo para un tramo instrumental sin plan: animación primero, luego imágenes del tema. */
+function tailFallback(seg: SegInfo, isLast: boolean): RawBeat[] {
+  const n = Math.max(1, Math.min(6, Math.round((seg.tail ?? 0) / 4)));
+  const topic = `${seg.title}. ${seg.sentences[seg.sentences.length - 1] ?? ""}`;
+  const shots: RawShot[] = Array.from({ length: n }, (_, i) => i === 0
+    ? { visual: "motion", motion_brief_en: isLast
+      ? `Closing sequence (no narration): the key idea of the video as a strong visual end card, title and call to action as short labels — ${shortPhrase(topic, 20)}`
+      : `Instrumental beat (no narration): a visual-first motion sequence that lets the last idea land — ${shortPhrase(topic, 20)}` }
+    : { visual: "photo", query_en: keywordsQuery(topic) || keywordsQuery(seg.title) || "abstract background" });
+  const beats: RawBeat[] = [];
+  for (let i = 0; i < shots.length; i += 3) beats.push({ segment_id: seg.id, from: seg.sentences.length, to: seg.sentences.length, shots: shots.slice(i, i + 3) });
+  return beats;
+}
+
 export function shortPhrase(sentence = "", maxWords = 8): string {
   const w = sentence.replace(/["“”]/g, "").split(/\s+/).filter(Boolean);
   return w.slice(0, maxWords).join(" ") + (w.length > maxWords ? "…" : "");
 }
 
-/** Duración del clip de un segmento: la narración más la pausa final, en cuadros exactos. */
+/** Duración del clip de un segmento: la narración, la pausa final y el tramo instrumental, en cuadros exactos. */
 export function segmentLength(seg: SegInfo, pause: number, fps = 30): number {
-  return Math.round((seg.narration + pause) * fps) / fps;
+  return Math.round((seg.narration + pause + (seg.tail ?? 0)) * fps) / fps;
 }
+
+/** ¿El segmento tiene un tramo instrumental con tomas propias? */
+export const hasTail = (seg: SegInfo) => (seg.tail ?? 0) >= TAIL_MIN;
 
 /**
  * Tiempos de cada toma dentro de su segmento: cada beat empieza cuando se
@@ -130,7 +166,12 @@ export function layoutShots(shots: Shot[], segs: SegInfo[], pause: number, fps =
     const mine = shots.filter((s) => s.segment_id === seg.id);
     if (!mine.length) continue;
     const total = segmentLength(seg, pause, fps);
-    const beats = [...new Set(mine.map((s) => s.beat))];
+    const lastIdx = seg.sentences.length - 1;
+    const isTail = (s: Shot) => s.from > lastIdx;
+    // Con tramo instrumental, la narración ocupa [0, fin de la voz] y el tramo [fin de la voz, total]
+    const tailShots = hasTail(seg) ? mine.filter(isTail) : [];
+    const narrEnd = tailShots.length ? Math.round(Math.min(total, seg.narration + Math.min(pause, 0.4)) * fps) / fps : total;
+    const beats = [...new Set(mine.filter((s) => !tailShots.includes(s)).map((s) => s.beat))];
     // Cada corte cae en mitad de la pausa anterior a la primera oración del beat
     const starts = beats.map((b, i) => {
       if (i === 0) return 0;
@@ -140,7 +181,7 @@ export function layoutShots(shots: Shot[], segs: SegInfo[], pause: number, fps =
     });
     for (let i = 0; i < beats.length; i++) {
       const b0 = starts[i];
-      const b1 = i + 1 < beats.length ? Math.max(b0 + minShot, starts[i + 1]) : total;
+      const b1 = i + 1 < beats.length ? Math.max(b0 + minShot, starts[i + 1]) : narrEnd;
       const list = mine.filter((s) => s.beat === beats[i]);
       const k = Math.max(1, Math.min(list.length, Math.floor((b1 - b0) / minShot)));
       const used = list.slice(0, k);
@@ -149,6 +190,12 @@ export function layoutShots(shots: Shot[], segs: SegInfo[], pause: number, fps =
         const en = b0 + ((b1 - b0) * (j + 1)) / k;
         out.push({ ...s, start: st, dur: en - st });
       });
+    }
+    // Tramo instrumental: sus tomas se reparten el tiempo por igual (cada una al menos `minShot`)
+    if (tailShots.length) {
+      const span = total - narrEnd;
+      const k = Math.max(1, Math.min(tailShots.length, Math.floor(span / minShot)));
+      tailShots.slice(0, k).forEach((s, j) => out.push({ ...s, start: narrEnd + (span * j) / k, dur: span / k }));
     }
     // Cuadros exactos y continuidad (sin huecos ni solapes), terminando en `total`
     const segShots = out.filter((s) => s.segment_id === seg.id);
@@ -184,6 +231,7 @@ export function beatSfxToCues(beatSfx: { shotId: string; at: "start" | "end"; ty
 
 /** Texto de cada toma (lo que se narra mientras está en pantalla). */
 export function shotNarration(sh: Shot, seg: SegInfo): string {
+  if (sh.from > seg.sentences.length - 1) return "";   // tramo instrumental
   const t0 = sh.start ?? 0, t1 = t0 + (sh.dur ?? 0);
   const idx = seg.spans.map((sp, i) => ({ i, sp })).filter(({ sp }) => sp.end > t0 + 0.05 && sp.start < t1 - 0.05).map((x) => x.i);
   return (idx.length ? idx : [sh.from]).map((i) => seg.sentences[i]).filter(Boolean).join(" ");
@@ -197,7 +245,7 @@ export function buildEdl(shots: Shot[], segs: SegInfo[], offsets: Record<string,
     for (const s of shots.filter((x) => x.segment_id === seg.id)) {
       const g0 = offsets[seg.id] + (s.start ?? 0);
       const fx = sfx.filter((c) => c.at >= g0 - 0.05 && c.at < g0 + (s.dur ?? 0) - 0.05).map((c) => `${c.id}:${c.type}@${fmtT(c.at)}`);
-      lines.push(`${s.id} ${fmtT(g0)} ${(s.dur ?? 0).toFixed(1)}s [${s.visual}${s.media === "video" ? " video" : ""}] ${describe(s)} | in:${s.transition_in ?? "cut"} cam:${s.motion ?? "zoom_in"}${fx.length ? ` | sfx ${fx.join(" ")}` : ""} | "${truncateWords(shotNarration(s, seg), 40)}"`);
+      lines.push(`${s.id} ${fmtT(g0)} ${(s.dur ?? 0).toFixed(1)}s [${s.visual}${s.media === "video" ? " video" : ""}] ${describe(s)} | in:${s.transition_in ?? "cut"} cam:${s.motion ?? "zoom_in"}${fx.length ? ` | sfx ${fx.join(" ")}` : ""} | ${s.from > seg.sentences.length - 1 ? "(instrumental: no narration — music and visuals only)" : `"${truncateWords(shotNarration(s, seg), 40)}"`}`);
     }
   }
   return lines.join("\n");

@@ -8,6 +8,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { saveCover, removeCover, COVER_EXT, type CoverKind } from "../../pipeline/covers";
 import { downloadVideo } from "../../pipeline/tiktok";
 import { isVertical } from "../../pipeline/format";
+import { personalOf } from "../../pipeline/personal";
 import { emit } from "../../lib/bus";
 import { addReview, getVideo, type Video, type StageRow } from "../../lib/repo";
 import { getSettings } from "../../lib/settings";
@@ -222,7 +223,23 @@ export function FinalReview({ video, stages }: { video: Video; stages: StageRow[
           <div className="text-[11px] text-muted-foreground mt-1">{pkg.synthetic_reason_es}</div>
         </Card>
         {polish && <MusicBeds video={video} beds={polish.music} editable={editable} />}
-        {editable && (
+        {editable && personalOf(video) && (
+          <Card title="Aprobación" icon={CheckCircle2}>
+            <div className="space-y-2">
+              <p className="text-[12px] text-muted-foreground">Un video personal no se sube a YouTube: al aprobarlo queda terminado{isVertical(video) ? " y aparece en TikTok → «Listos para publicar», con sus textos para copiar" : ""}. La copia ya está en Descargas.</p>
+              <AsyncButton className="btn-primary w-full" onClick={async () => {
+                await addReview(video.id, "final", "approved", "", secs.current);
+                await approveFinal(video.id, null);
+                toast("success", "Aprobado", isVertical(video) ? "Lo tienes en TikTok → «Listos para publicar»." : "Queda terminado en Videos.");
+              }}><CheckCircle2 size={15} /> Aprobar</AsyncButton>
+              <div className="flex gap-2">
+                <ExportButton video={video} label="Exportar" />
+                <button className="btn-ghost flex-1 text-red-600 dark:text-red-500" onClick={() => setReject(true)}><XCircle size={14} /> Rechazar</button>
+              </div>
+            </div>
+          </Card>
+        )}
+        {editable && !personalOf(video) && (
           <Card title="Publicación" icon={CalendarClock}>
             <div className="space-y-2">
               <Toggle checked={now} onChange={setNow} label="Publicar al subir" />

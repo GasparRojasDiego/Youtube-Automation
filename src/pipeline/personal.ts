@@ -2,6 +2,7 @@
 // descripción, duración e idioma propios, archivos del usuario, guion propio
 // opcional y la opción de usar solo lo que el usuario subió.
 import { fs } from "../lib/ipc";
+import { getSettings } from "../lib/settings";
 import { composeSkills, skillParams, VISUAL_DEFAULTS, type Scope, type VisualParams } from "../lib/skills";
 import { joinPath, extName, slugify } from "../lib/util";
 import { importLocalFile, getAssets, listAssets, type Asset } from "../media/library";
@@ -85,6 +86,11 @@ export const kindOf = (path: string): FileKind | null => {
 };
 
 export const personalOf = (v: Pick<Video, "data">): PersonalSpec | null => (v.data?.personal as PersonalSpec) ?? null;
+
+/** Idioma de la narración («es» o «en»): el del video personal o el del canal. */
+export function videoLanguage(v: Pick<Video, "data">): string {
+  return (personalOf(v)?.language ?? getSettings().publishing.defaultLanguage ?? "en").slice(0, 2);
+}
 const LANG = { es: "Spanish (neutral Latin American)", en: "English" };
 
 /** Instrucciones de sistema: las del canal, o las del video personal (propósito e idioma propios). */
@@ -253,9 +259,4 @@ export async function documentsOf(p: PersonalSpec): Promise<{ text: string; pdfs
   return { text: parts.join("\n\n").slice(0, 120_000), pdfs };
 }
 
-/** Voz en el idioma del video: el mismo timbre de Chirp 3 HD en español latinoamericano. */
-export function voiceFor(p: PersonalSpec | null, current: string): { voice?: string; languageCode?: string } {
-  if (!p || p.language === "en") return {};
-  const name = /-Chirp3-HD-(\w+)$/.exec(current)?.[1] ?? "Charon";
-  return { voice: `es-US-Chirp3-HD-${name}`, languageCode: "es-US" };
-}
+

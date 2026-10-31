@@ -1,3 +1,6 @@
+// Estudios: YouTube (horizontal 16:9) y TikTok (vertical 9:16, también para Shorts). Cada uno crea
+// videos de su formato, tiene su propia cola y muestra solo lo suyo en curso; el de TikTok añade los
+// videos listos para publicar y el recorte en partes de los horizontales.
 import { useEffect, useState } from "react";
 import { Play, Lightbulb, ArrowRight, Clapperboard, Plus, FileText, Library, Repeat, Bot, UserRound, X, Image as ImageIcon, Film, Music2, Smartphone, Monitor } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -6,15 +9,20 @@ import { db } from "../lib/ipc";
 import { activeChannel, getStages, listTopics, type Channel, type StageRow, type Video } from "../lib/repo";
 import { startNextVideo, startFromPrompt, startPersonal, activeVideos, runVideo, isQueued } from "../pipeline/runner";
 import { ACCEPT, SCRIPT_EXT, kindOf } from "../pipeline/personal";
+import { formatOf, type VideoFormat } from "../pipeline/format";
 import { navigate } from "../ui/nav";
 import { Card, Empty, Chip, AsyncButton } from "../ui/kit";
 import { StepStrip, awaiting } from "../ui/Steps";
 import { TopicsPanel } from "./Topics";
 import { QueuePanel } from "./Queue";
-import type { VideoFormat } from "../pipeline/format";
+import { TikTokReady, TikTokParts } from "./TikTok";
 
 type Mode = "auto" | "personal";
-const DURATIONS: [number, string][] = [[0.5, "30 s"], [1, "1 min"], [2, "2 min"], [3, "3 min"], [5, "5 min"], [8, "8 min"], [12, "12 min"]];
+export type Platform = "youtube" | "tiktok";
+const DURATIONS: Record<Platform, [number, string][]> = {
+  youtube: [[1, "1 min"], [2, "2 min"], [3, "3 min"], [5, "5 min"], [8, "8 min"], [12, "12 min"]],
+  tiktok: [[0.25, "15 s"], [0.5, "30 s"], [0.75, "45 s"], [1, "1 min"], [1.5, "1:30"], [2, "2 min"], [3, "3 min"]],
+};
 const store = { get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } } };
 const fileName = (p: string) => p.split(/[\\/]/).pop() ?? p;
 
@@ -28,20 +36,19 @@ function Pill({ on, onChange, icon: I, label, title }: { on: boolean; onChange: 
   );
 }
 
-export function Today() {
+export function Studio({ platform }: { platform: Platform }) {
+  const tiktok = platform === "tiktok";
+  const format: VideoFormat = tiktok ? "9:16" : "16:9";
   const tick = useBus("videos", "stages", "topics", "channels", "jobs");
   const [ch, setCh] = useState<Channel | null>(null);
   const [videos, setVideos] = useState<{ v: Video; stages: StageRow[] }[]>([]);
   const [hasTopics, setHasTopics] = useState(false);
   const [published, setPublished] = useState(0);
   const [prompt, setPrompt] = useState("");
-  const [mode, setModeState] = useState<Mode>(() => (store.get("atril.mode") === "personal" ? "personal" : "auto"));
-  const setMode = (m: Mode) => { setModeState(m); store.set("atril.mode", m); };
-  const [format, setFormatState] = useState<VideoFormat>(() => (store.get("atril.format") === "9:16" ? "9:16" : "16:9"));
-  const setFormat = (f: VideoFormat) => { setFormatState(f); store.set("atril.format", f); };
-  // Modo Personal
+  const [mode, setModeState] = useState<Mode>(() => ((store.get(`atril.mode.${platform}`) ?? store.get("atril.mode")) === "personal" ? "personal" : "auto"));
+  const setMode = (m: Mode) => { setModeState(m); store.set(`atril.mode.${platform}`, m); };
   const [description, setDescription] = useState("");
-  const [minutes, setMinutes] = useState(2);
+  const [minutes, setMinutes] = useState(tiktok ? 0.5 : 2);
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [useLibrary, setUseLibrary] = useState(true);
   const [iterate, setIterate] = useState(false);
@@ -52,21 +59,22 @@ export function Today() {
     void (async () => {
       const c = await activeChannel(); setCh(c);
       if (!c) return;
-      const act = await activeVideos(c.id);
+      const act = (await activeVideos(c.id)).filter((v) => formatOf(v) === format);
       setVideos(await Promise.all(act.map(async (v) => ({ v, stages: await getStages(v.id) }))));
       setHasTopics((await listTopics(c.id, "approved")).length > 0);
-      setPublished((await db.query<{ n: number }>("SELECT COUNT(*) n FROM videos WHERE channel_id=? AND status IN ('published','scheduled') AND created_at>=?", [c.id, Date.now() - 30 * 86400000]))[0]?.n ?? 0);
+      if (!tiktok) setPublished((await db.query<{ n: number }>("SELECT COUNT(*) n FROM videos WHERE channel_id=? AND status IN ('published','scheduled') AND created_at>=?", [c.id, Date.now() - 30 * 86400000]))[0]?.n ?? 0);
     })();
-  }, [tick]);
+  }, [tick, format, tiktok]);
 
   if (!ch) return <Empty icon={Clapperboard} title="Sin canal">Vuelve a abrir ATRIL para crearlo.</Empty>;
   const personal = mode === "personal";
   const ready = personal ? !!(prompt.trim() || script) : !!prompt.trim();
+  const range: [number, number] = [minutes, Math.round(minutes * 1.12 * 100) / 100];
   const create = async () => {
     if (!ready) return;
     const id = personal
       ? await startPersonal({ prompt, description, minutes, language, useLibrary, iterate, files, script, format, extra: { library: { mode: useLibrary ? "all" : "none", ids: [] } } })
-      : await startFromPrompt(prompt, format);
+      : await startFromPrompt(prompt, format, tiktok ? range : undefined);
     if (!id) return;
     setPrompt(""); setFiles([]); setScript(null); setDescription("");
     if (personal) navigate({ page: "video", id });
@@ -81,11 +89,19 @@ export function Today() {
     if (typeof sel === "string") setScript(sel);
   };
   const KIND_ICON = { image: ImageIcon, video: Film, audio: Music2, document: FileText } as const;
+  const durationSelect = (
+    <label className="flex flex-col text-[11px] font-semibold text-muted-foreground">Duración
+      <select className="input mt-1 h-9 w-28" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>{DURATIONS[platform].map(([m, l]) => <option key={m} value={m}>{l}</option>)}</select>
+    </label>
+  );
 
   return (
     <div className="space-y-6">
       <section className="card relative overflow-hidden">
         <div className="relative px-8 pt-7 pb-6">
+          <div className="text-[11.5px] font-semibold tracking-wide text-primary flex items-center gap-1.5 mb-1">
+            {tiktok ? <><Smartphone size={13} /> Estudio TikTok · vertical 9:16 (también para YouTube Shorts)</> : <><Monitor size={13} /> Estudio YouTube · horizontal 16:9</>}
+          </div>
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-[27px] leading-tight font-bold tracking-tight">¿Qué video hacemos hoy?</h1>
             <div className="inline-flex p-0.5 rounded-lg border border-border bg-background/60 shrink-0" role="tablist">
@@ -98,13 +114,14 @@ export function Today() {
             </div>
           </div>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            {personal ? "Un video a tu medida: tarea, proyecto o promoción. Sube tus archivos o tu guion, describe cómo lo quieres y elige la duración."
-              : "Escribe la idea o usa un tema investigado. La app hace todo y solo te pide revisar el video final."}
+            {personal ? "Un video a tu medida: tarea, proyecto o promoción. Sube tus archivos o tu guion, describe cómo lo quieres y elige la duración: el video la cumple aunque el guion sea corto."
+              : tiktok ? "Escribe la idea: la app hace un video vertical con gancho en los primeros segundos y solo te pide revisar el final."
+                : "Escribe la idea o usa un tema investigado. La app hace todo y solo te pide revisar el video final."}
           </p>
           <div className="mt-4 rounded-lg border border-border/80 bg-background/90 focus-within:border-primary/60 focus-within:ring-4 focus-within:ring-primary/15 transition-all">
             <textarea className="w-full bg-transparent outline-none resize-none px-4 pt-3.5 pb-1 text-[15px] min-h-[76px] placeholder:text-muted-foreground/70" value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={personal ? (script ? "Opcional: indicaciones extra sobre tu guion" : "Ej.: Video para mi exposición de biología sobre la fotosíntesis") : "Ej.: ¿Qué pasaría si 200 soldados modernos aparecieran en la antigua Roma?"}
+              onChange={(e) => setPrompt(e.target.value)} aria-label="Idea del video"
+              placeholder={personal ? (script ? "Opcional: indicaciones extra sobre tu guion" : tiktok ? "Ej.: 30 s que muestren por qué Frame te ayuda a estudiar sin distraerte" : "Ej.: Video para mi exposición de biología sobre la fotosíntesis") : tiktok ? "Ej.: El dato más raro sobre el sueño que casi nadie conoce" : "Ej.: ¿Qué pasaría si 200 soldados modernos aparecieran en la antigua Roma?"}
               onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void create(); }} />
             {personal && (files.length > 0 || script) && (
               <div className="flex flex-wrap gap-1.5 px-3 pb-1">
@@ -121,37 +138,31 @@ export function Today() {
                 <Pill on={useLibrary} onChange={setUseLibrary} icon={Library} label="Recursos" title={useLibrary ? "Activado: Claude puede usar tu biblioteca, buscar en internet y crear imágenes" : "Desactivado: solo tus archivos subidos (más animaciones y tarjetas)"} />
                 <Pill on={iterate} onChange={setIterate} icon={Repeat} label="Mejora continua" title="Al terminar la primera versión, pides cambios y ATRIL los aplica, como en un chat" />
               </>)}
-              <button type="button" className={`h-8 inline-flex items-center gap-1.5 px-2.5 rounded-md border text-[12.5px] font-medium transition-colors ${format === "9:16" ? "border-primary/50 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
-                title={format === "9:16" ? "Vertical 9:16: TikTok y YouTube Shorts" : "Horizontal 16:9: YouTube"} onClick={() => setFormat(format === "9:16" ? "16:9" : "9:16")}>
-                {format === "9:16" ? <Smartphone size={14} /> : <Monitor size={14} />} {format}
-              </button>
               <div className="flex-1" />
-              {!personal && hasTopics && <button className="btn-ghost btn-sm" onClick={() => void startNextVideo(format)}><Lightbulb size={14} /> Usar el próximo tema</button>}
+              {!personal && hasTopics && <button className="btn-ghost btn-sm" onClick={() => void startNextVideo(format, tiktok ? range : undefined)}><Lightbulb size={14} /> Usar el próximo tema</button>}
               <AsyncButton className="btn-primary h-9 px-4" disabled={!ready} onClick={create}>Crear video <ArrowRight size={15} /></AsyncButton>
             </div>
           </div>
-          {personal && (
+          {personal ? (
             <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-start">
               <textarea className="input min-h-[60px] resize-none text-[13.5px] bg-background/90" value={description} onChange={(e) => setDescription(e.target.value)}
                 placeholder="Cómo será el video: para quién es, el tono, el estilo y qué debe lograr (distinto del guion)" aria-label="Descripción del video" />
-              <label className="flex flex-col text-[11px] font-semibold text-muted-foreground">Duración
-                <select className="input mt-1 h-9 w-28" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>{DURATIONS.map(([m, l]) => <option key={m} value={m}>{l}</option>)}</select>
-              </label>
+              {durationSelect}
               <div className="flex flex-col text-[11px] font-semibold text-muted-foreground">Idioma
                 <div className="mt-1 inline-flex h-9 p-0.5 rounded-md border border-border bg-background/60">
                   {([["es", "Español"], ["en", "Inglés"]] as const).map(([k, l]) => <button key={k} onClick={() => setLanguage(k)} className={`px-3 rounded text-[13px] font-medium ${language === k ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground"}`}>{l}</button>)}
                 </div>
               </div>
             </div>
-          )}
+          ) : tiktok && <div className="mt-3 flex justify-end">{durationSelect}</div>}
         </div>
       </section>
 
-      <QueuePanel mode={mode} channelId={ch.id} />
+      <QueuePanel mode={mode} format={format} channelId={ch.id} />
 
-      <Card title="En curso" icon={Clapperboard} actions={<span className="text-[11px] text-muted-foreground tabular">Publicados en 30 días: <b className="text-foreground">{published}</b></span>}>
+      <Card title="En curso" icon={Clapperboard} actions={!tiktok && <span className="text-[11px] text-muted-foreground tabular">Publicados en 30 días: <b className="text-foreground">{published}</b></span>}>
         {videos.length === 0 ? (
-          <Empty icon={Play} title="Nada en curso">Escribe una idea arriba y pulsa «Crear video».</Empty>
+          <Empty icon={Play} title="Nada en curso">Escribe una idea arriba y pulsa «Crear video», o inicia la cola.</Empty>
         ) : (
           <div className="space-y-3">
             {videos.map(({ v, stages }) => {
@@ -178,10 +189,15 @@ export function Today() {
         )}
       </Card>
 
-      <section>
-        <h2 className="text-lg font-bold tracking-tight mb-3 flex items-center gap-2"><Lightbulb size={18} className="text-primary" /> Temas</h2>
-        <TopicsPanel />
-      </section>
+      {tiktok ? (<>
+        <TikTokReady />
+        <TikTokParts />
+      </>) : (
+        <section>
+          <h2 className="text-lg font-bold tracking-tight mb-3 flex items-center gap-2"><Lightbulb size={18} className="text-primary" /> Temas</h2>
+          <TopicsPanel />
+        </section>
+      )}
     </div>
   );
 }

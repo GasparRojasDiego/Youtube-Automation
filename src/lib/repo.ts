@@ -157,6 +157,25 @@ export async function getStages(videoId: string): Promise<StageRow[]> {
   return rows.filter((r) => order.includes(r.stage)).map((r) => ({ ...r, output: safeJson(r.output, null) }) as StageRow).sort((a, b) => order.indexOf(a.stage) - order.indexOf(b.stage));
 }
 
+/**
+ * Etapas de todos los videos de un canal en una sola consulta (para listas). Solo trae la salida de las
+ * etapas pedidas: las demás (investigación, guion…) pesan mucho y una lista no las necesita.
+ */
+export async function stagesByVideo(channelId: string, withOutput: StageId[] = ["render"]): Promise<Map<string, StageRow[]>> {
+  const order = STAGES.map((s) => s.id as string);
+  const marks = withOutput.map(() => "?").join(",") || "''";
+  const rows = await db.query(`SELECT s.video_id, s.stage, s.status, s.progress, s.error, CASE WHEN s.stage IN (${marks}) THEN s.output END AS output FROM stages s JOIN videos v ON v.id = s.video_id WHERE v.channel_id = ?`, [...withOutput, channelId]);
+  const out = new Map<string, StageRow[]>();
+  for (const r of rows) {
+    if (!order.includes(r.stage)) continue;
+    const list = out.get(r.video_id) ?? [];
+    list.push({ ...r, output: safeJson(r.output, null) } as StageRow);
+    out.set(r.video_id, list);
+  }
+  for (const list of out.values()) list.sort((a, b) => order.indexOf(a.stage) - order.indexOf(b.stage));
+  return out;
+}
+
 export async function getStage(videoId: string, stage: StageId): Promise<StageRow | null> {
   const r = await db.query("SELECT * FROM stages WHERE video_id=? AND stage=?", [videoId, stage]);
   return r[0] ? ({ ...r[0], output: safeJson(r[0].output, null) } as StageRow) : null;

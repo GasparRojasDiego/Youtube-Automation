@@ -164,15 +164,66 @@ export async function searchLibrary(q: string, kind: AssetKind | null, limit = 1
     .sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-export async function listAssets(f: { kind?: AssetKind | null; q?: string; source?: string; onlyUndescribed?: boolean; favorites?: boolean; limit?: number; offset?: number; scope?: Scope } = {}): Promise<Asset[]> {
-  if (f.q?.trim()) return searchLibrary(f.q, f.kind ?? null, f.limit ?? 120, { onlyUsable: false, scope: f.scope });
+/** Filtros de la Biblioteca (además del tipo, la búsqueda y la biblioteca elegida). */
+export interface AssetFilter {
+  orientation?: "" | "landscape" | "portrait" | "square";
+  status?: "" | "described" | "undescribed" | "unusable" | "unused" | "used";
+  /** Calidad técnica mínima (1–5, la que da Claude al describir). */
+  minQuality?: number;
+  source?: string;
+  favorites?: boolean;
+  sort?: "new" | "old" | "used" | "quality" | "size";
+}
+
+const ORIENT: Record<string, (a: Pick<Asset, "width" | "height">) => boolean> = {
+  landscape: (a) => !!a.width && !!a.height && a.width > a.height * 1.1,
+  portrait: (a) => !!a.width && !!a.height && a.height > a.width * 1.1,
+  square: (a) => !!a.width && !!a.height && Math.abs(a.width - a.height) <= Math.max(a.width, a.height) * 0.1,
+};
+const ORIENT_SQL: Record<string, string> = {
+  landscape: "width > height * 1.1", portrait: "height > width * 1.1", square: "ABS(width - height) <= MAX(width, height) * 0.1",
+};
+const STATUS: Record<string, (a: Asset) => boolean> = {
+  described: (a) => a.described_at != null, undescribed: (a) => a.described_at == null && (a.kind === "image" || a.kind === "video"),
+  unusable: (a) => !a.usable, unused: (a) => !a.used_count, used: (a) => a.used_count > 0,
+};
+const STATUS_SQL: Record<string, string> = {
+  described: "described_at IS NOT NULL", undescribed: "described_at IS NULL AND kind IN ('image','video')",
+  unusable: "usable=0", unused: "used_count=0", used: "used_count>0",
+};
+const SORT_SQL: Record<string, string> = { new: "created_at DESC", old: "created_at ASC", used: "used_count DESC, last_used DESC", quality: "quality DESC, created_at DESC", size: "bytes DESC" };
+
+/** Los mismos filtros, en memoria: para los resultados de una búsqueda (que llegan ordenados por relevancia). */
+export function filterAssets<T extends Asset>(list: T[], f: AssetFilter): T[] {
+  const out = list.filter((a) => (!f.orientation || ORIENT[f.orientation](a)) && (!f.status || STATUS[f.status](a))
+    && (!f.minQuality || (a.quality ?? 0) >= f.minQuality) && (!f.source || a.source === f.source) && (!f.favorites || !!a.favorite));
+  const by: Record<string, (a: T, b: T) => number> = {
+    old: (a, b) => a.created_at - b.created_at, used: (a, b) => b.used_count - a.used_count, quality: (a, b) => (b.quality ?? 0) - (a.quality ?? 0),
+    size: (a, b) => (b.bytes ?? 0) - (a.bytes ?? 0), new: (a, b) => b.created_at - a.created_at,
+  };
+  return f.sort ? [...out].sort(by[f.sort]) : out;
+}
+
+export async function listAssets(f: { kind?: AssetKind | null; q?: string; onlyUndescribed?: boolean; limit?: number; offset?: number; scope?: Scope } & AssetFilter = {}): Promise<Asset[]> {
+  if (f.q?.trim()) {
+    const hits = await searchLibrary(f.q, f.kind ?? null, (f.limit ?? 120) * 2, { onlyUsable: false, scope: f.scope });
+    return filterAssets(hits, f).slice(0, f.limit ?? 120);
+  }
   const w: string[] = [scopeSql(f.scope ?? "auto")]; const p: unknown[] = [];
   if (f.kind) { w.push("kind=?"); p.push(f.kind); }
   if (f.source) { w.push("source=?"); p.push(f.source); }
-  if (f.onlyUndescribed) w.push("described_at IS NULL AND kind IN ('image','video')");
+  if (f.onlyUndescribed) w.push(STATUS_SQL.undescribed);
   if (f.favorites) w.push("favorite=1");
+  if (f.orientation) w.push(`width IS NOT NULL AND height IS NOT NULL AND ${ORIENT_SQL[f.orientation]}`);
+  if (f.status) w.push(STATUS_SQL[f.status]);
+  if (f.minQuality) { w.push("quality>=?"); p.push(f.minQuality); }
   p.push(f.limit ?? 120, f.offset ?? 0);
-  return db.query<Asset>(`SELECT * FROM assets ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY created_at DESC LIMIT ? OFFSET ?`, p);
+  return db.query<Asset>(`SELECT * FROM assets ${w.length ? "WHERE " + w.join(" AND ") : ""} ORDER BY ${SORT_SQL[f.sort ?? "new"]} LIMIT ? OFFSET ?`, p);
+}
+
+/** Fuentes presentes en una biblioteca (para el filtro «Fuente»). */
+export async function librarySources(scope: Scope = "auto"): Promise<{ source: string; n: number }[]> {
+  return db.query<{ source: string; n: number }>(`SELECT source, COUNT(*) n FROM assets WHERE ${scopeSql(scope)} GROUP BY source ORDER BY n DESC`);
 }
 
 export async function libraryStats(scope: Scope = "auto") {

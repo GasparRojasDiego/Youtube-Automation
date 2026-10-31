@@ -86,12 +86,21 @@ export function Chip({ children, tone = "muted" }: { children: ReactNode; tone?:
   return <span className={`chip ${cls}`}>{children}</span>;
 }
 
+// Modales abiertos, en orden: Escape cierra solo el de arriba (p. ej., el selector de voz y no la tarjeta debajo)
+const modalStack: number[] = [];
+let modalSeq = 0;
+
 export function Modal({ open, onClose, title, children, wide = false, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
+  const [id] = useState(() => ++modalSeq);
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
-  }, [open, onClose]);
+    modalStack.push(id);
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape" && modalStack[modalStack.length - 1] === id) close.current(); };
+    window.addEventListener("keydown", k);
+    return () => { window.removeEventListener("keydown", k); const i = modalStack.lastIndexOf(id); if (i >= 0) modalStack.splice(i, 1); };
+  }, [open, id]);
   if (!open) return null;
   // Portal: los modales no dependen del contenedor (tarjetas con desenfoque crean otro contexto)
   return createPortal(

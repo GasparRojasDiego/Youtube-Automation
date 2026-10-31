@@ -5,7 +5,8 @@ import * as path from "node:path";
 import * as zlib from "node:zlib";
 
 vi.mock("../lib/ipc", () => import("../../e2e/node-ipc"));
-const { extractText, kindOf, voiceFor, systemFor, personalBrief } = await import("./personal");
+const { extractText, kindOf, systemFor, personalBrief, videoLanguage } = await import("./personal");
+const { voiceOverride } = await import("../providers/voices");
 
 /** Zip mínimo (deflate) para simular docx/pptx/odt. */
 function zip(files: Record<string, string>): Buffer {
@@ -42,8 +43,14 @@ describe("modo personal", () => {
   });
   it("voz e instrucciones en el idioma del video", () => {
     const p = { description: "Para mi clase de biología", minutes: 2, language: "es" as const, useLibrary: true, iterate: false, files: [] };
-    expect(voiceFor(p, "en-US-Chirp3-HD-Charon")).toEqual({ voice: "es-US-Chirp3-HD-Charon", languageCode: "es-US" });
-    expect(voiceFor({ ...p, language: "en" }, "en-US-Chirp3-HD-Charon")).toEqual({});
+    // Español sin voz elegida: la misma voz de Ajustes en su versión latinoamericana
+    expect(voiceOverride("google", {}, "es")).toMatchObject({ voice: "es-US-Chirp3-HD-Charon", languageCode: "es-US" });
+    expect(voiceOverride("google", {}, "en")).toMatchObject({ voice: "en-US-Chirp3-HD-Charon", languageCode: "en-US" });
+    // Voz elegida en la tarjeta (si es del idioma del video)
+    expect(voiceOverride("google", {}, "es", "es-US-Chirp3-HD-Kore")).toMatchObject({ voice: "es-US-Chirp3-HD-Kore", languageCode: "es-US" });
+    expect(voiceOverride("google", {}, "es", "en-US-Chirp3-HD-Kore")).toMatchObject({ voice: "es-US-Chirp3-HD-Charon" });
+    expect(voiceOverride("gemini", { voice: "Charon" }, "es", "Kore")).toMatchObject({ voice: "Kore" });
+    expect(videoLanguage({ data: { personal: p } })).toBe("es");
     expect(systemFor({ data: { personal: p } })).toContain("Spanish");
     expect(systemFor({ data: {} })).toContain("US audience");
     expect(personalBrief(p)).toContain("2 minute(s)");

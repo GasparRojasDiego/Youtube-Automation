@@ -43,7 +43,13 @@ export interface VerifyOut {
 }
 
 export interface VoiceSegment { segment_id: string; path: string; duration: number; hash: string }
-export interface VoiceOut { provider: string; segments: VoiceSegment[]; total: number }
+export interface VoiceOut {
+  provider: string; segments: VoiceSegment[]; total: number;
+  /** Plan de duración: aire entre frases y tramos instrumentales para llegar a lo pedido. */
+  plan?: import("./duration").DurationPlan;
+  /** Voz usada (nombre del proveedor). */
+  voice?: string;
+}
 
 export interface ThumbCandidate { concept_es: string; text: string; highlight: string; image_prompt_en: string; background_asset_id?: string; layout: "left" | "right" | "center"; image?: string; path?: string; own?: boolean }
 export interface PackageOut {
@@ -76,6 +82,12 @@ export interface VoiceSegmentV2 extends VoiceSegment {
   sentences?: Span[];
   words?: { w: string; s: number; e: number }[][];   // por oración: tiempos reales de cada palabra (whisper.cpp)
   aligner?: "whisper" | "silences";
+  /** Audio y tiempos tal como los narró la voz (antes de darles aire); path/duration/sentences/words son los estirados. */
+  src?: { path: string; duration: number; sentences?: Span[]; words?: { w: string; s: number; e: number }[][] };
+  /** Aire añadido entre frases (s). */
+  breath?: number;
+  /** Tramo instrumental tras la narración del segmento (s). */
+  tail?: number;
 }
 
 export type VisualType = "photo" | "archival" | "clip" | "meme" | "ai_image" | "motion" | "map" | "source_card" | "quote_card" | "title_card" | "text_card";

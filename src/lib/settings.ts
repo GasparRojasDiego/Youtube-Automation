@@ -20,7 +20,8 @@ export interface AppSettings {
   };
   tts: {
     provider: "google" | "gemini" | "elevenlabs";
-    google: { voice: string; languageCode: string; speakingRate: number; priceUsdPerMChars: number; freeCharsPerMonth: number };
+    /** voice: la de los videos en inglés; voiceEs: la de los videos en español (cada voz de Chirp 3 HD es de un idioma). */
+    google: { voice: string; voiceEs: string; languageCode: string; speakingRate: number; priceUsdPerMChars: number; freeCharsPerMonth: number };
     gemini: { model: string; voice: string; style: string; priceUsdPerMAudioTokens: number };
     elevenlabs: { voiceId: string; modelId: string; stability: number; similarity: number; style: number; speed: number; priceUsdPer1kChars: number };
   };
@@ -88,7 +89,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   tts: {
     provider: "google",
-    google: { voice: "en-US-Chirp3-HD-Charon", languageCode: "en-US", speakingRate: 1.0, priceUsdPerMChars: 30, freeCharsPerMonth: 1_000_000 },
+    google: { voice: "en-US-Chirp3-HD-Charon", voiceEs: "", languageCode: "en-US", speakingRate: 1.0, priceUsdPerMChars: 30, freeCharsPerMonth: 1_000_000 },
     gemini: { model: "gemini-2.5-flash-preview-tts", voice: "Charon", style: "Read in a calm, measured documentary tone:", priceUsdPerMAudioTokens: 10 },
     elevenlabs: { voiceId: "", modelId: "eleven_multilingual_v2", stability: 0.5, similarity: 0.75, style: 0.15, speed: 1.0, priceUsdPer1kChars: 0.08 },
   },

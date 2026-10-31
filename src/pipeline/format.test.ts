@@ -20,7 +20,7 @@ describe("formato vertical 9:16", () => {
     expect(frameOf({ data: {} })).toEqual({ width: 1920, height: 1080, fps: 30 });
     expect(minutesRangeOf({ data: { minutesRange: [1, 2] } }, [10, 13])).toEqual([1, 2]);
     expect(minutesRangeOf({ data: { minutesRange: [3, 1] } }, [10, 13])).toEqual([10, 13]);
-    expect(minutesRangeOf({ data: { personal: { minutes: 2 } } }, [10, 13])).toEqual([1.76, 2.16]);
+    expect(minutesRangeOf({ data: { personal: { minutes: 2 } } }, [10, 13])).toEqual([2, 2.24]);
     const c = verticalCaptions(CAPTION_DEFAULTS);
     expect(c.size).toBeGreaterThanOrEqual(84);
     expect([c.lines, c.maxWords, c.marginV]).toEqual([2, 4, 480]);

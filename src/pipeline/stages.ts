@@ -21,8 +21,10 @@ import { transcribeWords, disableTool } from "../media/toolkit";
 import { segInfos, segmentOffsets, segmentLength } from "./timeline";
 import { getAssets } from "../media/library";
 import { activity } from "../lib/activity";
-import { personalOf, systemFor, skillsFor, documentsOf, extractText, voiceFor, visualFor } from "./personal";
+import { personalOf, systemFor, skillsFor, documentsOf, extractText, visualFor, videoLanguage } from "./personal";
+import { voiceOverride } from "../providers/voices";
 import { minutesRangeOf, isVertical, SHORTS_MAX_S, VERTICAL_SCRIPT_EN } from "./format";
+import { planDuration, describePlan, sentenceCuts, stretchTimings, stretchAudioArgs } from "./duration";
 import { coversOf, youtubeThumbFile } from "./covers";
 import type { ResearchOut, ScriptOut, VerifyOut, VoiceOut, VoiceSegmentV2, PackageOut, RenderOut, PublishOut, PolishOut, MotionOut } from "./types";
 
@@ -92,7 +94,7 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
   const v = ctx.video;
   const research = await need<ResearchOut>(v, "research", "Investigación");
   const skills = [await skillsFor(v, "script"), isVertical(v) ? VERTICAL_SCRIPT_EN : ""].filter(Boolean).join("\n\n");
-  const [minW, maxW] = await wordsTarget(v);
+  const [minW, maxW, wpm] = await wordsTarget(v);
   const personal = personalOf(v);
   const system = systemFor(v);
   let script: ScriptOut;
@@ -142,8 +144,22 @@ export async function stageScript(ctx: Ctx, revision?: { issues: unknown; notes:
     }
   }
   if (!script.segments?.length) throw new UserError("El guion llegó vacío.", "", "guion");
-  const words = L.scriptWords(script);
-  if (words < minW * 0.7 && !personal?.script) await log("warn", "guion", `El guion quedó corto (${words} palabras; objetivo ${minW}–${maxW}).`, "", v.id);
+  let words = L.scriptWords(script);
+  // Duración: un guion escrito por la IA que se aleja del largo pedido se corrige una vez (el tuyo nunca se toca)
+  if (!personal?.script && !revision && (words < minW * 0.88 || words > maxW * 1.18)) {
+    checkCancel(ctx);
+    const short = words < minW;
+    await ctx.progress(short ? "El guion quedó corto: alargándolo…" : "El guion quedó largo: ajustándolo…");
+    await activity(v.id, "script", "decision", `El guion tiene ${words} palabras y el video pide ${minW}–${maxW}: se ${short ? "alarga" : "acorta"} para que dure lo pedido`);
+    const fixed = (await claudeRun<ScriptOut>({ stage: "script", label: "Ajuste del largo del guion", system, schema: P.SCRIPT_SCHEMA,
+      prompt: P.revisePrompt({ skills, research, script, issues: [], minWords: minW, maxWords: maxW,
+        notes: short
+          ? `LENGTH: the script has ${words} words but MUST have between ${minW} and ${maxW} (it is narrated at about ${wpm} words per minute and the video has to last the requested time). Expand it with concrete detail, examples, context and payoffs drawn from the research; keep every claim sourced and the structure intact.`
+          : `LENGTH: the script has ${words} words but MUST have between ${minW} and ${maxW} (narrated at about ${wpm} words per minute). Trim filler and repetition; keep the hook, every key fact and the ending.` }),
+      videoId: v.id, channelId: v.channel_id, jobId: ctx.jobId })).data;
+    if (fixed.segments?.length) { fixed.version = (script.version ?? 1) + 1; script = fixed; words = L.scriptWords(script); }
+  }
+  if (words < minW * 0.7 && !personal?.script) await log("warn", "guion", `El guion quedó corto (${words} palabras; objetivo ${minW}–${maxW}). El video dura lo pedido gracias a tramos instrumentales.`, "", v.id);
   await saveArtifact(v.id, "script", script, revision ? "corrección" : "inicial");
   // El título fijo de la tarjeta (o del video personal) manda; si no hay, el mejor que propuso el guion
   const fixed = (personal?.title || (v.data?.fixedTitle as string | undefined) || "").trim();
@@ -206,49 +222,79 @@ export async function stageVoice(ctx: Ctx): Promise<VoiceOut> {
   const prev = await out<VoiceOut>(v, "voice");
   const base = await skillParams<VoiceOverride>(v.channel_id, "voz", {});
   const provider = ttsProviderName(base);
-  // Video personal en español: la misma voz de Google en su versión latinoamericana (Gemini y ElevenLabs ya son multilingües)
-  const override = provider === "google" ? { ...base, ...voiceFor(personalOf(v), base.voice || getSettings().tts.google.voice) } : base;
+  // Voz elegida para el video (tarjeta o campaña) o la de Ajustes en el idioma del video
+  const override = voiceOverride(provider, base, videoLanguage(v), v.data?.voice as string | undefined);
   const dir = joinPath(v.dir, "voice");
   await fs.mkdir(dir);
-  const segments: VoiceOut["segments"] = [];
-    const st = getSettings().tts;
-    const voiceKey = JSON.stringify({ provider, g: st.google, ge: st.gemini, e: st.elevenlabs, override });
-    // Varios segmentos a la vez (cada uno espera a la red); el orden se conserva
-    let narrated = 0;
-    // Cada segmento (y cada trozo de texto) terminado deja una marca: si la voz falla a mitad, el
-    // reintento solo narra lo que faltó (la voz se paga por carácter).
-    // La alineación (whisper.cpp usa la CPU) avanza de a una mientras se narran los demás (red).
-    const lang = (personalOf(v)?.language ?? getSettings().publishing.defaultLanguage ?? "en").slice(0, 2);
-    const alignSlot = limiter(1);
-    const aligning: Promise<void>[] = [];
-    const align = (seg: VoiceSegmentV2, text: string) => { aligning.push(alignSlot(() => alignVoice(seg, text, v.id, { language: lang, workDir: joinPath(dir, "whisper"), jobId: ctx.jobId }))); return seg; };
-    segments.push(...await mapLimit(script.segments, 3, async (s) => {
-      checkCancel(ctx);
-      const hash = await sha256(`${voiceKey}|${s.text_en}`);
-      const outPath = joinPath(dir, `${s.id}.wav`);
-      const old = prev?.segments.find((x) => x.segment_id === s.id);
-      if (old && old.hash === hash && (await fs.exists(outPath))) return old;
-      const mark = await readMark<{ hash: string; duration: number }>(joinPath(dir, `${s.id}.json`), hash);
-      if (mark && (await fs.exists(outPath))) return align({ segment_id: s.id, path: outPath, duration: mark.duration, hash }, s.text_en);
-      const parts: string[] = [];
-      for (const [j, chunk] of chunkText(s.text_en).entries()) {
-        const base = joinPath(dir, "parts", `${s.id}_${j}`);
-        const partHash = await sha256(`${voiceKey}|${chunk}`);
-        const done = await readMark<{ hash: string; path: string }>(`${base}.json`, partHash);
-        if (done && (await fs.exists(done.path))) { parts.push(done.path); continue; }
-        const r = await synthesize({ text: chunk, outPath: base, videoId: v.id, channelId: v.channel_id, override });
-        await fs.writeText(`${base}.json`, JSON.stringify({ hash: partHash, path: r.path }));
-        parts.push(r.path);
-      }
-      await ffmpeg(joinAudioArgs(parts, outPath, 0.12));
-      const duration = await probeDuration(outPath);
-      await fs.writeText(joinPath(dir, `${s.id}.json`), JSON.stringify({ hash, duration }));
-      await ctx.progress(`Narración: ${++narrated} segmento(s) listos`);
-      return align({ segment_id: s.id, path: outPath, duration, hash }, s.text_en);
-    }));
-    await Promise.all(aligning);
-    for (const seg of segments) await alignVoice(seg, script.segments.find((x) => x.id === seg.segment_id)!.text_en, v.id, { language: lang, workDir: joinPath(dir, "whisper"), jobId: ctx.jobId });
-  return { provider, segments, total: segments.reduce((a, s) => a + s.duration, 0) };
+  const st = getSettings().tts;
+  const voiceKey = JSON.stringify({ provider, g: { ...st.google, voiceEs: undefined }, ge: st.gemini, e: st.elevenlabs, override });
+  // Varios segmentos a la vez (cada uno espera a la red); el orden se conserva.
+  // Cada segmento (y cada trozo de texto) terminado deja una marca: si la voz falla a mitad, el
+  // reintento solo narra lo que faltó (la voz se paga por carácter).
+  // La alineación (whisper.cpp usa la CPU) avanza de a una mientras se narran los demás (red).
+  let narrated = 0;
+  const lang = videoLanguage(v);
+  const alignSlot = limiter(1);
+  const aligning: Promise<void>[] = [];
+  const align = (seg: VoiceSegmentV2, text: string) => { aligning.push(alignSlot(() => alignVoice(seg, text, v.id, { language: lang, workDir: joinPath(dir, "whisper"), jobId: ctx.jobId }))); return seg; };
+  const segments: VoiceSegmentV2[] = await mapLimit(script.segments, 3, async (s) => {
+    checkCancel(ctx);
+    const hash = await sha256(`${voiceKey}|${s.text_en}`);
+    const outPath = joinPath(dir, `${s.id}.wav`);
+    const old = prev?.segments.find((x) => x.segment_id === s.id) as VoiceSegmentV2 | undefined;
+    // Lo ya narrado vuelve a su forma original (sin aire): el plan de duración se recalcula siempre
+    if (old && old.hash === hash && (await fs.exists(outPath))) return unstretch(old);
+    const mark = await readMark<{ hash: string; duration: number }>(joinPath(dir, `${s.id}.json`), hash);
+    if (mark && (await fs.exists(outPath))) return align({ segment_id: s.id, path: outPath, duration: mark.duration, hash }, s.text_en);
+    const parts: string[] = [];
+    for (const [j, chunk] of chunkText(s.text_en).entries()) {
+      const partBase = joinPath(dir, "parts", `${s.id}_${j}`);
+      const partHash = await sha256(`${voiceKey}|${chunk}`);
+      const done = await readMark<{ hash: string; path: string }>(`${partBase}.json`, partHash);
+      if (done && (await fs.exists(done.path))) { parts.push(done.path); continue; }
+      const r = await synthesize({ text: chunk, outPath: partBase, videoId: v.id, channelId: v.channel_id, override });
+      await fs.writeText(`${partBase}.json`, JSON.stringify({ hash: partHash, path: r.path }));
+      parts.push(r.path);
+    }
+    await ffmpeg(joinAudioArgs(parts, outPath, 0.12));
+    const duration = await probeDuration(outPath);
+    await fs.writeText(joinPath(dir, `${s.id}.json`), JSON.stringify({ hash, duration }));
+    await ctx.progress(`Narración: ${++narrated} segmento(s) listos`);
+    return align({ segment_id: s.id, path: outPath, duration, hash }, s.text_en);
+  });
+  await Promise.all(aligning);
+  for (const seg of segments) await alignVoice(seg, script.segments.find((x) => x.id === seg.segment_id)!.text_en, v.id, { language: lang, workDir: joinPath(dir, "whisper"), jobId: ctx.jobId });
+
+  // Duración exacta: si la narración no llega al mínimo pedido, aire entre frases y tramos instrumentales
+  const montage = await skillParams(v.channel_id, "montaje", MONTAGE_DEFAULTS);
+  const [loMin, hiMin] = minutesRangeOf(v, getSettings().production.targetMinutes);
+  const plan = planDuration(segments.map((g) => ({ id: g.segment_id, narration: g.duration, spans: g.sentences ?? [] })), montage.pauseBetweenSegments, loMin * 60, hiMin * 60, { vertical: isVertical(v) });
+  for (const g of segments) {
+    g.tail = plan.tail[g.segment_id] ?? 0;
+    const breath = plan.breath[g.segment_id] ?? 0;
+    if (breath > 0 && (g.sentences?.length ?? 0) > 1) await stretchSegment(g, breath, dir);
+  }
+  const gaps = segments.reduce((a, g) => a + Math.max(0, (g.sentences?.length ?? 1) - 1), 0);
+  const narration = segments.reduce((a, g) => a + (g.src?.duration ?? g.duration), 0);
+  await activity(v.id, "voice", "decision", `Duración: ${describePlan(plan, gaps)}`);
+  if (personalOf(v)?.script && narration > hiMin * 60 + 1)
+    await activity(v.id, "voice", "warn", `Tu guion dura ${Math.round(narration)} s narrado, más que el máximo pedido (${Math.round(hiMin * 60)} s)`, "Se respeta tu guion palabra por palabra: acórtalo o sube el máximo si quieres que dure menos.");
+  return { provider, voice: override.voice, segments, total: segments.reduce((a, g) => a + g.duration, 0), plan };
+}
+
+/** Deja un segmento como lo narró la voz (sin el aire de un plan anterior). */
+function unstretch(g: VoiceSegmentV2): VoiceSegmentV2 {
+  if (!g.src) return { ...g, breath: 0, tail: 0 };
+  return { ...g, path: g.src.path, duration: g.src.duration, sentences: g.src.sentences, words: g.src.words, src: undefined, breath: 0, tail: 0 };
+}
+
+/** Inserta `breath` s de silencio en cada pausa entre frases (archivo aparte; el original se conserva). */
+async function stretchSegment(g: VoiceSegmentV2, breath: number, dir: string) {
+  const src = { path: g.path, duration: g.duration, sentences: g.sentences, words: g.words };
+  const outPath = joinPath(dir, `${g.segment_id}.aire${Math.round(breath * 1000)}.wav`);
+  if (!(await fs.exists(outPath))) await ffmpeg(stretchAudioArgs(src.path, outPath, sentenceCuts(src.sentences!), breath));
+  const t = stretchTimings(src.sentences!, src.words, breath);
+  Object.assign(g, { src, breath, path: outPath, duration: await probeDuration(outPath), sentences: t.spans, words: t.words });
 }
 
 // ---------- 9. Miniatura y metadatos ----------
@@ -336,7 +382,7 @@ export async function stagePackage(ctx: Ctx, opts: { regenerate?: boolean } = {}
   pkg.credits = L.creditLines([...assetMap.values()].filter((a) => assetIds.includes(a.id) || iconIds.includes(a.id) || sfxIds.includes(a.id) || polish.music.some((x) => x.asset_id === a.id)),
     polish.music.filter((b) => b.path && !b.asset_id).map((b) => b.title ?? ""), (await listMusic()).filter((m) => polish.music.some((b) => b.path === m.path)).map((m) => m.attribution).filter(Boolean));
   pkg.description = L.composeDescription({ body: pkg.description_body_en, chapters: pkg.chapters,
-    disclosure: L.adaptDisclosure(s.publishing.aiDisclosure, { generatedImages: generatedUsedNow, aiVoice: true }) });
+    disclosure: L.disclosureFor(s.publishing.aiDisclosure, videoLanguage(v), { generatedImages: generatedUsedNow, aiVoice: true }) });
   pkg.tags = L.sanitizeTags(pkg.tags);
   pkg.motion_count = motion?.items.filter((m) => m.file).length ?? 0;
   await fs.writeText(joinPath(v.dir, "captions.en.srt"), pkg.srt);
