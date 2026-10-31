@@ -6,7 +6,8 @@ import { Toaster } from "./ui/Toaster";
 import { Avatar } from "./ui/kit";
 import { UpdateDialog, UpdateRing } from "./ui/Update";
 import { useBus } from "./lib/bus";
-import { getSettings, isDark } from "./lib/settings";
+import { getSettings } from "./lib/settings";
+import { applyAppearance } from "./ui/theme";
 import { runningVideoId } from "./pipeline/runner";
 import { Studio } from "./pages/Today";
 // Las demás pantallas se cargan al abrirlas: la app arranca con menos código
@@ -44,14 +45,14 @@ export default function App() {
   const [ind, setInd] = useState<{ top: number; height: number } | null>(null);
 
   useEffect(() => { startUpdateChecks(); }, []);
-  // Tema: claro, oscuro o el del dispositivo (y sigue sus cambios)
+  // Tema (claro, oscuro o el del dispositivo, y sigue sus cambios) y color de la app
   useEffect(() => {
-    const apply = () => document.documentElement.classList.toggle("dark", isDark(s.theme));
+    const apply = () => applyAppearance(s.theme, s.accent);
     apply();
     const mq = matchMedia("(prefers-color-scheme: dark)");
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, [s.theme]);
+  }, [s.theme, s.accent]);
 
   const activeId = route.page === "video" ? "videos" : route.page;
   // Indicador que se desliza hasta la opción activa
@@ -91,7 +92,7 @@ export default function App() {
 
   return (
     <div className="relative h-full flex isolate">
-      <aside className={`${collapsed ? "w-[72px]" : "w-[236px]"} relative z-10 shrink-0 border-r border-border/70 bg-card/55 backdrop-blur-xl flex flex-col transition-[width] duration-300 ease-frame`}>
+      <aside className={`${collapsed ? "w-[72px]" : "w-[240px]"} relative z-10 shrink-0 border-r border-border bg-card flex flex-col transition-[width] duration-300 ease-frame`}>
         <div className="h-[72px] flex items-center justify-center px-3">
           <button onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Mostrar menú" : "Ocultar menú"}
             className="flex items-center justify-center gap-3 rounded-md px-2.5 py-1.5 transition-colors hover:bg-accent/50">
@@ -110,8 +111,8 @@ export default function App() {
                   const on = activeId === id;
                   return (
                     <button key={id} ref={(el) => { items.current[id] = el; }} onClick={() => navigate({ page: id })} title={collapsed ? label : undefined}
-                      className={`relative z-10 w-full flex items-center gap-3 px-2.5 h-9 text-[13.5px] transition-colors duration-200 ${collapsed ? "justify-center" : ""} ${on ? "rounded-md text-nav-active-foreground font-semibold" : "rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50"}`}>
-                      <I size={17} className="shrink-0" />
+                      className={`relative z-10 w-full flex items-center gap-3 px-3 h-10 text-[14px] rounded-md transition-colors duration-200 ${collapsed ? "justify-center" : ""} ${on ? "text-nav-active-foreground font-semibold" : "text-foreground/80 hover:text-foreground hover:bg-accent/60"}`}>
+                      <I size={18} className={`shrink-0 ${on ? "" : "text-primary"}`} />
                       {!collapsed && <span className="truncate">{label}</span>}
                       {id === "produccion" && running && <span className={`${collapsed ? "absolute top-1.5 right-2" : "ml-auto"} relative w-2 h-2`}><span className="absolute inset-0 rounded-full bg-primary" /><span className="absolute inset-0 rounded-full animate-pulse-dot bg-primary" /></span>}
                     </button>
@@ -122,7 +123,7 @@ export default function App() {
           ))}
         </nav>
         <div className="p-3 border-t border-border/60">
-          <div className={`relative flex items-center ${onSettings ? "rounded-md bg-soft text-soft-foreground" : "rounded-lg hover:bg-accent/50"} transition-colors`}>
+          <div className={`relative flex items-center rounded-md ${onSettings ? "bg-soft text-soft-foreground" : "hover:bg-accent/60"} transition-colors`}>
             <button onClick={() => navigate({ page: "ajustes" })} title={collapsed ? `${name} · Ajustes` : "Ajustes"}
               className={`flex-1 min-w-0 flex items-center gap-3 h-12 px-2 ${collapsed ? "justify-center" : ""}`}>
               <span className="relative shrink-0">

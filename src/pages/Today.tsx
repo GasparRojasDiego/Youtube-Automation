@@ -103,7 +103,7 @@ export function Studio({ platform }: { platform: Platform }) {
             {tiktok ? <><Smartphone size={13} /> Estudio TikTok · vertical 9:16 (también para YouTube Shorts)</> : <><Monitor size={13} /> Estudio YouTube · horizontal 16:9</>}
           </div>
           <div className="flex items-center justify-between gap-4">
-            <h1 className="text-[27px] leading-tight font-bold tracking-tight">¿Qué video hacemos hoy?</h1>
+            <h1 className="text-[27px] leading-tight font-bold">¿Qué video hacemos hoy?</h1>
             <div className="inline-flex p-0.5 rounded-lg border border-border bg-background/60 shrink-0" role="tablist">
               {([["auto", "Automatización", Bot], ["personal", "Personal", UserRound]] as const).map(([id, label, I]) => (
                 <button key={id} role="tab" aria-selected={mode === id} onClick={() => setMode(id)}
@@ -194,7 +194,7 @@ export function Studio({ platform }: { platform: Platform }) {
         <TikTokParts />
       </>) : (
         <section>
-          <h2 className="text-lg font-bold tracking-tight mb-3 flex items-center gap-2"><Lightbulb size={18} className="text-primary" /> Temas</h2>
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2"><Lightbulb size={18} className="text-primary" /> Temas</h2>
           <TopicsPanel />
         </section>
       )}

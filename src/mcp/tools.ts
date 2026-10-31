@@ -2,7 +2,8 @@
 // sin espacios, solo lo útil) para gastar pocos tokens. Lo largo (videos, descripciones, temas) arranca
 // y responde enseguida; el avance se consulta después. Publicar en YouTube nunca se hace desde aquí.
 import { db, fs, http, appPaths, mcp as mcpIpc } from "../lib/ipc";
-import { getSettings, SECRET } from "../lib/settings";
+import { getSettings, saveSettings, SECRET } from "../lib/settings";
+import { ACCENTS, ACCENT_IDS, accentName } from "../ui/theme";
 import { secrets } from "../lib/ipc";
 import { UserError } from "../lib/events";
 import { uid, joinPath, extName, slugify } from "../lib/util";
@@ -299,6 +300,17 @@ export const TOOLS: ToolDef[] = [
       else navigate({ page: a.page as Page });
       await mcpIpc.focus();
       return ok({ shown: a.page });
+    },
+  },
+  {
+    name: "atril_appearance", title: "Apariencia de ATRIL",
+    description: "Theme (system, light «arena», dark graphite) and app color (accent). Without arguments it only reports the current ones and the options.",
+    inputSchema: { type: "object", properties: { theme: { type: "string", enum: ["system", "light", "dark"] }, accent: { type: "string", enum: ACCENT_IDS } } },
+    annotations: { idempotentHint: true },
+    run: async (a) => {
+      if (a.theme || a.accent) await saveSettings((s) => ({ ...s, ...(a.theme ? { theme: a.theme } : {}), ...(a.accent ? { accent: a.accent } : {}) }));
+      const s = getSettings();
+      return ok({ theme: s.theme, accent: s.accent, accent_name: accentName(s.accent), accents: ACCENTS.map((x) => `${x.id}: ${x.name}`) });
     },
   },
   {

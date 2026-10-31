@@ -165,7 +165,7 @@ export function QueuePanel({ mode, format, channelId }: { mode: QueueMode; forma
           <div className="flex-1" />
           <button className="btn-primary btn-sm" onClick={() => setTpl(camp.id)}><Settings2 size={13} /> Editar plantilla</button>
           <button className="btn-ghost btn-sm" title="Renombrar" onClick={() => void renameCampaign(camp)}><Pencil size={13} /></button>
-          <button className="btn-ghost btn-sm text-red-600 dark:text-red-500" title="Borrar campaña" onClick={() => void removeCampaign(camp)}><Trash2 size={13} /></button>
+          <button className="btn-ghost btn-sm text-muted-foreground" title="Borrar campaña" onClick={() => void removeCampaign(camp)}><Trash2 size={13} /></button>
         </div>
       )}
       {mine.length === 0 ? (
@@ -202,7 +202,7 @@ export function QueuePanel({ mode, format, channelId }: { mode: QueueMode; forma
                   <button className="btn-ghost btn-sm" title="Subir" onClick={() => void moveItem(it.id, -1)}><ChevronUp size={13} /></button>
                   <button className="btn-ghost btn-sm" title="Bajar" onClick={() => void moveItem(it.id, 1)}><ChevronDown size={13} /></button>
                   <button className="btn-ghost btn-sm" title="Duplicar" onClick={() => void duplicateItem(it.id).catch(warnErr)}><Copy size={13} /></button>
-                  {it.status !== "running" && <button className="btn-ghost btn-sm text-red-600 dark:text-red-500" title="Quitar" onClick={async () => { if (await askConfirm("¿Quitar esta tarjeta?", { body: it.video_id ? "El video ya creado se conserva en Videos." : "Se borran su configuración y sus portadas.", confirm: "Quitar" })) await removeItem(it.id); }}><Trash2 size={13} /></button>}
+                  {it.status !== "running" && <button className="btn-ghost btn-sm text-muted-foreground" title="Quitar" onClick={async () => { if (await askConfirm("¿Quitar esta tarjeta?", { body: it.video_id ? "El video ya creado se conserva en Videos." : "Se borran su configuración y sus portadas.", confirm: "Quitar" })) await removeItem(it.id); }}><Trash2 size={13} /></button>}
                 </div>
               </div>
             );
@@ -216,7 +216,7 @@ export function QueuePanel({ mode, format, channelId }: { mode: QueueMode; forma
         <div className="flex-1" />
         {running ? (<>
           <AsyncButton className="btn-ghost btn-sm" title="Termina el video en curso y se detiene" onClick={() => pauseQueue(false, format)}><Pause size={14} /> Pausar</AsyncButton>
-          <AsyncButton className="btn-ghost btn-sm text-red-600 dark:text-red-500" title="Cancela el video en curso (queda guardado para retomarlo)" onClick={async () => { if (await askConfirm(`¿Detener la cola de ${platform} ahora?`, { body: "El video en curso se detiene y se retoma donde quedó cuando reanudes.", confirm: "Detener" })) await pauseQueue(true, format); }}><Square size={13} /> Detener</AsyncButton>
+          <AsyncButton className="btn-ghost btn-sm text-muted-foreground" title="Cancela el video en curso (queda guardado para retomarlo)" onClick={async () => { if (await askConfirm(`¿Detener la cola de ${platform} ahora?`, { body: "El video en curso se detiene y se retoma donde quedó cuando reanudes.", confirm: "Detener" })) await pauseQueue(true, format); }}><Square size={13} /> Detener</AsyncButton>
         </>) : (
           <AsyncButton className="btn-primary btn-sm" disabled={!ready} title={ready ? "" : "No hay tarjetas listas"} onClick={() => startQueue(channelId, format)}>
             <Play size={14} /> {sameFormat.some((i) => i.started_at && isActive(i)) ? "Reanudar" : "Iniciar"} cola ({ready})
@@ -250,7 +250,7 @@ function ImportDialog({ open, channelId, mode, format, campaigns, current, onClo
     <Modal open={open} onClose={() => onClose(null)} wide title={`Importar tarjetas · ${format === "9:16" ? "TikTok" : "YouTube"} · ${mode === "auto" ? "Automatización" : "Personal"}`}
       footer={<>
         <button className="btn-ghost mr-auto" onClick={() => void copyFormat()}><ClipboardCopy size={14} /> Copiar formato de ejemplo</button>
-        <button className="btn-ghost" onClick={() => onClose(null)}>Cancelar</button>
+        <button className="btn-gray" onClick={() => onClose(null)}>Cancelar</button>
         <AsyncButton className="btn-primary" disabled={!parsed || parsed.errors.length > 0 || !parsed.cards.length} onClick={() => run().catch(warnErr)}><Upload size={14} /> Importar {parsed?.cards.length ? `${parsed.cards.length} tarjeta(s)` : ""}</AsyncButton>
       </>}>
       <p className="text-[12.5px] text-muted-foreground mb-3">

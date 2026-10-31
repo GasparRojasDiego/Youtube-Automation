@@ -39,7 +39,7 @@ beforeAll(async () => {
 describe("herramientas MCP de ATRIL (contra la app real, sin ventana)", () => {
   it("lista de herramientas estable, con esquemas y anotaciones", async () => {
     const r = JSON.parse((await handleRpc(SPEC, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }))).body).result.tools;
-    expect(r.map((t: any) => t.name)).toEqual(["atril_status", "atril_guide", "atril_show", "video_create", "video_list", "video_get", "video_action", "queue_list", "queue_add", "queue_action",
+    expect(r.map((t: any) => t.name)).toEqual(["atril_status", "atril_guide", "atril_show", "atril_appearance", "video_create", "video_list", "video_get", "video_action", "queue_list", "queue_add", "queue_action",
       "campaign", "library_overview", "library_list", "library_update", "library_delete", "library_search_web", "library_import", "library_organize", "topics", "instructions"]);
     expect(r.find((t: any) => t.name === "library_delete").annotations.destructiveHint).toBe(true);
     expect(JSON.stringify(r).length).toBeLessThan(26_000);   // lo que cuesta en el contexto de cada chat
@@ -154,6 +154,17 @@ describe("herramientas MCP de ATRIL (contra la app real, sin ventana)", () => {
     expect((await tool("library_delete", { ids: [img.id], confirm: true })).data).toMatchObject({ deleted: 0, kept_used: [img.id] });
   });
 
+  it("apariencia: consulta y cambia el tema y el color de la app", async () => {
+    expect((await tool("atril_appearance")).data).toMatchObject({ theme: "system", accent: "blue", accent_name: "Azul" });
+    const r = await tool("atril_appearance", { theme: "light", accent: "teal" });
+    expect(r.data).toMatchObject({ theme: "light", accent: "teal", accent_name: "Turquesa" });
+    expect(r.data.accents).toHaveLength(6);
+    expect((await tool("atril_appearance", { accent: "rojo" })).error).toBe(true);   // solo los colores de la app
+    const { getSettings } = await import("../lib/settings");
+    expect(getSettings()).toMatchObject({ theme: "light", accent: "teal" });
+    await tool("atril_appearance", { theme: "system", accent: "blue" });
+  });
+
   it("instrucciones y temas", async () => {
     const c = await tool("instructions", { action: "create", name: "Estilo de prueba", content: "# Estilo\nFrases cortas." });
     expect(c.error).toBe(false);
@@ -238,7 +249,7 @@ describe("herramientas MCP de ATRIL (contra la app real, sin ventana)", () => {
     expect(info.n).toEqual(["manifest.json", "server/index.js", "icon.png"]);
     expect(info.m).toMatchObject({ manifest_version: "0.3", name: "atril", server: { type: "node", entry_point: "server/index.js", mcp_config: { command: "node", args: ["${__dirname}/server/index.js"] } } });
     expect(info.m.server.mcp_config.env.ATRIL_MCP_FILE).toBe(path.join(dir, "data", "mcp.json"));
-    expect(info.m.tools.length).toBe(20);
+    expect(info.m.tools.length).toBe(21);
     expect(info.b).not.toContain("__ATRIL_VERSION__");
   });
 });

@@ -2,12 +2,15 @@
 import { db } from "./ipc";
 import { safeJson } from "./util";
 import { emit } from "./bus";
+import type { AccentId } from "../ui/theme";
 
 export type StageModelKey = "topics" | "research" | "script" | "verify" | "package" | "analysis" | "storyboard" | "vision" | "polish" | "motion" | "fix" | "critique";
 
 export interface AppSettings {
   settingsVersion: number;
   theme: "system" | "dark" | "light";
+  /** Color de la app (acento), como en Frame y Wire: azul, violeta, verde, naranja, rosa o turquesa. */
+  accent: AccentId;
   profile: { name: string; avatar: string; id: string };   // avatar: archivo en la carpeta de datos
   activeChannelId: string | null;
   onboarded: boolean;
@@ -76,6 +79,7 @@ export const SETTINGS_VERSION = 24;
 export const DEFAULT_SETTINGS: AppSettings = {
   settingsVersion: SETTINGS_VERSION,
   theme: "system",
+  accent: "blue",
   profile: { name: "", avatar: "", id: "" },
   activeChannelId: null,
   onboarded: false,

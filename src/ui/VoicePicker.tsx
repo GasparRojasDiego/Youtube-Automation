@@ -82,8 +82,8 @@ export function VoiceField({ lang, value, onChange, disabled, inheritLabel, requ
   const [open, setOpen] = useState(false);
   const shown = value ? shortVoiceName(value) : `${inheritLabel ?? "La de Ajustes"} (${shortVoiceName(defaultVoice(lang)) || "—"})`;
   return (
-    <div className="flex items-center gap-2">
-      <span className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-md border text-[13px] ${value ? "border-primary/40 bg-primary/5 text-foreground" : "border-border text-muted-foreground"}`}><Mic size={13} /> {shown}</span>
+    <div className="flex items-center gap-2 min-w-0">
+      <span title={shown} className={`inline-flex min-w-0 max-w-[15rem] items-center gap-1.5 h-9 px-3 rounded-md border text-[13px] ${value ? "border-primary/40 bg-primary/5 text-foreground" : "border-border text-muted-foreground"}`}><Mic size={13} className="shrink-0" /> <span className="truncate">{shown}</span></span>
       <button type="button" className="btn-ghost btn-sm" disabled={disabled} onClick={() => setOpen(true)}>Elegir…</button>
       {value && !disabled && !required && <button type="button" className="btn-ghost btn-sm" title="Volver a la voz de Ajustes" onClick={() => onChange(null)}><RotateCcw size={13} /></button>}
       <VoicePicker open={open} lang={lang} value={value ?? defaultVoice(lang)} onClose={() => setOpen(false)} onPick={(id) => onChange(id)} />

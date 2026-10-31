@@ -29,7 +29,7 @@ export function AskHost() {
   return (
     <Modal open={!!req} onClose={() => done(req?.input != null ? null : false)} title={req?.title ?? ""}
       footer={<>
-        <button className="btn-ghost" onClick={() => done(req?.input != null ? null : false)}>Cancelar</button>
+        <button className="btn-gray" onClick={() => done(req?.input != null ? null : false)}>Cancelar</button>
         <button className={req?.danger ? "btn-danger" : "btn-primary"} autoFocus={req?.input == null} onClick={accept}>{req?.confirm}</button>
       </>}>
       {req?.body && <p className="text-sm text-muted-foreground">{req.body}</p>}

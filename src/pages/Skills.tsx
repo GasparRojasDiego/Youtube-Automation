@@ -81,7 +81,7 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
     <section>
       <div className="flex items-end justify-between gap-4 mb-3">
         <div>
-          <h2 className="text-xl font-bold tracking-tight flex items-center gap-2"><K.icon size={18} className="text-primary" />{K.title}</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2"><K.icon size={18} className="text-primary" />{K.title}</h2>
           <div className="text-sm text-muted-foreground mt-0.5">{K.hint}</div>
         </div>
         <div className="flex gap-2">
@@ -127,7 +127,7 @@ function SkillEditor({ kind }: { kind: SkillKind }) {
                     if (p) { await fs.writeText(p, serializeSkillFile(current)); toast("success", "Exportada", p); }
                   }}><Download size={14} /> Exportar</button>}
                 </div>
-                {current && <button className="btn-ghost text-red-600 dark:text-red-500" onClick={async () => { if (await askConfirm(`¿Eliminar «${current.name}»?`, { body: "Esta acción no se puede deshacer.", confirm: "Eliminar", danger: true })) { await deleteSkill(current.id); setSel(null); setDraft(null); } }}><Trash2 size={14} /></button>}
+                {current && <button className="btn-gray" onClick={async () => { if (await askConfirm(`¿Eliminar «${current.name}»?`, { body: "Esta acción no se puede deshacer.", confirm: "Eliminar", danger: true })) { await deleteSkill(current.id); setSel(null); setDraft(null); } }}><Trash2 size={14} /></button>}
               </div>
             </div>
           </Card>

@@ -57,7 +57,7 @@ function CopyLine({ label, text }: { label: string; text: string }) {
   return (
     <div className="flex items-start gap-2 rounded-lg border border-border bg-background/60 p-2.5">
       <div className="flex-1 min-w-0">
-        <div className="text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">{label}</div>
+        <div className="text-[11.5px] font-medium text-muted-foreground mb-0.5">{label}</div>
         <p className="text-[13px] leading-relaxed select-text whitespace-pre-wrap break-words">{text || <span className="text-muted-foreground">—</span>}</p>
       </div>
       <button className="btn-ghost btn-sm shrink-0" title={`Copiar ${label.toLowerCase()}`} aria-label={`Copiar ${label}`} disabled={!text} onClick={() => void copy()}>{ok ? <Check size={14} className="text-primary" /> : <Copy size={14} />}</button>
@@ -113,7 +113,7 @@ function ReadyRow({ row, n }: { row: Row; n?: number }) {
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <button className="font-semibold tracking-tight leading-snug text-left hover:text-primary" onClick={() => navigate({ page: "video", id: v.id })}>{pkg?.chosen_title || v.title}</button>
+            <button className="font-semibold leading-snug text-left hover:text-primary" onClick={() => navigate({ page: "video", id: v.id })}>{pkg?.chosen_title || v.title}</button>
             <div className="mt-1 flex flex-wrap gap-1.5"><Chip>{fmtDuration(render.duration)}</Chip>{p.tiktok && <Chip tone="green"><CheckCircle2 size={11} /> En TikTok</Chip>}{p.shorts && <Chip tone="green"><CheckCircle2 size={11} /> En Shorts</Chip>}</div>
           </div>
           <div className="flex gap-1.5 shrink-0">
@@ -172,7 +172,7 @@ function PartsRow({ row, n }: { row: Row; n?: number }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-3">
-          <div className="font-semibold tracking-tight leading-snug">{pkg?.chosen_title || v.title}</div>
+          <div className="font-semibold leading-snug">{pkg?.chosen_title || v.title}</div>
           <button onClick={() => void cut()} disabled={!!progress} title={done ? `Ya se recortó (${done.parts.length} partes). Vuelve a pulsar para recortar de nuevo.` : "Recortar en partes de 1:30"}
             className={`btn btn-sm shrink-0 ${done ? "bg-secondary text-muted-foreground border border-border hover:text-foreground" : "btn-primary"}`}>
             {progress ? <Spinner size={14} /> : done ? <Check size={14} /> : <Scissors size={14} />} {done ? "Recortado" : "Recortar"}

@@ -18,7 +18,7 @@ import type { RenderOut } from "../pipeline/types";
 export function NumberCorner({ n }: { n?: number }) {
   if (!n) return null;
   return (
-    <span aria-label={`Video n.º ${n}`} className="absolute left-0 bottom-0 w-9 h-9 bg-primary text-primary-foreground pointer-events-none" style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%)" }}>
+    <span aria-label={`Video n.º ${n}`} className="absolute left-0 bottom-0 w-9 h-9 bg-primary-strong text-primary-foreground pointer-events-none" style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%)" }}>
       <span className="absolute left-1 bottom-0.5 text-[11px] font-bold tabular leading-none">{n}</span>
     </span>
   );
@@ -126,10 +126,10 @@ export function VideosPage() {
                 {render.poster ? <img src={fileUrl(render.poster, render.renderedAt)} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} className={`h-full ${tall ? "object-contain" : "w-full object-cover"}`} /> : <Film size={20} className="text-muted-foreground/60" />}
               </div>
               <NumberCorner n={nums.get(v.id)} />
-              <button className="absolute top-2 right-2 w-8 h-8 rounded-md grid place-items-center text-red-800 dark:text-red-700 hover:bg-red-800/10" title="Eliminar video" aria-label="Eliminar video"
+              <button className="absolute top-2 right-2 w-8 h-8 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-accent" title="Eliminar video" aria-label="Eliminar video"
                 onClick={(e) => { e.stopPropagation(); void confirmDelete(v); }}><Trash2 size={16} /></button>
               <div className="flex-1 min-w-0">
-                <div className="font-medium tracking-tight truncate">{v.title}</div>
+                <div className="font-medium truncate">{v.title}</div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   <Chip tone={a.tone === "muted" ? "muted" : a.tone}>{a.text.length > 48 ? a.text.slice(0, 47) + "…" : a.text}</Chip>
                   <Chip>{tall ? <><Smartphone size={11} /> TikTok</> : <><Monitor size={11} /> YouTube</>}</Chip>

@@ -1,68 +1,70 @@
-# ATRIL 2.5.13
+# ATRIL 2.5.14
 
-Claude puede usar ATRIL. Cualquier chat nuevo de Claude Desktop o Claude Code puede crear videos, manejar la cola y las campañas, llenar la biblioteca con material libre y ordenarla. La 2.5.13 trae todo lo de la 2.5.12 más cinco correcciones que salieron de probar, una por una, todas las acciones del MCP.
+ATRIL se viste como Frame y Wire, y el color de la app se elige: azul, violeta, verde, naranja, rosa o turquesa.
 
 ## Descargar
-- **`ATRIL_2.5.13_instalador_x64.exe`** (recomendado). Desde la 2.5.1 o posterior, pulsa el botón de descarga junto a tu perfil.
-- `ATRIL_2.5.13_portable_x64.zip` (versión portátil).
+- **`ATRIL_2.5.14_instalador_x64.exe`** (recomendado). Desde la 2.5.1 o posterior, pulsa el botón de descarga junto a tu perfil.
+- `ATRIL_2.5.14_portable_x64.zip` (versión portátil).
 - `SHA256SUMS.txt`, con las huellas para comprobar cada descarga.
 
-## Correcciones de la 2.5.13
-- **Rechazar o borrar desde Claude un video que se está produciendo** lo detiene al instante. Antes terminaba el paso en curso, que puede durar varios minutos y seguir gastando en Claude o en la voz.
-- **Búsqueda por significado en la biblioteca, por páginas:** la segunda página ya no repite la primera. Solo afectaba a Claude; la pantalla Biblioteca no usa páginas.
-- **Actividad de un video:** cada línea trae su hora. Antes llegaba vacía.
-- **Temas:** aprobar, rechazar o borrar un tema que no existe avisa del error. Antes respondía que estaba hecho.
-- **Borrar de la biblioteca:** informa qué identificadores no existían.
+## Color de la app
+- **Ajustes, arriba:**
+  - **Tema:** el del equipo, claro «arena» u oscuro grafito.
+  - **Color:** seis opciones.
+  - También se elige en la bienvenida y desde Claude.
+- **Sin destello al abrir:** el tema y el color se aplican antes de pintar la ventana.
+- **Legibles en los dos temas:** cada color tiene los tonos de la familia y su luminosidad medida para el contraste AA.
+  - El texto de color tiene al menos 4,5:1 sobre las tarjetas.
+  - El texto blanco tiene al menos 4,5:1 sobre lo sólido.
+  - Una prueba lo comprueba para los seis colores.
+- **Por eso, en el tema oscuro los botones sólidos usan una variante más honda del color:** el texto blanco sobre el azul de Frame queda en 2,9:1.
 
-## Lo que trajo la 2.5.12
+## Estética de la familia VT Asvent
+- **Tipografía:** Poppins en toda la interfaz; antes era la del sistema. La monoespaciada queda solo para código, claves e identificadores.
+- **Fondos:** oscuro grafito y claro «arena» con los valores de Frame y Wire. Antes había un oscuro casi negro y tarjetas casi blancas.
+- **Botones,** con los nombres de la familia:
+  - **sólido**, para la acción principal;
+  - **fantasma**, para lo relevante sin peso;
+  - **gris**, para cancelar y para lo que abre un borrado (las papeleras ya no son rojas);
+  - **rojo**, solo en la confirmación final.
+- **Tarjetas:** sólidas, con una divisoria fina y con aire bajo el título. Las cifras de Producción van en columnas con divisorias verticales.
+- **Ventanas emergentes:**
+  - título centrado en el color de la app;
+  - eco quieto de su primera palabra detrás;
+  - divisoria con aire.
+- **Sobrio:**
+  - sin mayúsculas sostenidas (solo la marca);
+  - sin brillos ni manchas de color;
+  - desplegables neutros;
+  - barra de desplazamiento y selección de texto en el color elegido.
+- **Menú lateral:** sólido, con opciones más altas e íconos en color. La opción activa sigue en un tono claro, ahora del color elegido.
+- **Bienvenida:** como la entrada de Frame, con el color elegible desde el principio.
+- **Arreglos:**
+  - los desplegables cortaban las colas de letras como la «q», por la altura de Poppins;
+  - un nombre de voz largo se salía de su recuadro.
 
-### ATRIL desde Claude (MCP)
-- **Ajustes → Claude (MCP):**
-  - **Claude Desktop:** «Instalar» crea la extensión `ATRIL.mcpb` y la abre en Claude, que pregunta si instalarla. Usa el Node que trae Claude.
-  - **Claude Code:** «Añadir» la registra para todos tus proyectos.
-  - **Otros clientes:** configuración JSON para copiar.
-- **20 herramientas:**
-  - **Videos:** crear (personal o del canal, con estética, colores, tipografía, guion, duración, voz, archivos y portadas), ver, continuar, rehacer, pedir cambios, aceptar sin publicar, rechazar, descargar y recortar para TikTok.
-  - **Cola y campañas:** añadir tarjetas sueltas o de campaña (también el JSON de «Importar»), editar plantillas, iniciar, pausar o detener por plataforma.
-  - **Biblioteca:**
-    - buscar en fuentes con licencia libre e importar archivos, carpetas o enlaces, con la licencia de cada uno;
-    - editar muchos recursos a la vez;
-    - borrar con confirmación;
-    - ordenar: primero muestra el plan y luego lo aplica.
-  - **Además:** estado, guía para pedir buenos videos, temas del canal y tus instrucciones.
-- **3 atajos en Claude Desktop:** «Video para una exposición», «Llenar la biblioteca», «Ordenar la biblioteca».
-- **Si ATRIL está cerrado**, Claude Desktop lo abre solo.
-- Ajustes muestra **lo último que hizo Claude**.
-- **Seguridad:**
-  - solo escucha en este equipo (127.0.0.1);
-  - exige el token de tu instalación y rechaza páginas web y nombres de host ajenos;
-  - publicar en YouTube sigue siendo solo tuyo;
-  - borrar y aplicar el orden de la biblioteca piden confirmación.
-- **Compatible** con los dos protocolos de MCP que conviven hoy: el clásico con saludo inicial (revisiones 2024-11-05 a 2025-11-25) y la revisión 2026-07-28, sin saludo y con `server/discover`.
-- Guía completa: `docs/mcp.md`.
+## Desde Claude (MCP)
+- Herramienta nueva **`atril_appearance`:** consulta o cambia el tema y el color («pon ATRIL en verde»). Ya son 21 herramientas.
 
-### Biblioteca: duplicados de verdad
-- Cada recurso tiene una **huella de su contenido** (tamaño y comienzo y final del archivo). Antes era la ruta del archivo.
-- Importar el mismo archivo con otro nombre, desde otra carpeta o bajado de dos sitios ya no crea una copia.
-- «Ordenar» encuentra y quita los duplicados que ya existían; nunca quita las copias usadas en videos.
+## Si vienes de una versión anterior a la 2.5.12
+También llegan:
+- **Claude usa ATRIL:** servidor MCP, 2.5.12 y 2.5.13.
+- **Desde la 2.5.10:**
+  - duración exacta;
+  - voces para elegir;
+  - campañas;
+  - estudios separados de YouTube y TikTok.
 
-### Algoritmo de Musk sobre el código
-- **Borrado:**
-  - 5 funciones que nada usaba;
-  - 4 dependencias que solo sirvieron para copiar archivos ya incluidos en la app (`d3`, `gsap`, `topojson-client`, `world-atlas`), con lo que la instalación de desarrollo baja en 42 paquetes;
-  - una copia vieja de la política de privacidad.
-- **Más rápido:** la app arranca con un paquete de 600 KB en vez de 958 KB (−37 %). Ajustes, Biblioteca, Producción, Instrucciones, Videos y el servidor MCP se cargan al usarlos.
+El detalle está en las notas de cada versión, en *Releases*.
 
 ## Verificado
 - TypeScript, compilación y `cargo check`.
-- 147 pruebas: 143 de la interfaz y 4 de Rust (servidor MCP y huella).
-- **Todas las acciones del MCP:** una prueba nueva recorre las que faltaban: continuar, rehacer, pedir cambios, rechazar, descargar, recortar, mover y reintentar en la cola, pausar y detener, campañas, todos los filtros de la biblioteca, catálogo, temas e instrucciones. Cada una responde con datos o con un aviso claro, sin errores internos.
-- **Prueba con Claude real** (hecha con la 2.5.12; las herramientas son las mismas), con Claude Code en modo automático sobre una copia de la base de prueba:
-  - **Por el puente de Claude Desktop:** consultó el estado, creó una tarjeta de TikTok de 20–30 s sin producirla y revisó cómo ordenar la biblioteca. Respondió con el canal, el id de la tarjeta y el plan.
-  - **Por HTTP, como Claude Code:** listó los videos con su estado.
-  - La producción de videos se simuló (ya está probada aparte).
-- Pantalla de Ajustes revisada en un navegador.
+- **164 pruebas:** 160 de la interfaz y 4 de Rust.
+  - 17 son nuevas: el contraste de los seis colores en los dos temas y la herramienta de apariencia.
+- **Capturas en un navegador:**
+  - todas las pantallas en oscuro y en claro;
+  - los seis colores;
+  - una ventana emergente y la bienvenida.
 
 ## Sin verificar
-- La app instalada en Windows con Claude Desktop real: ni la extensión `.mcpb` instalada ni la apertura automática de ATRIL. Las prueba la compilación del release y lo prueba el uso real.
-- El puente entre Rust y la interfaz dentro de la app. Cada lado está probado por separado y la compilación de Windows lo comprueba.
+- La app instalada en Windows. Poppins y el color al arrancar funcionan en el navegador; en Windows, lo comprueba el uso real.

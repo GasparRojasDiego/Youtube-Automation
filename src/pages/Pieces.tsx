@@ -49,7 +49,7 @@ export function PieceLibrary() {
         <div className="flex items-center gap-2.5">
           <span className="icon-box w-9 h-9"><Blocks size={16} /></span>
           <div>
-            <h2 className="font-semibold tracking-tight">Piezas listas <span className="text-muted-foreground font-normal">({PIECES.length})</span></h2>
+            <h2 className="font-semibold">Piezas listas <span className="text-muted-foreground font-normal">({PIECES.length})</span></h2>
             <p className="text-xs text-muted-foreground">Animaciones completas y universales. En cada animación, Claude elige: usar una tal cual (solo cambia textos, cifras, íconos e imágenes), modificar una parte, o crear desde cero.</p>
           </div>
         </div>
@@ -69,9 +69,9 @@ export function PieceLibrary() {
               {open.libs?.length ? <Chip tone="amber">Necesita: {open.libs.join(", ")}</Chip> : null}
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div><div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Qué hace</div><p>{open.desc}</p></div>
-              <div><div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Cuándo usarla</div><p>{open.use}</p>
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground mt-3 mb-1">Opciones</div><code className="font-mono text-[12px] break-words">{open.opts}</code>
+              <div><div className="text-[12px] font-medium text-muted-foreground mb-1">Qué hace</div><p>{open.desc}</p></div>
+              <div><div className="text-[12px] font-medium text-muted-foreground mb-1">Cuándo usarla</div><p>{open.use}</p>
+                <div className="text-[12px] font-medium text-muted-foreground mt-3 mb-1">Opciones</div><code className="font-mono text-[12px] break-words">{open.opts}</code>
                 <p className="text-[11px] text-muted-foreground mt-1">Todas aceptan además <code className="font-mono">dur</code>, <code className="font-mono">enter</code> (transición de entrada) y <code className="font-mono">bg</code> (fondo).</p></div>
             </div>
             <Card title="Código" actions={<><Tabs value={code} onChange={setCode} tabs={[{ id: "uso", label: "Usarla tal cual" }, { id: "pieza", label: "Código de la pieza" }]} /><CopyBtn text={code === "uso" ? usage : src} /></>} pad={false}>

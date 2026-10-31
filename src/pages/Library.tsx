@@ -167,7 +167,7 @@ function AssetModal({ asset, onClose }: { asset: Asset | null; onClose: () => vo
         <button className="btn-ghost" onClick={() => void updateAsset(a.id, { favorite: a.favorite ? 0 : 1 })}><Star size={14} className={a.favorite ? "fill-amber-400 text-amber-400" : ""} /> {a.favorite ? "Quitar favorito" : "Favorito"}</button>
         <button className="btn-ghost" onClick={() => void updateAsset(a.id, { usable: a.usable ? 0 : 1 })}>{a.usable ? <><Ban size={14} /> No usar</> : <><CheckCircle2 size={14} /> Permitir</>}</button>
         {(a.kind === "image" || a.kind === "video") && <AsyncButton className="btn-ghost" onClick={async () => { await describeAssets([{ ...a, described_at: null }]); }}><Eye size={14} /> {a.described_at ? "Redescribir" : "Describir"}</AsyncButton>}
-        <button className="btn-ghost text-red-500" onClick={async () => { if (await askConfirm("¿Borrar este archivo?", { body: "Se quita de la biblioteca y del disco.", confirm: "Borrar", danger: true })) { await deleteAsset(a.id); onClose(); } }}><Trash2 size={14} /> Borrar</button>
+        <button className="btn-gray" onClick={async () => { if (await askConfirm("¿Borrar este archivo?", { body: "Se quita de la biblioteca y del disco.", confirm: "Borrar", danger: true })) { await deleteAsset(a.id); onClose(); } }}><Trash2 size={14} /> Borrar</button>
       </>}>
       <div className="grid grid-cols-[1.3fr_1fr] gap-5">
         <div>

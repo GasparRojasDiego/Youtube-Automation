@@ -1,6 +1,6 @@
 # ATRIL desde Claude (MCP)
 
-*Versión 2.5.13. Para Diego y para cualquier chat de Claude que vaya a usar ATRIL.*
+*Versión 2.5.14. Para Diego y para cualquier chat de Claude que vaya a usar ATRIL.*
 
 ATRIL incluye un **servidor MCP** (Model Context Protocol, el estándar con el que Claude usa herramientas externas). Con él, **cualquier chat nuevo de Claude** puede usar ATRIL:
 - crear videos y seguir su producción;
@@ -37,6 +37,7 @@ ATRIL incluye un **servidor MCP** (Model Context Protocol, el estándar con el q
 | `atril_status` | Versión, canal, proveedores configurados, cola, video en producción, biblioteca, disco y trabajos en segundo plano. |
 | `atril_guide` | La guía para pedir buenos videos: estética, efectos, piezas, duración, modos, tipografías, voces, formato JSON, lista de control. |
 | `atril_show` | Trae ATRIL al frente en una pantalla o un video. |
+| `atril_appearance` | Tema (el del equipo, claro «arena» u oscuro grafito) y color de la app (azul, violeta, verde, naranja, rosa o turquesa). Sin argumentos, solo dice los actuales. |
 | `video_create` | Crea un video personal o del canal y lo produce ya, o lo deja en la cola o en una campaña. Acepta título, de qué trata, público, estética, colores, tipografía, guion, duración en segundos, idioma, voz, archivos, recursos, portadas y textos para publicar. |
 | `video_list` / `video_get` | Videos con su estado; detalle de pasos, archivos, textos, plan de duración, guion, actividad y mejoras. |
 | `video_action` | Continuar, cancelar, rehacer desde un paso o un segmento de voz, pedir cambios (mejora continua), aceptar sin publicar, rechazar, descargar, recortar para TikTok y borrar (con `confirm`). |

@@ -1,6 +1,6 @@
 # ATRIL
 
-**Estudio de producción asistida para YouTube** · v2.5.13
+**Estudio de producción asistida para YouTube** · v2.5.14
 
 ATRIL produce un video en inglés a partir de tu idea, sin pedirte nada por el camino; tú revisas el video final. **Nada se publica sin tu aprobación.**
 
@@ -12,8 +12,8 @@ App de escritorio para Windows (Tauri 2 + React).
 
 En *Releases*:
 
-- `ATRIL_2.5.13_instalador_x64.exe`: recomendado.
-- `ATRIL_2.5.13_portable_x64.zip`: portátil (descomprime toda la carpeta).
+- `ATRIL_2.5.14_instalador_x64.exe`: recomendado.
+- `ATRIL_2.5.14_portable_x64.zip`: portátil (descomprime toda la carpeta).
 - `SHA256SUMS.txt`: huellas para comprobar las descargas (ver `SECURITY.md`).
 
 ## Principios
@@ -33,6 +33,7 @@ En *Releases*:
 - **Cola de producción con campañas:** hasta 50 videos seguidos; una campaña guarda la plantilla común y cada tarjeta solo lo que cambia. Se importan en bloque desde un JSON (por ejemplo, el del chat de marketing). Si se agota el límite del plan, espera a que se reponga y sigue sola. Guía: `docs/guia-cola-marketing.md`.
 - **Filtros:** Videos por plataforma, modo, estado y texto; Biblioteca por forma, estado, fuente, calidad y orden.
 - **Desde Claude (MCP):** cualquier chat nuevo de Claude Desktop o Claude Code puede usar ATRIL (crear videos, manejar la cola y las campañas, buscar material libre, importar y ordenar la biblioteca) con un servidor local protegido por token. Publicar sigue siendo solo tuyo. Guía: `docs/mcp.md`.
+- **Estética de la familia VT Asvent:** la de Frame y Wire (Poppins, claro «arena» u oscuro grafito) y el color de la app a elección: azul, violeta, verde, naranja, rosa o turquesa, todos con contraste AA comprobado.
 - **Tus portadas, tal cual:** la de YouTube es la miniatura; ambas van incrustadas en las descargas y en las partes de TikTok.
 
 ## Estructura

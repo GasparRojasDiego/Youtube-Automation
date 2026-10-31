@@ -84,7 +84,7 @@ export function TopicsPanel() {
         <button className="btn-ghost btn-sm" onClick={() => void deleteTopic(t.id)}><Trash2 size={13} /></button>
       </>))}</Card>}
       <Modal open={adding} onClose={() => setAdding(false)} title="Nuevo tema"
-        footer={<><button className="btn-ghost" onClick={() => setAdding(false)}>Cancelar</button>
+        footer={<><button className="btn-gray" onClick={() => setAdding(false)}>Cancelar</button>
           <AsyncButton className="btn-primary" disabled={!form.title.trim()} onClick={async () => {
             await addTopic({ channel_id: ch.id, title: form.title.trim(), angle: form.angle, notes: form.notes, sources: form.sources.split(/\s+/).filter((x) => /^https?:/.test(x)), status: "approved" });
             setForm({ title: "", angle: "", notes: "", sources: "" }); setAdding(false);

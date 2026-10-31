@@ -2,30 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Identidad VT Asvent: primario azul, una sola tipografía (la del sistema), bordes sobrios y sin degradados. */
+/* Sistema visual de VT Asvent, el de Frame y Wire:
+   - Poppins en todo; claro «arena» y oscuro grafito, nunca blanco ni negro puros;
+   - un solo color de acento, el que elige el usuario (`data-accent` en <html>), con la misma jerarquía:
+     sólido para la acción principal, fantasma para lo relevante sin peso, gris para lo demás;
+   - plano y sobrio: bordes finos y fondos escalonados en vez de sombras, sin degradados ni brillos.
+   Los acentos tienen los tonos de la familia con la luminosidad medida para el contraste AA
+   (src/ui/theme.test.ts): texto de color ≥ 4,5:1 sobre las tarjetas y texto blanco ≥ 4,5:1 sobre lo sólido. */
+
+/* ---------- Claro «arena» ---------- */
 :root {
-  --background: 40 30% 94%; --foreground: 228 14% 12%;
-  --card: 40 40% 98%; --popover: 40 40% 98%;
-  --primary: 228 80% 60%; --primary-foreground: 0 0% 100%;
-  --secondary: 40 22% 89%; --muted: 40 22% 89%; --muted-foreground: 228 6% 40%;
-  --accent: 40 22% 86%; --destructive: 0 72% 48%;
-  --border: 38 16% 82%; --input: 40 30% 96%; --ring: 228 80% 60%;
-  --radius: 0.375rem;
-  --primary-strong: 228 78% 58%; --soft: 228 10% 87%; --soft-foreground: 228 14% 14%;
+  --background: 40 27% 90%; --foreground: 30 10% 12%;
+  --card: 42 33% 94%; --popover: 42 33% 93%;
+  --secondary: 40 22% 84%; --muted: 40 22% 84%; --muted-foreground: 30 8% 38%;
+  --accent: 40 20% 79%; --destructive: 0 72% 46%;
+  --border: 38 18% 76%; --input: 38 18% 80%;
+  --primary-foreground: 0 0% 100%;
+  --soft: 38 14% 80%; --soft-foreground: 30 10% 12%;
+  --radius: 0.5rem;
+  --shadow-card: 0 1px 2px hsl(30 20% 20% / .06);
+  /* Acento azul (el de la familia). primary: texto, iconos, bordes y anillos · primary-strong: fondo de lo sólido con texto blanco
+     · nav-active: la opción activa del menú, un tono claro del acento con texto oscuro · logo-ring: el aro del logo */
+  --primary: 228 88% 59%; --primary-strong: 228 88% 59%;
   --nav-active: 214 100% 91%; --nav-active-foreground: 226 72% 36%;
-  --shadow-card: 0 1px 0 0 hsl(0 0% 100% / .7) inset, 0 10px 30px -18px hsl(228 30% 20% / .35);
+  --logo-ring: 226 74% 78%;
+  --ring: var(--primary);
 }
+[data-accent="violet"] { --primary: 258 78% 58%; --primary-strong: 258 78% 58%; --nav-active: 258 85% 92%; --nav-active-foreground: 258 60% 34%; --logo-ring: 258 85% 82%; }
+[data-accent="green"]  { --primary: 152 60% 30.5%; --primary-strong: 152 60% 30.5%; --nav-active: 152 50% 86%; --nav-active-foreground: 152 70% 20%; --logo-ring: 152 50% 68%; }
+[data-accent="orange"] { --primary: 20 88% 39.5%; --primary-strong: 20 88% 39.5%; --nav-active: 24 90% 89%; --nav-active-foreground: 20 85% 26%; --logo-ring: 26 90% 74%; }
+[data-accent="pink"]   { --primary: 332 75% 47%; --primary-strong: 332 75% 47%; --nav-active: 332 80% 92%; --nav-active-foreground: 332 70% 32%; --logo-ring: 332 80% 80%; }
+[data-accent="teal"]   { --primary: 186 80% 29%; --primary-strong: 186 80% 29%; --nav-active: 186 55% 85%; --nav-active-foreground: 186 85% 18%; --logo-ring: 186 60% 66%; }
+
+/* ---------- Oscuro grafito ---------- */
 .dark {
-  --background: 230 12% 6%; --foreground: 228 20% 96%;
-  --card: 230 10% 9.5%; --popover: 230 10% 9%;
-  --primary: 228 100% 73%; --primary-foreground: 230 30% 8%;
-  --secondary: 230 8% 13%; --muted: 230 8% 13%; --muted-foreground: 228 8% 62%;
-  --accent: 230 8% 15%; --destructive: 0 70% 52%;
-  --border: 230 8% 17%; --input: 230 10% 8%; --ring: 228 100% 73%;
-  --primary-strong: 228 74% 60%; --soft: 228 9% 82%; --soft-foreground: 230 14% 10%;
+  --background: 240 2% 11%; --foreground: 0 0% 98%;
+  --card: 240 2% 15%; --popover: 240 2% 13%;
+  --secondary: 240 3.7% 15.9%; --muted: 240 3.7% 15.9%; --muted-foreground: 240 5% 64.9%;
+  --accent: 240 4% 20%; --destructive: 0 62.8% 42%;
+  --border: 240 3.7% 20%; --input: 240 3.7% 17%;
+  --soft: 240 5% 84%; --soft-foreground: 240 6% 10%;
+  --shadow-card: none;
+  --primary: 228 100% 73%; --primary-strong: 228 100% 63%;
   --nav-active: 214 82% 86%; --nav-active-foreground: 228 52% 18%;
-  --shadow-card: 0 1px 0 0 hsl(0 0% 100% / .04) inset, 0 18px 40px -24px rgb(0 0 0 / .8);
+  --logo-ring: 226 74% 78%;
 }
+.dark[data-accent="violet"] { --primary: 258 100% 76%; --primary-strong: 258 100% 66%; --nav-active: 258 85% 87%; --nav-active-foreground: 258 50% 18%; --logo-ring: 258 85% 82%; }
+.dark[data-accent="green"]  { --primary: 152 55% 52%; --primary-strong: 152 55% 34%; --nav-active: 152 50% 80%; --nav-active-foreground: 152 60% 12%; --logo-ring: 152 50% 68%; }
+.dark[data-accent="orange"] { --primary: 26 95% 62%; --primary-strong: 24 95% 40%; --nav-active: 26 90% 84%; --nav-active-foreground: 22 70% 15%; --logo-ring: 26 90% 74%; }
+.dark[data-accent="pink"]   { --primary: 332 90% 72%; --primary-strong: 332 90% 47.5%; --nav-active: 332 85% 87%; --nav-active-foreground: 332 55% 18%; --logo-ring: 332 80% 80%; }
+.dark[data-accent="teal"]   { --primary: 186 70% 55%; --primary-strong: 186 70% 32.5%; --nav-active: 186 55% 80%; --nav-active-foreground: 186 70% 11%; --logo-ring: 186 60% 66%; }
 
 html, body, #root { height: 100%; }
 :root { color-scheme: light; }
@@ -34,54 +60,61 @@ body {
   @apply bg-background text-foreground font-sans antialiased;
   transition: background-color .4s, color .4s;
 }
+/* Selectores neutros (no azules): el triángulo es un degradado, así sigue al tema sin imágenes */
 select.input {
-  appearance: none; -webkit-appearance: none; padding-right: 2rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237591FF' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 0.7rem center;
+  appearance: none; -webkit-appearance: none; padding-right: 2rem; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, hsl(var(--muted-foreground)) 50%), linear-gradient(135deg, hsl(var(--muted-foreground)) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
+  background-size: 5px 5px; background-repeat: no-repeat;
 }
-select.input.select-sm { padding-left: .55rem; padding-right: 1.45rem; background-position: right .4rem center; }
+select.input.select-sm { padding-left: .55rem; padding-right: 1.45rem; background-position: calc(100% - 12px) 50%, calc(100% - 7px) 50%; }
 option { background: hsl(var(--popover)); color: hsl(var(--foreground)); }
-::selection { background: hsl(var(--primary) / .85); color: #fff; }
-:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; border-radius: 6px; }
+::selection { background: hsl(var(--primary-strong)); color: #fff; }
+:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
 
-/* Barras de desplazamiento finas */
-::-webkit-scrollbar { width: 10px; height: 10px; }
+/* Barras de desplazamiento: el pulgar en el color de acento, flotando */
+::-webkit-scrollbar { width: 12px; height: 12px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(var(--primary) / .35); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / .6); background-clip: content-box; }
+::-webkit-scrollbar-thumb { background: hsl(var(--primary) / .55); border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / .85); background-clip: content-box; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 @layer components {
-  .card {
-    @apply bg-card/80 border border-border/80 rounded-lg backdrop-blur-md;
-    box-shadow: var(--shadow-card);
-  }
-  .card-hover { @apply transition-[transform,border-color,box-shadow] duration-300 ease-frame hover:-translate-y-0.5 hover:border-primary/40; }
+  .card { @apply bg-card border border-border rounded-lg; box-shadow: var(--shadow-card); }
+  .card-hover { @apply transition-[border-color] duration-200 ease-frame hover:border-primary/45; }
   .btn {
-    @apply relative inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium h-9 px-3.5 select-none
-      transition-[background-color,border-color,color,box-shadow,transform,filter] duration-200 ease-frame active:scale-[0.97]
-      disabled:opacity-45 disabled:pointer-events-none whitespace-nowrap;
+    @apply relative inline-flex items-center justify-center gap-2 rounded-md border border-transparent text-[13.5px] font-medium h-9 px-3.5 select-none
+      transition-[background-color,border-color,color,transform,filter] duration-200 ease-frame active:scale-[0.98]
+      disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap;
   }
-  .btn-primary {
-    @apply btn text-primary-foreground font-semibold hover:brightness-110;
-    background: hsl(var(--primary));
-    box-shadow: 0 0 0 1px hsl(var(--primary) / .55), 0 6px 18px -10px hsl(var(--primary) / .7);
-  }
-  .btn-brand { @apply btn border border-primary/35 bg-primary/10 text-primary hover:bg-primary/[.16] hover:border-primary/60; }
-  .btn-ghost { @apply btn text-foreground/85 hover:bg-accent hover:text-foreground; }
-  .btn-secondary { @apply btn bg-secondary border border-border/70 hover:bg-accent; }
-  .btn-danger { @apply btn bg-destructive/90 text-white hover:bg-destructive; }
-  .btn-sm { @apply h-8 px-2.5 text-xs rounded-md; }
+  /* Sólido: la acción principal de cada pantalla, pintada entera y con texto blanco */
+  .btn-primary { @apply btn bg-primary-strong text-primary-foreground font-semibold hover:brightness-110; }
+  /* Fantasma: borde del acento bien visible e interior del mismo color al 10 % */
+  .btn-brand { @apply btn border-primary bg-primary/10 text-primary hover:bg-primary/[.18]; }
+  /* Gris: cancelar, descartar y lo que solo abre la confirmación de borrar */
+  .btn-gray, .btn-secondary { @apply btn border-border bg-muted/70 text-foreground hover:bg-accent; }
+  .btn-ghost { @apply btn text-foreground/85 hover:bg-accent/70 hover:text-foreground; }
+  /* Rojo sólido: solo la confirmación definitiva de borrar algo */
+  .btn-danger { @apply btn bg-destructive text-white hover:brightness-110; }
+  .btn-sm { @apply h-8 px-2.5 text-xs; }
   .input {
-    @apply w-full rounded-lg border border-border bg-input px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/80
-      transition-[border-color,box-shadow] duration-200 focus:border-primary/60 focus:ring-4 focus:ring-primary/15;
+    @apply w-full rounded-md border border-border bg-input/50 px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/80
+      transition-[border-color,box-shadow] duration-200 focus:border-primary focus:ring-[3px] focus:ring-primary/20;
   }
-  .label { @apply font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground; }
-  .kicker { @apply font-mono text-[11px] uppercase tracking-[0.28em] text-primary; }
-  .icon-box { @apply inline-flex items-center justify-center w-9 h-9 rounded-lg border border-primary/25 text-primary shrink-0 bg-primary/10; }
-  .chip { @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium border whitespace-nowrap; }
+  /* Campos de una línea: alto fijo y sin relleno vertical, así Poppins (alta) nunca pierde las colas de la q, la g o la p.
+     :where() deja que h-8, h-9 o py-* de cada campo manden; las áreas de texto conservan su relleno. */
+  :where(input, select).input { padding-top: 0; padding-bottom: 0; height: 2.25rem; line-height: 1.25; }
+  /* Sin mayúsculas sostenidas: solo la marca ATRIL las lleva */
+  .label { @apply text-[12px] font-medium text-muted-foreground; }
+  .kicker { @apply text-[13px] font-semibold tracking-wide text-primary; }
+  .icon-box { @apply inline-flex items-center justify-center w-9 h-9 rounded-[10px] border border-primary/30 text-primary shrink-0 bg-primary/10; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border whitespace-nowrap; }
   .tabular { font-variant-numeric: tabular-nums; }
   .hairline { @apply h-px bg-border; }
+  /* Eco de palabras: la primera palabra del título, quieta y casi transparente, detrás del encabezado de los emergentes */
+  .echo { @apply absolute inset-0 pointer-events-none overflow-hidden select-none whitespace-nowrap font-bold; font-size: 34px; line-height: 1.15; color: hsl(var(--foreground) / .045); }
+  .echo > div { display: flex; gap: 22px; }
+  .echo > div:nth-child(2) { transform: translateX(-60px); opacity: .67; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -123,7 +123,7 @@ function Timeline({ stages }: { stages: StageRow[] }) {
   const x = (sec: number) => `${(sec / total) * 100}%`;
   const motionSfx = motion.flatMap((m) => (m.sfx ?? []).map((c) => ({ ...c, at: (segStart[m.segment_id] ?? 0) + m.start + c.at })));
   const Track = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex items-center gap-2"><span className="w-16 text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">{label}</span><div className="relative flex-1 h-7 rounded bg-muted/50 overflow-hidden">{children}</div></div>
+    <div className="flex items-center gap-2"><span className="w-16 text-[11px] font-medium text-muted-foreground shrink-0">{label}</span><div className="relative flex-1 h-7 rounded bg-muted/50 overflow-hidden">{children}</div></div>
   );
   return (
     <div className="space-y-1.5">
@@ -167,27 +167,27 @@ function UsageMeter({ videoId, group }: { videoId: string; group: (typeof GROUPS
   const all = stepUsage(runs), step = stepUsage(runs.filter((r) => group.stages.includes(r.stage as StageId)));
   const w = limits?.fiveHour; const expired = !!w && w.resetsAt < Date.now(); const u = expired ? 0 : w?.utilization ?? 0;
   const free = tts.provider === "google" ? tts.google.freeCharsPerMonth : 0;
-  const Cell = ({ label, children }: { label: string; children: React.ReactNode }) => <div className="min-w-0"><div className="label mb-1">{label}</div>{children}</div>;
+  const Cell = ({ label, children }: { label: string; children: React.ReactNode }) => <div className="min-w-0 px-5 first:pl-0 last:pr-0"><div className="label mb-1">{label}</div>{children}</div>;
   const Tok = ({ s }: { s: ReturnType<typeof stepUsage> }) => (
     <div className="flex items-baseline gap-2.5 tabular">
-      <span className="text-[22px] font-bold tracking-tight leading-none">{pctText(s.pct, s.runs > 0)}</span>
+      <span className="text-[22px] font-bold leading-none">{pctText(s.pct, s.runs > 0)}</span>
       <span className="text-[11px] text-muted-foreground leading-tight">entrada {fmtK(s.input)}<br />salida {fmtK(s.output)}</span>
     </div>
   );
   return (
     <Card pad>
-      <div className="grid grid-cols-[1.25fr_1fr_1fr_1.25fr] gap-6 items-center">
+      <div className="grid grid-cols-[1.25fr_1fr_1fr_1.25fr] items-center divide-x divide-border">
         <Cell label="Límite de 5 horas">
           <div className="flex items-baseline justify-between gap-2"><span className="text-[22px] font-bold tabular leading-none">{w ? `${Math.round(u * 100)} %` : "—"}</span>
             <button className="text-[10.5px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1" disabled={busy} title="Consulta mínima a Claude para actualizar el dato"
               onClick={async () => { setBusy(true); try { await refreshPlanUsage(); } finally { setBusy(false); } }}><RefreshCw size={11} className={busy ? "animate-spin" : ""} />{w ? (expired ? "repuesto" : `se repone ${fmtReset(w.resetsAt)}`) : "consultar"}</button></div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-2"><div className={`h-full rounded-full ${u >= 0.9 ? "bg-red-500" : u >= 0.7 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${u * 100}%` }} /></div>
+          <div className="h-1.5 rounded-full bg-accent overflow-hidden mt-2"><div className={`h-full rounded-full ${u >= 0.9 ? "bg-red-500" : u >= 0.7 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${u * 100}%` }} /></div>
         </Cell>
         <Cell label="Este video"><Tok s={all} /></Cell>
         <Cell label={`Paso · ${group.label}`}><Tok s={step} /></Cell>
         <Cell label={`Voz del mes · ${tts.provider === "google" ? "Google (gratis)" : tts.provider === "gemini" ? "Gemini" : "ElevenLabs"}`}>
           <div className="flex items-baseline justify-between gap-2 tabular"><span className="text-[22px] font-bold leading-none">{fmtK(voice)}</span><span className="text-[11px] text-muted-foreground">{free ? `de ${fmtK(free)} caracteres` : tts.provider === "gemini" ? "tokens de audio" : "caracteres"}</span></div>
-          {free > 0 && <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-2"><div className={`h-full rounded-full ${voice / free >= 0.9 ? "bg-red-500" : voice / free >= 0.7 ? "bg-amber-500" : "bg-teal-500"}`} style={{ width: `${Math.min(100, (voice / free) * 100)}%` }} /></div>}
+          {free > 0 && <div className="h-1.5 rounded-full bg-accent overflow-hidden mt-2"><div className={`h-full rounded-full ${voice / free >= 0.9 ? "bg-red-500" : voice / free >= 0.7 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, (voice / free) * 100)}%` }} /></div>}
         </Cell>
       </div>
     </Card>
@@ -268,7 +268,7 @@ export function ProductionView({ video, back }: { video: Video; back?: boolean }
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-4 items-start">
         <Card pad={false}>
           <div className="px-5 pt-4 pb-3 border-b border-border/60">
-            <div className="font-semibold tracking-tight leading-snug line-clamp-2">{video.title}</div>
+            <div className="font-semibold leading-snug line-clamp-2">{video.title}</div>
             <div className="flex items-center gap-2 mt-2">
               <Chip tone={a.tone === "muted" ? "muted" : a.tone}>{a.text.length > 40 ? `${a.text.slice(0, 39)}…` : a.text}</Chip>
               <div className="flex-1" />
@@ -305,7 +305,7 @@ export function ProductionView({ video, back }: { video: Video; back?: boolean }
         </div>
       </div>
       <div className="flex items-center justify-between pt-2">
-        <h2 className="text-lg font-bold tracking-tight">{group.label}</h2>
+        <h2 className="text-lg font-bold">{group.label}</h2>
         {redoable && <button className="btn-ghost btn-sm" title={failedStage ? "Solo la parte que falló" : "Reutiliza lo que no cambió"} onClick={() => void redo()}><RotateCcw size={13} /> {failedStage ? "Reintentar" : "Rehacer"}</button>}
       </div>
       <StepResult video={video} stages={stages} group={group} />

@@ -46,7 +46,7 @@ export function awaiting(video: Video, stages: StageRow[]): { text: string; tone
 
 const ICON: Partial<Record<StageStatus, LucideIcon>> = { done: Check, running: Loader2, failed: AlertTriangle, review: Eye };
 export const STATUS_DOT: Record<string, string> = {
-  done: "bg-primary text-primary-foreground border-primary", running: "bg-primary/15 text-primary border-primary",
+  done: "bg-primary-strong text-primary-foreground border-primary-strong", running: "bg-primary/15 text-primary border-primary",
   review: "bg-amber-500/15 text-amber-600 dark:text-amber-500 border-amber-500", failed: "bg-red-500/15 text-red-600 dark:text-red-500 border-red-500",
   pending: "bg-card text-muted-foreground border-border",
 };

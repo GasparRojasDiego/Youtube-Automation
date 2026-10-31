@@ -15,18 +15,22 @@ export default {
         accent: c("accent"), destructive: c("destructive"),
         border: c("border"), input: c("input"), ring: c("ring"),
       },
-      borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 3px)" },
+      borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 4px)", xl: "calc(var(--radius) + 4px)" },
       fontFamily: {
-        // Una sola tipografía en toda la app: la del sistema de Windows (sobria y la más común)
-        sans: ["Segoe UI Variable Text", "Segoe UI", "system-ui", "-apple-system", "Helvetica Neue", "Arial", "sans-serif"],
-        mono: ["Segoe UI Variable Text", "Segoe UI", "system-ui", "-apple-system", "Helvetica Neue", "Arial", "sans-serif"],
+        // Una sola tipografía, la de la familia (Frame y Wire): Poppins, empaquetada (funciona sin conexión).
+        // La monoespaciada solo para código, claves e identificadores.
+        sans: ["Poppins", "Segoe UI", "system-ui", "sans-serif"],
+        mono: ["ui-monospace", "Cascadia Mono", "Consolas", "monospace"],
       },
       transitionTimingFunction: { frame: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
       keyframes: {
         glow: { "0%,100%": { boxShadow: "0 0 6px hsl(var(--primary) / .5)" }, "50%": { boxShadow: "0 0 18px hsl(var(--primary) / .6)" } },
         "fade-up": { from: { opacity: 0, transform: "translateY(8px)" }, to: { opacity: 1, transform: "none" } },
         "page-in": { from: { opacity: 0, transform: "translateY(10px)", filter: "blur(4px)" }, to: { opacity: 1, transform: "none", filter: "none" } },
-        "pop-in": { from: { opacity: 0, transform: "scale(.96)" }, to: { opacity: 1, transform: "none" } },
+        "pop-in": { from: { opacity: 0, transform: "translateY(6px) scale(.98)" }, to: { opacity: 1, transform: "none" } },
+        "fade-in": { from: { opacity: 0 }, to: { opacity: 1 } },
+        // Cambio de frase (Frame): la nueva crece hasta su tamaño
+        grow: { from: { opacity: 0, transform: "scale(.96)" }, to: { opacity: 1, transform: "none" } },
         shimmer: { from: { backgroundPosition: "200% 0" }, to: { backgroundPosition: "-200% 0" } },
         "pulse-dot": { "0%,100%": { transform: "scale(1)", opacity: 1 }, "50%": { transform: "scale(1.6)", opacity: 0 } },
       },
@@ -34,7 +38,9 @@ export default {
         glow: "glow 2.2s ease-in-out infinite",
         "fade-up": "fade-up .3s cubic-bezier(0.2,0.8,0.2,1)",
         "page-in": "page-in .45s cubic-bezier(0.2,0.8,0.2,1) both",
-        "pop-in": "pop-in .25s cubic-bezier(0.2,0.8,0.2,1) both",
+        "pop-in": "pop-in .18s cubic-bezier(0.2,0.9,0.3,1.1) both",
+        "fade-in": "fade-in .14s ease-out both",
+        grow: "grow .32s ease-out both",
         shimmer: "shimmer 2.4s linear infinite",
         "pulse-dot": "pulse-dot 1.8s ease-out infinite",
       },

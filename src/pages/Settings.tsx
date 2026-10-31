@@ -1,9 +1,9 @@
-// Ajustes en un solo collage: perfil y tema arriba; debajo, cada apartado
+// Ajustes en un solo collage: perfil, tema y color arriba; debajo, cada apartado
 // reducido a lo esencial. Si hubo errores, su informe completo aparece primero.
 import { VoiceField } from "../ui/VoicePicker";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, Sparkles, Factory, Trash2, Plus, Check, Copy, Sun, Moon, Camera,
+  KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, Sparkles, Factory, Trash2, Plus, Check, Copy, Sun, Moon, SunMoon, Camera,
   FolderOpen, Download, AlertTriangle, ClipboardCopy, Wand2, Info, MonitorPlay, NotebookPen, Plug, RotateCcw, type LucideIcon,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -14,6 +14,8 @@ import { findBrowser } from "../motion/host";
 import { secrets, fs, appPaths } from "../lib/ipc";
 import { useBus } from "../lib/bus";
 import { getSettings, saveSettings, isDark, SECRET, type AppSettings, type StageModelKey } from "../lib/settings";
+import { accentName, type Theme } from "../ui/theme";
+import { AccentPicker } from "../ui/AccentPicker";
 import { listMusic, addTrack, updateTrack, deleteTrack, type Track } from "../lib/repo";
 import { Card, Toggle, AsyncButton, Chip, Avatar } from "../ui/kit";
 import { UpdateDialog } from "../ui/Update";
@@ -100,19 +102,19 @@ function ProfileHeader() {
     await fs.copy(f, dest);
     await set("profile.avatar", `${dest}?${Date.now()}`);
   };
-  const themeBtn = (id: "light" | "dark", I: LucideIcon, label: string) => {
-    const on = id === "dark" ? dark : !dark;
+  // Tema como en Frame y Wire: el del equipo, claro «arena» u oscuro grafito
+  const themeBtn = (id: Theme, I: LucideIcon, label: string) => {
+    const on = s.theme === id;
     return (
-      <button onClick={() => void set("theme", id)} aria-pressed={on} title={label}
-        className={`w-11 h-9 grid place-items-center rounded-lg transition-all duration-200 ${on ? "bg-primary-strong text-white shadow-[0_6px_16px_-8px_hsl(var(--primary-strong))]" : "text-muted-foreground hover:text-foreground"}`}>
-        <I size={17} />
+      <button onClick={() => void set("theme", id)} aria-pressed={on} title={label} aria-label={label}
+        className={`w-10 h-8 grid place-items-center rounded-md transition-colors duration-200 ${on ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground"}`}>
+        <I size={16} className={on ? "text-primary" : ""} />
       </button>
     );
   };
   return (
-    <section className="card relative overflow-hidden">
-      <div className="absolute -top-28 -left-20 w-72 h-72 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-      <div className="relative flex items-center gap-5 px-6 py-5">
+    <section className="card">
+      <div className="flex items-center gap-5 px-6 py-5">
         <button onClick={() => void pickPhoto()} className="group relative rounded-full shrink-0" title="Cambiar foto">
           <Avatar size={68} />
           <span className="absolute inset-0 rounded-full bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center text-white"><Camera size={18} /></span>
@@ -120,15 +122,24 @@ function ProfileHeader() {
         <div className="min-w-0 flex-1">
           <input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== s.profile.name && void set("profile.name", name.trim())}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} aria-label="Nombre de usuario"
-            className="block w-full max-w-md bg-transparent text-[22px] font-bold tracking-tight outline-none rounded-md px-1 -mx-1 border border-transparent hover:border-border focus:border-primary/60" />
+            className="block w-full max-w-md bg-transparent text-[22px] font-bold outline-none rounded-md px-1 -mx-1 border border-transparent hover:border-border focus:border-primary/60" />
           <button className="mt-1 inline-flex items-center gap-1.5 font-mono text-[12px] text-muted-foreground hover:text-foreground" title="Copiar ID"
             onClick={async () => { await navigator.clipboard.writeText(s.profile.id); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
             ID · <span className="tracking-[0.12em]">{s.profile.id}</span>{copied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
           </button>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="inline-flex p-1 rounded-lg bg-secondary/70 border border-border/70">{themeBtn("light", Sun, "Modo claro")}{themeBtn("dark", Moon, "Modo oscuro")}</div>
-          {s.theme === "system" && <span className="text-[10.5px] text-muted-foreground">Según el dispositivo</span>}
+        <div className="flex flex-col items-end gap-2.5 shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-[12.5px] text-muted-foreground">{s.theme === "system" ? `Tema del equipo (${dark ? "oscuro" : "claro"})` : dark ? "Oscuro grafito" : "Claro arena"}</span>
+            <div className="inline-flex gap-0.5 p-[3px] rounded-lg bg-secondary/70 border border-border">
+              {themeBtn("system", SunMoon, "Como el equipo")}{themeBtn("light", Sun, "Claro")}{themeBtn("dark", Moon, "Oscuro")}
+            </div>
+          </div>
+          {/* Color de la app: un solo acento, el que elijas */}
+          <div className="flex items-center gap-3">
+            <span className="text-[12.5px] text-muted-foreground">Color · <span className="text-foreground font-medium">{accentName(s.accent)}</span></span>
+            <div className="pr-1"><AccentPicker value={s.accent} dark={dark} onChange={(a) => void set("accent", a)} /></div>
+          </div>
         </div>
       </div>
     </section>
@@ -228,7 +239,7 @@ function VoiceTile({ className }: { className: string }) {
       </>}
       <div className="mt-4 rounded-lg border border-border/80 bg-secondary/40 px-4 py-3">
         <div className="flex items-baseline justify-between"><span className="label">Cuota gratuita de Google este mes</span><span className="text-[11px] text-muted-foreground tabular">{fmtK(used)} / {fmtK(free)}</span></div>
-        <div className="h-1.5 rounded-full bg-muted overflow-hidden mt-2"><div className={`h-full rounded-full ${k >= 0.9 ? "bg-red-500" : k >= 0.7 ? "bg-amber-500" : "bg-teal-500"}`} style={{ width: `${k * 100}%` }} /></div>
+        <div className="h-1.5 rounded-full bg-accent overflow-hidden mt-2"><div className={`h-full rounded-full ${k >= 0.9 ? "bg-red-500" : k >= 0.7 ? "bg-amber-500" : "bg-teal-500"}`} style={{ width: `${k * 100}%` }} /></div>
         <div className="text-[11px] text-muted-foreground mt-1.5">Caracteres narrados por ATRIL. Pasado el límite, Google cobra por carácter.</div>
       </div>
     </Tile>
@@ -249,7 +260,7 @@ function KeyRow({ k, label, hint, test }: { k: string; label: string; hint: Reac
         <div className="flex items-center gap-1.5">
           <input autoFocus className="input h-8 py-1 w-44 font-mono text-xs" type="password" value={val} placeholder="Pega la clave" onChange={(e) => setVal(e.target.value)} />
           <AsyncButton className="btn-brand btn-sm" disabled={!val.trim()} onClick={async () => { await secrets.set(k, val.trim()); setVal(""); setHas(true); setEdit(false); toast("success", `${label} guardada`); }}>Guardar</AsyncButton>
-          <button className="btn-ghost btn-sm" onClick={() => { setEdit(false); setVal(""); }}>Cancelar</button>
+          <button className="btn-gray btn-sm" onClick={() => { setEdit(false); setVal(""); }}>Cancelar</button>
         </div>
       ) : (
         <div className="flex items-center gap-1">

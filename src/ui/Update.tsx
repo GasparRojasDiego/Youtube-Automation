@@ -41,7 +41,7 @@ export function UpdateDialog({ open, onClose }: { open: boolean; onClose: () => 
   const left = u.speed > 0 ? (u.total - u.done) / u.speed + inst : null;
   const step = (n: number, label: string, on: boolean, done: boolean) => (
     <div className={`flex items-center gap-2 text-xs ${on ? "text-foreground font-medium" : done ? "text-muted-foreground" : "text-muted-foreground/60"}`}>
-      <span className={`w-5 h-5 rounded-full grid place-items-center text-[10px] font-semibold ${done ? "bg-primary text-primary-foreground" : on ? "bg-primary/20 text-primary ring-1 ring-primary/50" : "bg-secondary"}`}>{n}</span>{label}
+      <span className={`w-5 h-5 rounded-full grid place-items-center text-[10px] font-semibold ${done ? "bg-primary-strong text-primary-foreground" : on ? "bg-primary/20 text-primary ring-1 ring-primary/50" : "bg-secondary"}`}>{n}</span>{label}
     </div>
   );
   const ph = u.phase;
