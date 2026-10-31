@@ -48,7 +48,10 @@ describe("modo personal", () => {
     expect(voiceOverride("google", {}, "en")).toMatchObject({ voice: "en-US-Chirp3-HD-Charon", languageCode: "en-US" });
     // Voz elegida en la tarjeta (si es del idioma del video)
     expect(voiceOverride("google", {}, "es", "es-US-Chirp3-HD-Kore")).toMatchObject({ voice: "es-US-Chirp3-HD-Kore", languageCode: "es-US" });
-    expect(voiceOverride("google", {}, "es", "en-US-Chirp3-HD-Kore")).toMatchObject({ voice: "es-US-Chirp3-HD-Charon" });
+    // Una voz de Chirp 3 HD en el otro idioma pasa a la misma voz en el idioma del video; otra voz se descarta
+    expect(voiceOverride("google", {}, "es", "en-US-Chirp3-HD-Kore")).toMatchObject({ voice: "es-US-Chirp3-HD-Kore", languageCode: "es-US" });
+    expect(voiceOverride("google", {}, "en", "es-US-Chirp3-HD-Kore")).toMatchObject({ voice: "en-US-Chirp3-HD-Kore", languageCode: "en-US" });
+    expect(voiceOverride("google", {}, "es", "en-US-Neural2-F")).toMatchObject({ voice: "es-US-Chirp3-HD-Charon" });
     expect(voiceOverride("gemini", { voice: "Charon" }, "es", "Kore")).toMatchObject({ voice: "Kore" });
     expect(videoLanguage({ data: { personal: p } })).toBe("es");
     expect(systemFor({ data: { personal: p } })).toContain("Spanish");

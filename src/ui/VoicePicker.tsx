@@ -77,15 +77,15 @@ export function VoicePicker({ open, lang, value, onClose, onPick }: { open: bool
   );
 }
 
-/** Campo de voz: la elegida (o la de Ajustes) con «Elegir…» y, si es propia, «Quitar». */
-export function VoiceField({ lang, value, onChange, disabled, inheritLabel }: { lang: VoiceLang; value: string | null | undefined; onChange: (id: string | null) => void; disabled?: boolean; inheritLabel?: string }) {
+/** Campo de voz: la elegida (o la de Ajustes) con «Elegir…» y, si es propia y no obligatoria, «Quitar». */
+export function VoiceField({ lang, value, onChange, disabled, inheritLabel, required }: { lang: VoiceLang; value: string | null | undefined; onChange: (id: string | null) => void; disabled?: boolean; inheritLabel?: string; required?: boolean }) {
   const [open, setOpen] = useState(false);
   const shown = value ? shortVoiceName(value) : `${inheritLabel ?? "La de Ajustes"} (${shortVoiceName(defaultVoice(lang)) || "—"})`;
   return (
     <div className="flex items-center gap-2">
       <span className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-md border text-[13px] ${value ? "border-primary/40 bg-primary/5 text-foreground" : "border-border text-muted-foreground"}`}><Mic size={13} /> {shown}</span>
       <button type="button" className="btn-ghost btn-sm" disabled={disabled} onClick={() => setOpen(true)}>Elegir…</button>
-      {value && !disabled && <button type="button" className="btn-ghost btn-sm" title="Volver a la voz de Ajustes" onClick={() => onChange(null)}><RotateCcw size={13} /></button>}
+      {value && !disabled && !required && <button type="button" className="btn-ghost btn-sm" title="Volver a la voz de Ajustes" onClick={() => onChange(null)}><RotateCcw size={13} /></button>}
       <VoicePicker open={open} lang={lang} value={value ?? defaultVoice(lang)} onClose={() => setOpen(false)} onPick={(id) => onChange(id)} />
     </div>
   );

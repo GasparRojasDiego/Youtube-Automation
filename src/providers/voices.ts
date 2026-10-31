@@ -30,8 +30,11 @@ export function voiceOverride(provider: string, base: VoiceOverride, lang: strin
   const g = getSettings().tts.google;
   if (provider !== "google") return { ...base, ...(chosen && !isGoogleName(chosen) ? { voice: chosen } : {}) };
   let name = isGoogleName(chosen) ? chosen! : "";
-  if (name && lang === "es" && !name.startsWith("es-")) name = "";   // una voz inglesa no narra un video en español
-  if (name && lang !== "es" && name.startsWith("es-")) name = "";
+  // Una voz de otro idioma no narra el video: las de Chirp 3 HD existen en ambos idiomas y se pasan a la
+  // misma voz en el idioma del video; las demás se descartan (se usa la de Ajustes)
+  if (name && (lang === "es") !== name.startsWith("es-")) {
+    name = /-Chirp3-HD-/.test(name) ? name.replace(/^[a-z]{2,3}-[A-Z]{2}-/, `${GOOGLE_LANG[lang === "es" ? "es" : "en"]}-`) : "";
+  }
   if (!name && lang === "es") name = isGoogleName(g.voiceEs) ? g.voiceEs : `es-US-Chirp3-HD-${/-Chirp3-HD-(\w+)$/.exec(base.voice || g.voice)?.[1] ?? "Charon"}`;
   if (!name) name = base.voice || g.voice;
   return { ...base, voice: name, languageCode: name.split("-").slice(0, 2).join("-") };

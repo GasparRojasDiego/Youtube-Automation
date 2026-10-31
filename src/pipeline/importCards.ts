@@ -23,9 +23,10 @@ const str = (x: unknown) => (typeof x === "string" ? x.trim() : typeof x === "nu
 /** Duración en minutos [mín, máx]: número (minutos), [a, b] (minutos), «30 s», «45s», «30-45 s», «0:30», «1-2 min». */
 export function parseDuration(x: unknown, seconds = false): [number, number] | null {
   const k = seconds ? 1 / 60 : 1;
-  const r2 = (n: number) => Math.round(n * 100) / 100;
+  // 4 decimales: 20 s son 0,3333 min (con 2 serían 19,8 s)
+  const r4 = (n: number) => Math.round(n * 10000) / 10000;
   const pair = (lo: number, hi?: number): [number, number] | null => {
-    const a = r2(lo), b = r2(hi ?? lo * 1.12);
+    const a = r4(lo), b = r4(hi ?? lo * 1.12);
     return a > 0 && b >= a ? [a, b] : null;
   };
   if (typeof x === "number") return x > 0 ? pair(x * k) : null;
@@ -49,6 +50,7 @@ const HEX = /^#[0-9a-f]{6}$/i;
 export function mapCard(raw: Record<string, unknown>, mode: QueueMode, lang: "es" | "en", where: string): { cfg: Cfg; errors: string[]; warnings: string[] } {
   const cfg: Cfg = {}; const errors: string[] = []; const warnings: string[] = [];
   const publish: PublishPack = {};
+  let voice: string | null = null;
   for (const [k0, val] of Object.entries(raw ?? {})) {
     const k = norm(k0);
     switch (k) {
@@ -95,7 +97,7 @@ export function mapCard(raw: Record<string, unknown>, mode: QueueMode, lang: "es
       }
       case "archivos": case "files": cfg.files = (Array.isArray(val) ? val : [val]).map(str).filter(Boolean); break;
       case "internet": case "web": case "buscar_en_internet": cfg.web = val === true || /^(si|yes|true)$/.test(norm(str(val))); break;
-      case "voz": case "voice": cfg.voice = resolveVoice(str(val), cfg.language ?? lang); break;
+      case "voz": case "voice": voice = str(val); break;   // se resuelve al final, con el idioma ya leído
       case "portada_tiktok": case "portada_vertical": case "cover_tiktok": cfg.covers = { ...(cfg.covers ?? {}), tiktok: str(val) || null }; break;
       case "portada_youtube": case "miniatura": case "cover_youtube": cfg.covers = { ...(cfg.covers ?? {}), youtube: str(val) || null }; break;
       case "publicacion": case "publish": {
@@ -121,6 +123,7 @@ export function mapCard(raw: Record<string, unknown>, mode: QueueMode, lang: "es
     }
   }
   if (Object.keys(publish).length) cfg.publish = publish;
+  if (voice != null) cfg.voice = resolveVoice(voice, cfg.language ?? lang);
   return { cfg, errors, warnings };
 }
 

@@ -106,7 +106,7 @@ describe("importar tarjetas (JSON del chat de marketing)", () => {
     expect(p.cards).toHaveLength(2);
     expect(p.cards[0]).toMatchObject({ title: "Dijiste que estudiaste tres horas", covers: { tiktok: "portadas/01-tres-horas.png" } });
     expect(p.cards[0].publish).toMatchObject({ shortsTitle: "¿Cuánto estudias de verdad?" });
-    expect(p.cards[1].minutes).toEqual([0.33, 0.5]);
+    expect(p.cards[1].minutes).toEqual([0.3333, 0.5]);
   });
 
   it("señala errores y avisos sin adivinar", () => {
@@ -117,6 +117,8 @@ describe("importar tarjetas (JSON del chat de marketing)", () => {
     expect(p.warnings.join(" ")).toMatch(/«inventado» no se reconoce/);
     expect(p.warnings.join(" ")).toMatch(/usa «duracion_s»/);
     expect(p.campaign?.template.title).toBeUndefined();
+    // La voz se resuelve con el idioma aunque venga antes en el JSON
+    expect(I.parseCardsJson('[{"voz": "Puck", "idioma": "en"}]', "personal").cards[0].voice).toBe("en-US-Chirp3-HD-Puck");
     // Una lista sola también vale (tarjetas sueltas)
     const list = I.parseCardsJson('```json\n[{"titulo": "Solo"}]\n```', "personal");
     expect(list.errors).toEqual([]);
@@ -138,7 +140,7 @@ describe("importar tarjetas (JSON del chat de marketing)", () => {
     const mine = (await Q.listQueue(ch)).filter((x) => x.campaign_id === r.campaign!.id);
     expect(mine).toHaveLength(2);
     const uno = mine.find((x) => x.cfg.title === "Uno")!;
-    expect(uno.cfg).toMatchObject({ aesthetic: "Oscura", minutes: [0.33, 0.5], format: "9:16" });
+    expect(uno.cfg).toMatchObject({ aesthetic: "Oscura", minutes: [0.3333, 0.5], format: "9:16" });
     expect(uno.cfg.covers.tiktok).toContain(uno.id);                 // copiada a la carpeta de la tarjeta
     expect(nfs.existsSync(uno.cfg.covers.tiktok!)).toBe(true);
     expect(uno.overrides).toContain("covers");

@@ -212,11 +212,11 @@ function VoiceTile({ className }: { className: string }) {
       <Row label="Proveedor"><Sel v={s.tts.provider} on={(v) => void set("tts.provider", v)} opts={[["google", "Google (Chirp 3 HD)"], ["gemini", "Gemini TTS"], ["elevenlabs", "ElevenLabs"]]} /></Row>
       {s.tts.provider === "google" && <>
         <Row label="Voz en español" hint="Videos en español"><VoiceField lang="es" value={s.tts.google.voiceEs || null} inheritLabel="La misma voz en español" onChange={(id) => void set("tts.google.voiceEs", id ?? "")} /></Row>
-        <Row label="Voz en inglés" hint="Videos en inglés"><VoiceField lang="en" value={s.tts.google.voice} onChange={(id) => id && void set("tts.google.voice", id)} /></Row>
+        <Row label="Voz en inglés" hint="Videos en inglés"><VoiceField lang="en" required value={s.tts.google.voice} onChange={(id) => id && void set("tts.google.voice", id)} /></Row>
         <Row label="Velocidad"><Num v={s.tts.google.speakingRate} step={0.05} on={(v) => void set("tts.google.speakingRate", v)} /></Row>
       </>}
       {s.tts.provider === "gemini" && <>
-        <Row label="Voz"><VoiceField lang="es" value={s.tts.gemini.voice} onChange={(id) => id && void set("tts.gemini.voice", id)} /></Row>
+        <Row label="Voz"><VoiceField lang="es" required value={s.tts.gemini.voice} onChange={(id) => id && void set("tts.gemini.voice", id)} /></Row>
         <Row label="Estilo" hint="Instrucción de lectura"><Txt v={s.tts.gemini.style} on={(v) => void set("tts.gemini.style", v)} /></Row>
       </>}
       {s.tts.provider === "elevenlabs" && <>

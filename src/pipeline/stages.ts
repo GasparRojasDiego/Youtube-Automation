@@ -292,7 +292,8 @@ function unstretch(g: VoiceSegmentV2): VoiceSegmentV2 {
 async function stretchSegment(g: VoiceSegmentV2, breath: number, dir: string) {
   const src = { path: g.path, duration: g.duration, sentences: g.sentences, words: g.words };
   const outPath = joinPath(dir, `${g.segment_id}.aire${Math.round(breath * 1000)}.wav`);
-  if (!(await fs.exists(outPath))) await ffmpeg(stretchAudioArgs(src.path, outPath, sentenceCuts(src.sentences!), breath));
+  // Siempre se rehace (es inmediato): si la voz se volvió a narrar con el mismo aire, el archivo viejo tendría la voz anterior
+  await ffmpeg(stretchAudioArgs(src.path, outPath, sentenceCuts(src.sentences!), breath));
   const t = stretchTimings(src.sentences!, src.words, breath);
   Object.assign(g, { src, breath, path: outPath, duration: await probeDuration(outPath), sentences: t.spans, words: t.words });
 }

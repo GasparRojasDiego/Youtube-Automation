@@ -1,6 +1,6 @@
 # Guía para llenar la cola de producción de ATRIL
 
-*Versión 2.5.10. Para el gerente de marketing. La envía Diego.*
+*Versión 2.5.11. Para el gerente de marketing. La envía Diego.*
 
 ## 0. Tu papel y qué debes entregar
 
