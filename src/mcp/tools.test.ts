@@ -65,7 +65,11 @@ describe("herramientas MCP de ATRIL (contra la app real, sin ventana)", () => {
     expect(v.error).toBe(false);
     expect(v.data).toMatchObject({ title: "La fotosíntesis", platform: "youtube", mode: "personal", target_s: [60, 75] });
     expect(started).toContain(v.data.video_id);
-    const g = await tool("video_get", { id: v.data.video_id, include: ["stages", "files", "plan"] });
+    const { activity } = await import("../lib/activity");
+    await activity(v.data.video_id, "script", "decision", "Guion propio recibido");
+    const g = await tool("video_get", { id: v.data.video_id, include: ["stages", "files", "plan", "activity"] });
+    expect(g.data.activity.at(-1)).toMatchObject({ stage: "script", title: "Guion propio recibido" });
+    expect(g.data.activity.at(-1).at).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
     expect(g.data.stages.length).toBeGreaterThan(5);
     expect(g.data.state).toBe("paused");
     const { getVideo } = await import("../lib/repo");

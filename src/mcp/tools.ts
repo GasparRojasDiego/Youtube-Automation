@@ -370,7 +370,7 @@ export const TOOLS: ToolDef[] = [
       }
       if (inc.has("plan")) out.plan = get<VoiceOut>("voice")?.plan ?? null;
       if (inc.has("script")) out.script = get<ScriptOut>("script")?.segments.map((s) => ({ id: s.id, title: s.title, text: cut(s.text_en, 2500) })) ?? null;
-      if (inc.has("activity")) out.activity = (await listActivity(v.id, 15)).map((x: any) => ({ at: iso(x.created_at ?? x.at), stage: x.stage, kind: x.kind, title: cut(x.title, 160) }));
+      if (inc.has("activity")) out.activity = (await listActivity(v.id, 15)).map((x) => ({ at: iso(x.ts), stage: x.stage, kind: x.kind, title: cut(x.title, 160) }));
       if (inc.has("revisions")) out.revisions = ((v.data?.revisions ?? []) as any[]).slice(-5).map((r) => ({ at: iso(r.at), request: cut(r.request, 200), status: r.status, reply: cut(r.reply_es, 400) }));
       return ok(out);
     },
