@@ -6,10 +6,6 @@ import type { Frame } from "./montage";
 import type { CaptionParams } from "./captions";
 
 export type VideoFormat = "16:9" | "9:16";
-export const FORMATS: { id: VideoFormat; label: string; hint: string }[] = [
-  { id: "16:9", label: "Horizontal 16:9", hint: "YouTube" },
-  { id: "9:16", label: "Vertical 9:16", hint: "TikTok y YouTube Shorts" },
-];
 
 export const formatOf = (v: Pick<Video, "data"> | null | undefined): VideoFormat => (v?.data?.format === "9:16" ? "9:16" : "16:9");
 export const isVertical = (v: Pick<Video, "data"> | null | undefined) => formatOf(v) === "9:16";

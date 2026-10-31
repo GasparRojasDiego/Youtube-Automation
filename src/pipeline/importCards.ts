@@ -128,7 +128,7 @@ export function mapCard(raw: Record<string, unknown>, mode: QueueMode, lang: "es
 }
 
 /** Nombre corto («Kore») → voz completa del idioma en Google; las demás voces quedan como están. */
-function resolveVoice(name: string, lang: "es" | "en"): string | null {
+export function resolveVoice(name: string, lang: "es" | "en"): string | null {
   if (!name) return null;
   if (/^[a-z]{2}-[A-Z]{2}-/.test(name) || getSettings().tts.provider !== "google") return name;
   const v = CHIRP3.find((x) => x.name.toLowerCase() === name.toLowerCase());
@@ -199,7 +199,7 @@ async function bringFiles(ownerId: string, cfg: Cfg, baseDir: string | null, whe
 }
 
 /** Recursos de la biblioteca nombrados por título o por nombre de archivo → sus ids. */
-async function resolveLibrary(cfg: Cfg, where: string, warnings: string[]): Promise<Cfg> {
+export async function resolveLibrary(cfg: Cfg, where: string, warnings: string[]): Promise<Cfg> {
   if (cfg.library?.mode !== "pick") return cfg;
   const ids: string[] = [];
   for (const name of cfg.library.ids) {

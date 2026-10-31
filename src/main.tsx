@@ -40,6 +40,8 @@ async function boot() {
     if (!s.profile.name) { const n = (await appPaths()).home.split(/[\\/]/).filter(Boolean).pop(); if (n) await saveSettings((x) => ({ ...x, profile: { ...x.profile, name: n } })); }
     root.render(<React.StrictMode><App /></React.StrictMode>);
     await recoverOnStartup();
+    // Servidor MCP: cualquier chat de Claude puede usar ATRIL (solo en este equipo, con token)
+    void import("./mcp/host").then((m) => m.startMcp()).catch((e) => logError(e, null, "Servidor MCP"));
     // La cola de producción sigue donde iba (si estaba en marcha al cerrar)
     await resumeQueueOnStartup().catch((e) => logError(e, null, "Cola de producción"));
   } catch (e) {

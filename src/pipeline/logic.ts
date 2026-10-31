@@ -1,7 +1,7 @@
 // Lógica pura del pipeline (sin E/S): validación de guion, reparación del plan
 // visual, reparto de tiempos, capítulos, subtítulos y descripción.
 import { wordCount, fmtDuration } from "../lib/util";
-import type { ScriptOut, ResearchOut, VerifyOut, Source, ClaimCheck } from "./types";
+import type { ScriptOut, ResearchOut, VerifyOut, ClaimCheck } from "./types";
 
 // ---------- Guion ----------
 export interface ScriptIssue { segment_id: string; claim_id?: string; problem_es: string; severity: "warn" | "block" }
@@ -156,12 +156,6 @@ export function disclosureFor(text: string, lang: string, o: { generatedImages: 
 }
 
 // ---------- Descripción ----------
-export function usedSources(script: ScriptOut, research: ResearchOut): Source[] {
-  const ids = new Set<string>();
-  for (const seg of script.segments) { seg.claims.forEach((c) => c.source_ids.forEach((s) => ids.add(s))); seg.on_screen_sources.forEach((s) => ids.add(s)); }
-  return research.sources.filter((s) => ids.has(s.id));
-}
-
 /** Descripción: el texto, los capítulos y el aviso de IA (sin lista de fuentes; los créditos se añaden al subir). */
 export function composeDescription(o: { body: string; chapters: { t: number; title: string }[]; disclosure: string }): string {
   const parts = [o.body.trim()];

@@ -150,6 +150,10 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_campaigns ON campaigns(channel_id, created_at);
   ALTER TABLE queue_items ADD COLUMN campaign_id TEXT;
   `,
+  // 8 — 2.5.12: huella del contenido de cada recurso (duplicados aunque cambie el nombre)
+  `
+  CREATE INDEX IF NOT EXISTS idx_assets_sha ON assets(sha);
+  `,
 ];
 
 export async function migrate(): Promise<void> {

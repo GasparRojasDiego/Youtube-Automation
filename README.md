@@ -1,6 +1,6 @@
 # ATRIL
 
-**Estudio de producción asistida para YouTube** · v2.5.11
+**Estudio de producción asistida para YouTube** · v2.5.12
 
 ATRIL produce un video en inglés a partir de tu idea, sin pedirte nada por el camino; tú revisas el video final. **Nada se publica sin tu aprobación.**
 
@@ -12,8 +12,8 @@ App de escritorio para Windows (Tauri 2 + React).
 
 En *Releases*:
 
-- `ATRIL_2.5.11_instalador_x64.exe`: recomendado.
-- `ATRIL_2.5.11_portable_x64.zip`: portátil (descomprime toda la carpeta).
+- `ATRIL_2.5.12_instalador_x64.exe`: recomendado.
+- `ATRIL_2.5.12_portable_x64.zip`: portátil (descomprime toda la carpeta).
 - `SHA256SUMS.txt`: huellas para comprobar las descargas (ver `SECURITY.md`).
 
 ## Principios
@@ -32,6 +32,7 @@ En *Releases*:
 - **Voces:** escucha y elige entre las voces del proveedor (30 de Chirp 3 HD en español y en inglés); una por defecto en Ajustes y otra por tarjeta o campaña si quieres.
 - **Cola de producción con campañas:** hasta 50 videos seguidos; una campaña guarda la plantilla común y cada tarjeta solo lo que cambia. Se importan en bloque desde un JSON (por ejemplo, el del chat de marketing). Si se agota el límite del plan, espera a que se reponga y sigue sola. Guía: `docs/guia-cola-marketing.md`.
 - **Filtros:** Videos por plataforma, modo, estado y texto; Biblioteca por forma, estado, fuente, calidad y orden.
+- **Desde Claude (MCP):** cualquier chat nuevo de Claude Desktop o Claude Code puede usar ATRIL (crear videos, manejar la cola y las campañas, buscar material libre, importar y ordenar la biblioteca) con un servidor local protegido por token. Publicar sigue siendo solo tuyo. Guía: `docs/mcp.md`.
 - **Tus portadas, tal cual:** la de YouTube es la miniatura; ambas van incrustadas en las descargas y en las partes de TikTok.
 
 ## Estructura

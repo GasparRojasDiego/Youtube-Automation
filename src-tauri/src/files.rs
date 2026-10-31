@@ -115,6 +115,34 @@ pub fn fs_size(path: String) -> Result<u64, String> {
     std::fs::metadata(&path).map(|m| m.len()).map_err(|e| e.to_string())
 }
 
+/// Huella del contenido de un archivo: SHA-256 de su tamaño, sus primeros 64 KB y sus últimos 64 KB.
+/// Distingue archivos distintos con la misma ruta y detecta copias del mismo archivo con otro nombre,
+/// sin leer videos enteros.
+pub fn fingerprint(path: &str) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    use std::io::{Read, Seek, SeekFrom};
+    const BLOCK: u64 = 65_536;
+    let mut f = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let len = f.metadata().map_err(|e| e.to_string())?.len();
+    let mut h = Sha256::new();
+    h.update(len.to_le_bytes());
+    let mut buf = Vec::new();
+    (&mut f).take(BLOCK).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+    h.update(&buf);
+    if len > 2 * BLOCK {
+        f.seek(SeekFrom::End(-(BLOCK as i64))).map_err(|e| e.to_string())?;
+        buf.clear();
+        f.take(BLOCK).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+        h.update(&buf);
+    }
+    Ok(format!("fp1:{:x}", h.finalize()))
+}
+
+#[tauri::command]
+pub async fn fs_fingerprint(path: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || fingerprint(&path)).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn disk_free(path: String) -> Result<u64, String> {
     fs2::available_space(&path).map_err(|e| e.to_string())
@@ -128,6 +156,8 @@ pub struct AppPaths {
     home: String,
     documents: String,
     downloads: String,
+    exe: String,
+    pid: u32,
 }
 
 #[tauri::command]
@@ -148,6 +178,8 @@ pub fn app_paths(app: tauri::AppHandle) -> Result<AppPaths, String> {
         home: home.to_string_lossy().to_string(),
         documents: documents.to_string_lossy().to_string(),
         downloads: downloads.to_string_lossy().to_string(),
+        exe: std::env::current_exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+        pid: std::process::id(),
     })
 }
 
@@ -211,3 +243,28 @@ pub fn wav_duration(path: String) -> Result<f64, String> {
     Ok(data as f64 / rate as f64)
 }
 
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn huella_por_contenido_y_no_por_nombre() {
+        let dir = std::env::temp_dir().join(format!("atril-fp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (a, b, c, big) = (dir.join("a.bin"), dir.join("copia con otro nombre.bin"), dir.join("c.bin"), dir.join("grande.bin"));
+        std::fs::write(&a, b"mismo contenido").unwrap();
+        std::fs::write(&b, b"mismo contenido").unwrap();
+        std::fs::write(&c, b"otro contenido!").unwrap();
+        let mut data = vec![7u8; 300_000];
+        std::fs::write(&big, &data).unwrap();
+        let fa = super::fingerprint(a.to_str().unwrap()).unwrap();
+        assert!(fa.starts_with("fp1:") && fa.len() == 68);
+        assert_eq!(fa, super::fingerprint(b.to_str().unwrap()).unwrap());
+        assert_ne!(fa, super::fingerprint(c.to_str().unwrap()).unwrap());
+        // Un cambio al final de un archivo grande cambia la huella
+        let before = super::fingerprint(big.to_str().unwrap()).unwrap();
+        *data.last_mut().unwrap() = 8;
+        std::fs::write(&big, &data).unwrap();
+        assert_ne!(before, super::fingerprint(big.to_str().unwrap()).unwrap());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}

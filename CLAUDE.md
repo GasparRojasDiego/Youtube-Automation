@@ -24,4 +24,5 @@ Cuando una respuesta cambie algo (código, documentos, versión), deja una sínt
   - Su ficha está en `src/motion/pieces.ts`.
   - Las vistas previas (`public/piezas/`) se regeneran con `FULL=1 npx vitest run -c vitest.e2e.config.ts e2e/piezas.e2e.ts`.
 - **Llamadas de ATRIL a Claude**: no cargan `CLAUDE.md`, skills globales ni MCP, para gastar menos tokens. Esta guía es solo para quien desarrolla.
+- **Servidor MCP de ATRIL** (para que otros chats de Claude usen la app): herramientas en `src/mcp/tools.ts`, protocolo en `src/mcp/protocol.ts`, servidor HTTP en `src-tauri/src/mcp.rs`, puente de Claude Desktop en `src/mcp/bridge.cjs`. Una función nueva de la app que sirva desde un chat debe tener su herramienta (respuesta compacta, sin publicar nada). Guía: `docs/mcp.md`.
 - **Nunca se publica un video sin aprobación explícita del usuario.**

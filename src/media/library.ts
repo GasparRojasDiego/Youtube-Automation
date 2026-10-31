@@ -73,6 +73,9 @@ export async function importCandidate(c: Candidate): Promise<Asset> {
   let info = { width: c.width ?? 0, height: c.height ?? 0, duration: c.duration ?? 0 };
   try { const m = await probeMedia(path); info = { width: m.width || info.width, height: m.height || info.height, duration: m.duration || info.duration }; }
   catch (e) { await fs.remove(path); throw new Error(`El archivo descargado no es válido (${c.source} ${c.sourceId}): ${e instanceof Error ? e.message : e}`); }
+  const fp = await fs.fingerprint(path).catch(() => null);
+  const same = fp ? (await db.query<{ id: string }>("SELECT id FROM assets WHERE sha=? AND source<>'personal' AND id<>? LIMIT 1", [fp, id]))[0] : undefined;
+  if (same) { const a = await getAsset(same.id); if (a && (await fs.exists(a.path))) { await fs.remove(path).catch(() => undefined); return a; } }
   const thumb = joinPath(root, ".miniaturas", `${id}.${c.kind === "sfx" || c.kind === "music" ? "png" : "jpg"}`);
   try { await makeThumb({ kind: c.kind, path, duration: info.duration }, thumb); } catch { /* sin miniatura */ }
   const t = now();
@@ -83,10 +86,10 @@ export async function importCandidate(c: Candidate): Promise<Asset> {
     tags: c.tags.join(", "),
   };
   await db.execute(
-    `INSERT OR REPLACE INTO assets(id,kind,source,source_id,url,page_url,title,author,license,license_url,attribution,path,thumb,width,height,duration,bytes,query,tags,created_at,usable)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
+    `INSERT OR REPLACE INTO assets(id,kind,source,source_id,url,page_url,title,author,license,license_url,attribution,path,thumb,width,height,duration,bytes,query,tags,sha,created_at,usable)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
     [row.id, row.kind, row.source, row.source_id, row.url, row.page_url, row.title, row.author, row.license, row.license_url, row.attribution, row.path, row.thumb,
-      row.width, row.height, row.duration, row.bytes, row.query, row.tags, ex?.created_at ?? t]);
+      row.width, row.height, row.duration, row.bytes, row.query, row.tags, fp, ex?.created_at ?? t]);
   await indexFts({ id, title: row.title, description: "", tags: row.tags, query: row.query });
   emit("assets");
   return (await getAsset(id))!;
@@ -99,9 +102,10 @@ export async function importCandidate(c: Candidate): Promise<Asset> {
  */
 export async function importLocalFile(src: string, kind: AssetKind, meta: { title?: string; license?: string; attribution?: string; note?: string; personal?: boolean } = {}): Promise<Asset> {
   const source = meta.personal ? "personal" : "user";
-  // El mismo archivo importado otra vez: se devuelve el que ya está en la biblioteca
+  // El mismo archivo importado otra vez (aunque tenga otro nombre o esté en otra carpeta): se devuelve el que ya está
   const hash = await sha256(`${src}|${await fs.size(src)}`);
-  const dup = await db.query<{ id: string }>("SELECT id FROM assets WHERE source=? AND source_id=?", [source, hash.slice(0, 24)]);
+  const fp = await fs.fingerprint(src);
+  const dup = await db.query<{ id: string }>(`SELECT id FROM assets WHERE (source=? AND source_id=?) OR (sha=? AND ${meta.personal ? "source='personal'" : "source<>'personal'"}) LIMIT 1`, [source, hash.slice(0, 24), fp]);
   if (dup[0]) { const a = await getAsset(dup[0].id); if (a && (await fs.exists(a.path))) return a; await db.execute("DELETE FROM assets WHERE id=?", [dup[0].id]); }
   const root = await libraryRoot();
   const id = uid("as_");
@@ -116,7 +120,7 @@ export async function importLocalFile(src: string, kind: AssetKind, meta: { titl
     `INSERT INTO assets(id,kind,source,source_id,url,page_url,title,author,license,license_url,attribution,path,thumb,width,height,duration,bytes,sha,query,issues,created_at,usable)
      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
     [id, kind, source, hash.slice(0, 24), null, null, title, "Propio", meta.license || "Derechos del usuario", "", meta.attribution || "", path,
-      (await fs.exists(thumb)) ? thumb : null, m.width || null, m.height || null, m.duration || null, await fs.size(path), hash, "", meta.note ?? "", now()]);
+      (await fs.exists(thumb)) ? thumb : null, m.width || null, m.height || null, m.duration || null, await fs.size(path), fp, "", meta.note ?? "", now()]);
   await indexFts({ id, title, description: "", tags: "", query: "" });
   emit("assets");
   return (await getAsset(id))!;

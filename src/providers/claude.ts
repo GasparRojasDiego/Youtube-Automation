@@ -340,7 +340,7 @@ export async function refreshPlanUsage(): Promise<ClaudeLimits | null> {
  * y cmd.exe rompe argumentos con comillas o símbolos (el esquema JSON). En ese
  * caso se ejecuta node directamente con el script del CLI.
  */
-async function resolveLauncher(resolved: string): Promise<{ program: string; prefix: string[] }> {
+export async function resolveLauncher(resolved: string): Promise<{ program: string; prefix: string[] }> {
   if (!/\.(cmd|bat)$/i.test(resolved)) return { program: resolved, prefix: [] };
   try {
     const text = await fs.readText(resolved);

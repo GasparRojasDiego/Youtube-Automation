@@ -4,7 +4,7 @@ import { VoiceField } from "../ui/VoicePicker";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   KeyRound, Bot, Mic, Image as ImageIcon, Music2, Film, Sparkles, Factory, Trash2, Plus, Check, Copy, Sun, Moon, Camera,
-  FolderOpen, Download, AlertTriangle, ClipboardCopy, Wand2, Info, MonitorPlay, NotebookPen, type LucideIcon,
+  FolderOpen, Download, AlertTriangle, ClipboardCopy, Wand2, Info, MonitorPlay, NotebookPen, Plug, RotateCcw, type LucideIcon,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, openPath } from "@tauri-apps/plugin-opener";
@@ -29,6 +29,8 @@ import { toast, logError } from "../lib/events";
 import { detectVaults, atrilFolder, claudeMemory, MEMORY_NOTE, type Vault } from "../lib/obsidian";
 import { joinPath, uid, baseName } from "../lib/util";
 import { fmtK } from "../lib/usage";
+import { mcpState, setMcpEnabled, buildMcpb, addToClaudeCode, claudeCodeCommand, stdioConfig, rotateToken } from "../mcp/host";
+import { askConfirm } from "../ui/Ask";
 
 /** Edita un valor anidado de los ajustes por ruta («tts.google.voice»). */
 function useSetting() {
@@ -76,6 +78,7 @@ export function SettingsPage() {
         <ProductionTile className="col-span-4" />
         <MontageTile className="col-span-4" />
         <AboutTile className="col-span-4" />
+        <McpTile className="col-span-12" />
         <ObsidianTile className="col-span-12" />
         <MusicTile className="col-span-12" />
       </div>
@@ -436,6 +439,57 @@ function ObsidianTile({ className }: { className: string }) {
           </Row>
           <Row label="Carpeta de ATRIL" hint={folder ?? "Sin bóveda"}><button className="btn-ghost btn-sm" disabled={!folder} onClick={async () => { await fs.mkdir(folder!); await openPath(folder!); }}><FolderOpen size={13} /> Abrir</button></Row>
           <Row label="Buscar de nuevo"><AsyncButton className="btn-ghost btn-sm" onClick={refresh}>Detectar</AsyncButton></Row>
+        </div>
+      </div>
+    </Tile>
+  );
+}
+
+function McpTile({ className }: { className: string }) {
+  useBus("mcp", "settings");
+  const s = getSettings();
+  const st = mcpState();
+  const [copied, setCopied] = useState("");
+  const copy = async (what: string, text: string) => { try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(""), 1500); } catch { toast("warn", "No se pudo copiar"); } };
+  return (
+    <Tile title="Claude (MCP)" icon={Plug} className={className}
+      actions={<Chip tone={st.running ? "green" : "muted"}>{st.running ? <><Check size={11} /> Escuchando en 127.0.0.1:{st.port}</> : s.mcp.enabled ? (st.error ? "Error" : "Iniciando…") : "Apagado"}</Chip>}>
+      <p className="text-[12.5px] text-muted-foreground -mt-1 mb-3">Con esto, cualquier chat nuevo de Claude (Claude Desktop, Claude Code) puede usar ATRIL: crear videos, seguir su producción, manejar la cola y las campañas, y llenar y ordenar tu biblioteca. Solo funciona en este equipo y con tu token. Publicar en YouTube sigue siendo solo tuyo.</p>
+      {st.error && <div className="mb-3 text-[12.5px] text-red-600 dark:text-red-500">{st.error}</div>}
+      <div className="grid grid-cols-2 gap-x-8">
+        <div>
+          <Row label="Permitir que Claude use ATRIL" hint="Servidor MCP local (solo 127.0.0.1, protegido con token)"><Toggle checked={s.mcp.enabled} onChange={(v) => void setMcpEnabled(v)} /></Row>
+          <Row label="Claude Desktop" hint="Crea el paquete ATRIL.mcpb en Descargas y lo abre: Claude pregunta si instalarlo. Si no se abre, arrástralo a Claude → Configuración → Extensiones.">
+            <AsyncButton className="btn-brand btn-sm" disabled={!st.running} onClick={async () => { try { const f = await buildMcpb(); await openPath(f).catch(() => undefined); toast("success", "Paquete listo", f); } catch (e) { await logError(e, null, "Paquete de Claude Desktop"); } }}><Download size={13} /> Instalar</AsyncButton>
+          </Row>
+          <Row label="Claude Code" hint="Lo registra para todos tus proyectos (claude mcp add)">
+            <div className="flex gap-1.5">
+              <AsyncButton className="btn-ghost btn-sm" disabled={!st.running} onClick={async () => { try { await addToClaudeCode(); toast("success", "ATRIL añadido a Claude Code", "Ábrelo en un chat nuevo: /mcp lo muestra conectado."); } catch (e) { await logError(e, null, "Claude Code"); } }}><Plug size={13} /> Añadir</AsyncButton>
+              <button className="btn-ghost btn-sm" disabled={!st.running} title="Copiar el comando" onClick={() => void copy("cmd", claudeCodeCommand())}>{copied === "cmd" ? <Check size={13} /> : <Copy size={13} />}</button>
+            </div>
+          </Row>
+          <Row label="Otros clientes MCP" hint="Configuración JSON por stdio (necesita Node)">
+            <AsyncButton className="btn-ghost btn-sm" disabled={!st.running} onClick={async () => copy("json", await stdioConfig())}>{copied === "json" ? <Check size={13} /> : <Copy size={13} />} Copiar</AsyncButton>
+          </Row>
+          <Row label="Token" hint="Si lo cambias, vuelve a instalar en Claude Desktop y Claude Code">
+            <AsyncButton className="btn-ghost btn-sm" disabled={!st.running} onClick={async () => { if (await askConfirm("¿Cambiar el token?", { body: "Los clientes conectados dejarán de funcionar hasta que los vuelvas a instalar.", confirm: "Cambiar" })) await rotateToken(); }}><RotateCcw size={13} /> Cambiar</AsyncButton>
+          </Row>
+        </div>
+        <div>
+          <div className="label mb-1.5">Lo último que hizo Claude</div>
+          {st.calls.length === 0 ? <div className="text-[12.5px] text-muted-foreground">Nada todavía. Prueba en un chat nuevo: «Usa ATRIL y dime su estado».</div> : (
+            <div className="space-y-1 max-h-56 overflow-auto pr-1">
+              {st.calls.slice(0, 20).map((c, i) => (
+                <div key={i} className="flex items-center gap-2 text-[12px]">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.ok ? "bg-green-500" : "bg-red-500"}`} />
+                  <span className="tabular text-muted-foreground w-12 shrink-0">{new Date(c.at).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                  <span className="font-mono shrink-0">{c.tool}</span>
+                  <span className="text-muted-foreground truncate" title={c.summary}>{c.summary}</span>
+                  <span className="ml-auto tabular text-muted-foreground shrink-0">{c.ms < 1000 ? `${c.ms} ms` : `${(c.ms / 1000).toFixed(1)} s`}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </Tile>

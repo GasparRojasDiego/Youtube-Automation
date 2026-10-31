@@ -28,6 +28,8 @@ export const fs = {
   copy: (from: string, to: string) => invoke<void>("fs_copy", { from, to }),
   list: (path: string) => invoke<DirEntry[]>("fs_list", { path }),
   size: (path: string) => invoke<number>("fs_size", { path }),
+  /** Huella del contenido (tamaño + primeros y últimos 64 KB): detecta copias aunque cambie el nombre. */
+  fingerprint: (path: string) => invoke<string>("fs_fingerprint", { path }),
   diskFree: (path: string) => invoke<number>("disk_free", { path }),
 };
 
@@ -87,6 +89,16 @@ export const oauth = {
   wait: (port: number, timeoutS = 300) => invoke<Record<string, string>>("oauth_wait", { port, timeoutS }),
 };
 
+/** Servidor MCP local (src-tauri/src/mcp.rs): Rust escucha en 127.0.0.1 y la lógica responde desde aquí. */
+export interface McpRequest { key: number; body: string; headers: Record<string, string> }
+export const mcp = {
+  start: (port: number, token: string) => invoke<number>("mcp_start", { port, token }),
+  stop: () => invoke<void>("mcp_stop"),
+  reply: (key: number, status: number, body: string) => invoke<void>("mcp_reply", { key, status, body }),
+  focus: () => invoke<void>("mcp_focus").catch(() => undefined),
+  onRequest: (cb: (r: McpRequest) => void): Promise<UnlistenFn> => listen<McpRequest>("mcp-request", (e) => cb(e.payload)),
+};
+
 export const youtubeUpload = (id: string, filePath: string, metadataJson: string, accessToken: string, sessionUrl?: string | null) =>
   invoke<string>("youtube_upload", { id, filePath, metadataJson, accessToken, sessionUrl: sessionUrl ?? null });
 
@@ -95,7 +107,7 @@ export const onUploadProgress = (cb: (p: { id: string; sent: number; total: numb
 export const onUploadSession = (cb: (p: { id: string; session: string }) => void) =>
   listen<{ id: string; session: string }>("upload-session", (e) => cb(e.payload));
 
-export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string; downloads: string }
+export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string; downloads: string; exe?: string; pid?: number }
 let pathsCache: AppPaths | null = null;
 export async function appPaths(): Promise<AppPaths> {
   if (!pathsCache) pathsCache = await invoke<AppPaths>("app_paths");

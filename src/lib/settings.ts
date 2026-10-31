@@ -67,6 +67,8 @@ export interface AppSettings {
   assets: { parallel: number };         // tomas que se buscan y descargan a la vez
   ffmpeg: { path: string; encoder: "auto" | "h264_qsv" | "h264_mf" | "libx264"; quality: number };
   obsidian: { enabled: boolean; vault: string; folder: string };   // vault vacío = la detectada
+  /** Servidor MCP local: deja que cualquier chat de Claude use ATRIL (solo en este equipo, con token). */
+  mcp: { enabled: boolean; port: number; token: string };
 }
 
 export const SETTINGS_VERSION = 24;
@@ -127,6 +129,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   assets: { parallel: 4 },
   ffmpeg: { path: "", encoder: "auto", quality: 21 },
   obsidian: { enabled: true, vault: "", folder: "ATRIL" },
+  mcp: { enabled: true, port: 47821, token: "" },
 };
 
 function deepMerge<T>(base: T, over: any): T {

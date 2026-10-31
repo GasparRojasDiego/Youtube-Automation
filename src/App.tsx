@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Monitor, Clapperboard, Sparkles, Smartphone, MonitorPlay, Library, Download, type LucideIcon } from "lucide-react";
 import { navigate, useRoute, type Page } from "./ui/nav";
 import { AtrilLogo } from "./ui/Logo";
@@ -9,13 +9,14 @@ import { useBus } from "./lib/bus";
 import { getSettings, isDark } from "./lib/settings";
 import { runningVideoId } from "./pipeline/runner";
 import { Studio } from "./pages/Today";
-import { VideosPage } from "./pages/Videos";
-import { VideoDetail } from "./pages/VideoDetail";
-import { Skills } from "./pages/Skills";
-import { StudioPage } from "./pages/Studio";
-import { LibraryPage } from "./pages/Library";
-import { SettingsPage } from "./pages/Settings";
-import { Welcome } from "./pages/Welcome";
+// Las demás pantallas se cargan al abrirlas: la app arranca con menos código
+const VideosPage = lazy(() => import("./pages/Videos").then((m) => ({ default: m.VideosPage })));
+const VideoDetail = lazy(() => import("./pages/VideoDetail").then((m) => ({ default: m.VideoDetail })));
+const Skills = lazy(() => import("./pages/Skills").then((m) => ({ default: m.Skills })));
+const StudioPage = lazy(() => import("./pages/Studio").then((m) => ({ default: m.StudioPage })));
+const LibraryPage = lazy(() => import("./pages/Library").then((m) => ({ default: m.LibraryPage })));
+const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
+const Welcome = lazy(() => import("./pages/Welcome").then((m) => ({ default: m.Welcome })));
 import { startUpdateChecks, updateState } from "./lib/updater";
 import { AskHost } from "./ui/Ask";
 
@@ -68,7 +69,7 @@ export default function App() {
     return () => ro.disconnect();
   }, [activeId, collapsed, s.onboarded]);
 
-  if (!s.onboarded) return (<><Welcome /><Toaster /><AskHost /></>);
+  if (!s.onboarded) return (<><Suspense fallback={null}><Welcome /></Suspense><Toaster /><AskHost /></>);
 
   const up = updateState();
   const running = !!runningVideoId();
@@ -140,7 +141,7 @@ export default function App() {
         </div>
       </aside>
       <main id="main-scroll" className="relative z-10 flex-1 min-w-0 overflow-y-auto">
-        <div key={`${route.page}:${route.id ?? ""}`} className="max-w-[1240px] mx-auto px-8 py-8 animate-page-in">{page}</div>
+        <div key={`${route.page}:${route.id ?? ""}`} className="max-w-[1240px] mx-auto px-8 py-8 animate-page-in"><Suspense fallback={null}>{page}</Suspense></div>
       </main>
       <UpdateDialog open={updating} onClose={() => setUpdating(false)} />
       <Toaster />

@@ -3,7 +3,7 @@
 // corte en un fotograma clave que cae, si es posible, en la pausa entre dos frases.
 import { fs, appPaths } from "../lib/ipc";
 import { UserError } from "../lib/events";
-import { updateVideo, getStages, getVideo, type Video } from "../lib/repo";
+import { updateVideo, getStages, type Video } from "../lib/repo";
 import { skillParams, MONTAGE_DEFAULTS } from "../lib/skills";
 import { ffmpeg } from "../providers/ffmpeg";
 import { joinPath } from "../lib/util";
@@ -140,13 +140,6 @@ export async function downloadVideo(v: Video): Promise<string> {
     } catch (e) { if (!inUse(e)) throw e; }
   }
   throw busyError("el video en Descargas");
-}
-
-/** El video en Descargas; si se borró, se vuelve a descargar. */
-export async function ensureDownloaded(v: Video): Promise<string> {
-  const fresh = (await getVideo(v.id)) ?? v;
-  const p = fresh.data.download as string | undefined;
-  return p && (await fs.exists(p)) ? p : downloadVideo(fresh);
 }
 
 /** Recorta el video terminado en partes de ~1:30 dentro de Descargas/<título>/. Devuelve la carpeta. */

@@ -35,6 +35,18 @@ export const fs = {
   copy: async (a: string, b: string) => { nfs.mkdirSync(path.dirname(b), { recursive: true }); nfs.copyFileSync(a, b); },
   list: async (p: string): Promise<DirEntry[]> => (nfs.existsSync(p) ? nfs.readdirSync(p).map((n) => { const f = path.join(p, n); const st = nfs.statSync(f); return { name: n, path: f, is_dir: st.isDirectory(), size: st.size, modified: Math.floor(st.mtimeMs / 1000) }; }) : []),
   size: async (p: string) => nfs.statSync(p).size,
+  // Misma huella que src-tauri/src/files.rs: SHA-256 de tamaño (u64 LE) + primeros 64 KB + últimos 64 KB
+  fingerprint: async (p: string) => {
+    const { createHash } = await import("node:crypto");
+    const len = nfs.statSync(p).size; const B = 65536;
+    const h = createHash("sha256"); const sz = Buffer.alloc(8); sz.writeBigUInt64LE(BigInt(len)); h.update(sz);
+    const fd = nfs.openSync(p, "r");
+    try {
+      const head = Buffer.alloc(Math.min(B, len)); nfs.readSync(fd, head, 0, head.length, 0); h.update(head);
+      if (len > 2 * B) { const tail = Buffer.alloc(B); nfs.readSync(fd, tail, 0, B, len - B); h.update(tail); }
+    } finally { nfs.closeSync(fd); }
+    return `fp1:${h.digest("hex")}`;
+  },
   diskFree: async (p: string) => { const s = nfs.statfsSync(p); return s.bavail * s.bsize; },
 };
 
@@ -113,10 +125,11 @@ export function wavSeconds(file: string): number {
 export const media = { wavDuration: async (p: string) => wavSeconds(p) };
 export const oauth = { listen: async () => 0, wait: async () => ({}) };
 export const youtubeUpload = async () => { throw new Error("no"); };
+export const mcp = { start: async (port: number) => port, stop: async () => undefined, reply: async () => undefined, focus: async () => undefined, onRequest: async () => () => {} };
 export const onUploadProgress = async () => () => {};
 export const onUploadSession = async () => () => {};
 
-export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string; downloads: string }
+export interface AppPaths { data: string; exe_dir: string; resources: string; home: string; documents: string; downloads: string; exe?: string; pid?: number }
 let paths: AppPaths | null = null;
 export function setPaths(p: AppPaths) { paths = p; }
 export async function appPaths(): Promise<AppPaths> { return paths!; }

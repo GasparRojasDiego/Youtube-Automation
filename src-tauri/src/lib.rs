@@ -1,5 +1,6 @@
 mod db;
 mod files;
+mod mcp;
 mod net;
 mod proc;
 
@@ -132,6 +133,7 @@ pub fn run() {
         .manage(proc::Procs::default())
         .manage(proc::Daemons::default())
         .manage(OAuth::default())
+        .manage(mcp::Mcp::default())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -154,6 +156,7 @@ pub fn run() {
             files::fs_copy,
             files::fs_list,
             files::fs_size,
+            files::fs_fingerprint,
             files::disk_free,
             files::app_paths,
             files::update_install,
@@ -174,6 +177,10 @@ pub fn run() {
             secret_delete,
             oauth_listen,
             oauth_wait,
+            mcp::mcp_start,
+            mcp::mcp_stop,
+            mcp::mcp_reply,
+            mcp::mcp_focus,
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar ATRIL");

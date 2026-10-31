@@ -10,7 +10,6 @@ import { encoderArgs } from "./montage";
 
 export type CoverKind = "youtube" | "tiktok";
 export const COVER_EXT = ["jpg", "jpeg", "png", "webp"];
-export const COVER_LABEL: Record<CoverKind, string> = { youtube: "Portada de YouTube (16:9)", tiktok: "Portada de TikTok (9:16)" };
 const KEEP = new Set(["jpg", "jpeg", "png"]);
 
 /** Portadas guardadas del video (con la de TikTok anterior a la 2.5.8 como respaldo). */

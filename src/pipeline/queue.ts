@@ -400,12 +400,20 @@ const hhmm = (t: number) => `el ${new Date(t).toLocaleString("es-PE", { weekday:
 
 // ---------- Creación del video de una tarjeta ----------
 export async function videoForItem(it: QueueItem): Promise<Video> {
+  return createVideoFromCfg(it.channel_id, it.mode, it.cfg, { queue: { item: it.id, campaign: it.campaign_id } });
+}
+
+/**
+ * Crea el video de una configuración (la de una tarjeta o la que manda Claude por MCP). `origin` se
+ * guarda en los datos del video; `iterate` activa la mejora continua de un video personal.
+ */
+export async function createVideoFromCfg(channelId0: string | null, mode: QueueMode, cfg: AutoCfg | PersonalCfg, origin: Record<string, unknown>, o: { iterate?: boolean } = {}): Promise<Video> {
   const ch = await activeChannel();
-  const channelId = it.channel_id || ch?.id;
+  const channelId = channelId0 || ch?.id;
   if (!channelId) throw new UserError("No hay canal.", "Crea un canal en Ajustes.", "cola", false);
   let v: Video | null;
-  if (isAuto(it)) {
-    const c = it.cfg;
+  if (mode === "auto") {
+    const c = cfg as AutoCfg;
     const topics = await listTopics(channelId);
     let topic: Topic | null = null;
     if (c.topic.kind === "topic") {
@@ -423,24 +431,24 @@ export async function videoForItem(it: QueueItem): Promise<Video> {
     const notes = [topic.notes, c.notes.trim() && `Operator's focus for this video: ${c.notes.trim()}`, c.title.trim() && `Title fixed by the operator (use it exactly): ${c.title.trim()}`].filter(Boolean).join("\n\n");
     v = await createVideo(channelId, topic.id ? topic : null, { title: c.title.trim() || topic.title });
     await updateVideo(v.id, { data: { topic: { title: topic.title, angle: topic.angle, notes, sources: topic.sources }, format: c.format, minutesRange: c.minutes, fixedTitle: c.title.trim() || null,
-      queue: { item: it.id, campaign: it.campaign_id }, voice: c.voice || null, publish: c.publish || null } });
+      ...origin, voice: c.voice || null, publish: c.publish || null } });
   } else {
-    const p = it.cfg as PersonalCfg;
+    const p = cfg as PersonalCfg;
     const files = p.files.filter((f) => kindOf(f));
     for (const f of files) if (!(await fs.exists(f))) throw new UserError(`No encuentro el archivo «${f.split(/[\\/]/).pop()}» de esta tarjeta.`, "Vuelve a añadirlo en la tarjeta y pulsa «Reintentar».", "cola", false);
     v = await createPersonal({
-      channelId, prompt: "", description: p.description, minutes: (p.minutes[0] + p.minutes[1]) / 2, language: p.language, useLibrary: p.web, iterate: false,
+      channelId, prompt: "", description: p.description, minutes: (p.minutes[0] + p.minutes[1]) / 2, language: p.language, useLibrary: p.web, iterate: !!o.iterate,
       files, script: p.scriptFile && !p.script.trim() ? p.scriptFile : null, scriptText: p.script.trim() || null, format: p.format,
       extra: { title: p.title.trim() || undefined, about: p.about.trim() || undefined, audience: p.audience.trim() || undefined, cta: p.cta.trim() || undefined,
         tone: p.tone ?? undefined, toneCustom: p.tone === "custom" ? p.toneCustom : null, aesthetic: p.aesthetic.trim() || undefined, minutesRange: p.minutes,
         palette: p.palette, font: p.font, library: p.library },
     });
-    if (!v) throw new UserError("No se pudo crear el video de esta tarjeta.", "Revisa que tenga título, descripción o guion.", "cola", false);
-    await updateVideo(v.id, { data: { queue: { item: it.id, campaign: it.campaign_id }, voice: p.voice || null, publish: p.publish || null } });
+    if (!v) throw new UserError("No se pudo crear el video.", "Revisa que tenga título, descripción o guion.", "cola", false);
+    await updateVideo(v.id, { data: { ...origin, voice: p.voice || null, publish: p.publish || null } });
   }
   // Portadas: tal cual las subiste (miniatura de YouTube, portada incrustada en las descargas y en las partes de TikTok)
   for (const k of ["youtube", "tiktok"] as CoverKind[]) {
-    const src = it.cfg.covers[k];
+    const src = cfg.covers[k];
     if (src && (await fs.exists(src))) await saveCover(v, k, src);
   }
   return (await getVideo(v.id))!;
@@ -605,10 +613,4 @@ async function settle(it: QueueItem, e: unknown) {
   }
   await patchItem(it.id, { status: "failed", attempts, error: msg, finished_at: Date.now() });
   await notify(`Cola: falló «${it.video_id ? (await getVideo(it.video_id))?.title ?? "un video" : "una tarjeta"}»; sigo con el siguiente.`, msg, it.video_id, "warn");
-}
-
-/** Resumen para la interfaz. */
-export function queueSummary(items: QueueItem[]) {
-  const n = (s: QueueStatus) => items.filter((i) => i.status === s).length;
-  return { pending: n("pending") + n("waiting") + n("running"), done: n("done"), failed: n("failed"), attention: n("attention"), waitingUntil: items.find((i) => i.status === "waiting")?.wait_until ?? null };
 }
